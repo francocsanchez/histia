@@ -13,6 +13,8 @@ import { can } from "@/lib/permissions";
 
 const primaryLinks = [
   { href: "/inicio", label: "Inicio", resource: "dashboard" as const },
+  { href: "/atenciones", label: "Atenciones", resource: "atenciones" as const },
+  { href: "/rx", label: "RX", resource: "rx" as const },
   { href: "/pacientes", label: "Pacientes", resource: "pacientes" as const },
 ];
 

@@ -12,12 +12,14 @@ export function Dialog({
   description,
   onClose,
   children,
+  className,
 }: {
   open: boolean;
   title: string;
   description?: string;
   onClose: () => void;
   children: React.ReactNode;
+  className?: string;
 }) {
   useEffect(() => {
     if (!open) {
@@ -37,7 +39,7 @@ export function Dialog({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 hidden items-center justify-center bg-black/35 p-4",
+        "fixed inset-0 z-50 hidden items-center justify-center overflow-y-auto bg-black/35 p-4",
         open && "flex",
       )}
     >
@@ -47,7 +49,12 @@ export function Dialog({
         onClick={onClose}
         aria-label="Cerrar"
       />
-      <Card className="relative z-10 w-full max-w-2xl p-6 shadow-2xl">
+      <Card
+        className={cn(
+          "relative z-10 my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col p-6 shadow-2xl",
+          className,
+        )}
+      >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold">{title}</h2>
@@ -59,7 +66,7 @@ export function Dialog({
             Cerrar
           </Button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">{children}</div>
       </Card>
     </div>
   );

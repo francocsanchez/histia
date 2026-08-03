@@ -1,11 +1,11 @@
-import { Model, Schema, model, models } from "mongoose";
+import { Model, Schema, Types, model, models } from "mongoose";
 
 export interface CodigoObraSocialDocument {
   _id: string;
   nombre: string;
   codigo: string;
   codigoNormalizado: string;
-  obraSocialId: Schema.Types.ObjectId;
+  obraSocialId: Types.ObjectId;
   valorCentavos: number;
   activo: boolean;
   createdAt: Date;

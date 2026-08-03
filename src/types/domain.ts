@@ -20,6 +20,11 @@ export interface QueryParams {
   status?: "all" | "active" | "inactive";
   obraSocialId?: string;
   role?: UserRole;
+  rxType?: RxType;
+  dateFrom?: string;
+  dateTo?: string;
+  userId?: string;
+  patientId?: string;
 }
 
 export interface SessionUser {
@@ -81,4 +86,68 @@ export interface DashboardStatsDto {
   codigosActivos: number;
   pacientesActivos: number;
   usuariosActivos: number;
+}
+
+export const rxTypeValues = ["carpal", "panoramica"] as const;
+export type RxType = (typeof rxTypeValues)[number];
+
+export const referrerTypeValues = ["interno", "externo"] as const;
+export type ReferrerType = (typeof referrerTypeValues)[number];
+
+export interface RxAttentionDto {
+  id: string;
+  fecha: string;
+  pacienteId: string;
+  pacienteNombreCompleto: string;
+  pacienteDni: string;
+  derivanteTipo: ReferrerType;
+  derivanteUserId: string | null;
+  derivanteNombre: string;
+  tipoRx: RxType;
+  valorCentavos: number | null;
+  usuarioGeneradorId: string;
+  usuarioGeneradorNombre: string;
+  observaciones: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const attentionCodeStatusValues = [
+  "no-cargado",
+  "pendiente",
+  "ok",
+  "diferido",
+  "denegado",
+] as const;
+
+export type AttentionCodeStatus = (typeof attentionCodeStatusValues)[number];
+
+export interface AttentionCodeLineDto {
+  codigoObraSocialId: string;
+  codigoNombre: string;
+  codigo: string;
+  pieza: string | null;
+  coseguroCentavos: number | null;
+  observacion: string | null;
+  pagoOdontologoCentavos: number;
+  estado: AttentionCodeStatus;
+}
+
+export interface AttentionDto {
+  id: string;
+  fecha: string;
+  pacienteId: string;
+  pacienteNombreCompleto: string;
+  pacienteDni: string;
+  obraSocialId: string;
+  obraSocialNombre: string;
+  usuarioCargaId: string;
+  usuarioCargaNombre: string;
+  observacionGeneral: string | null;
+  codigos: AttentionCodeLineDto[];
+  cantidadCodigos: number;
+  totalCoseguroCentavos: number;
+  totalPagoOdontologoCentavos: number;
+  createdAt: string;
+  updatedAt: string;
 }

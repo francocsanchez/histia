@@ -1,11 +1,11 @@
-import { Model, Schema, model, models } from "mongoose";
+import { Model, Schema, Types, model, models } from "mongoose";
 
 export interface PacienteDocument {
   _id: string;
   nombre: string;
   apellido: string;
   dni: string;
-  obraSocialId: Schema.Types.ObjectId | null;
+  obraSocialId: Types.ObjectId | null;
   activo: boolean;
   createdAt: Date;
   updatedAt: Date;

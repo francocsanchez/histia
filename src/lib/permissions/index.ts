@@ -2,6 +2,8 @@ import { SessionUser, UserRole } from "@/types/domain";
 
 export type ResourceKey =
   | "dashboard"
+  | "rx"
+  | "atenciones"
   | "obras-sociales"
   | "codigos-obras-sociales"
   | "pacientes"
@@ -22,6 +24,14 @@ export function can(
 ) {
   if (isAdmin(user)) {
     return true;
+  }
+
+  if (resource === "rx") {
+    return user.roles.includes("radiologo");
+  }
+
+  if (resource === "atenciones") {
+    return user.roles.includes("odontologo");
   }
 
   if (

@@ -121,10 +121,12 @@ export async function createCodigoObraSocial(input: {
   const nombre = normalizeName(input.nombre);
   const codigo = normalizeCode(input.codigo);
   const codigoNormalizado = normalizeTextKey(codigo);
-  const duplicate = await CodigoObraSocialModel.findOne({
-    obraSocialId: input.obraSocialId,
-    codigoNormalizado,
-  }).lean();
+  const duplicate = await CodigoObraSocialModel.findOne()
+    .where("obraSocialId")
+    .equals(new Types.ObjectId(input.obraSocialId))
+    .where("codigoNormalizado")
+    .equals(codigoNormalizado)
+    .lean();
 
   if (duplicate) {
     throw new AppError(
@@ -135,14 +137,14 @@ export async function createCodigoObraSocial(input: {
     );
   }
 
-  const codigoObraSocial = await CodigoObraSocialModel.create({
-    nombre,
-    codigo,
-    codigoNormalizado,
-    obraSocialId: input.obraSocialId,
-    valorCentavos: input.valorCentavos,
-    activo: true,
-  });
+  const codigoObraSocial = new CodigoObraSocialModel();
+  codigoObraSocial.nombre = nombre;
+  codigoObraSocial.codigo = codigo;
+  codigoObraSocial.codigoNormalizado = codigoNormalizado;
+  codigoObraSocial.obraSocialId = new Types.ObjectId(input.obraSocialId);
+  codigoObraSocial.valorCentavos = input.valorCentavos;
+  codigoObraSocial.activo = true;
+  await codigoObraSocial.save();
 
   await codigoObraSocial.populate("obraSocialId", "nombre");
 
@@ -185,11 +187,14 @@ export async function updateCodigoObraSocial(
 
   const codigo = normalizeCode(input.codigo);
   const codigoNormalizado = normalizeTextKey(codigo);
-  const duplicate = await CodigoObraSocialModel.findOne({
-    obraSocialId: input.obraSocialId,
-    codigoNormalizado,
-    _id: { $ne: id },
-  }).lean();
+  const duplicate = await CodigoObraSocialModel.findOne()
+    .where("obraSocialId")
+    .equals(new Types.ObjectId(input.obraSocialId))
+    .where("codigoNormalizado")
+    .equals(codigoNormalizado)
+    .where("_id")
+    .ne(id)
+    .lean();
 
   if (duplicate) {
     throw new AppError(
