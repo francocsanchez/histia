@@ -5,11 +5,11 @@ import { useEffect, useEffectEvent, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { PageHeader } from "@/components/shared/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { attentionStatusLabels } from "@/lib/attention-status";
 import { formatDate } from "@/lib/utils";
 import { AttentionDto } from "@/types/domain";
 
@@ -111,6 +111,23 @@ export function AtencionesManager({
     await load();
   });
 
+  const formatStatusSummary = (item: AttentionDto) => {
+    const counts = item.codigos.reduce(
+      (acc, codigo) => {
+        acc[codigo.estado] = (acc[codigo.estado] ?? 0) + 1;
+        return acc;
+      },
+      {} as Partial<Record<AttentionDto["codigos"][number]["estado"], number>>,
+    );
+
+    return Object.entries(counts)
+      .map(([status, count]) => {
+        const typedStatus = status as AttentionDto["codigos"][number]["estado"];
+        return `${attentionStatusLabels[typedStatus]} (${count})`;
+      })
+      .join(" | ");
+  };
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void loadFromEffect();
@@ -198,7 +215,14 @@ export function AtencionesManager({
       {!loading && !error && items.length > 0 ? (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[19%]" />
+                <col className="w-[24%]" />
+                <col className="w-[14%]" />
+                <col className="w-[37%]" />
+                <col className="w-[6%]" />
+              </colgroup>
               <thead className="bg-muted/70 text-left">
                 <tr>
                   <th className="px-4 py-3">Fecha</th>
@@ -218,16 +242,10 @@ export function AtencionesManager({
                     </td>
                     <td className="px-4 py-3">{item.obraSocialNombre}</td>
                     <td className="px-4 py-3">
-                      <div className="space-y-1">
-                        <Badge variant="muted">{item.cantidadCodigos} codigos</Badge>
-                        <p className="text-xs text-muted-foreground">
-                          {item.codigos
-                            .slice(0, 2)
-                            .map((codigo) => codigo.codigo || codigo.codigoNombre)
-                            .join(", ")}
-                          {item.codigos.length > 2 ? "..." : ""}
-                        </p>
-                      </div>
+                      <p className="text-xs font-medium text-foreground">
+                        {item.cantidadCodigos} codigo{item.cantidadCodigos === 1 ? "" : "s"}{" "}
+                        - {formatStatusSummary(item)}
+                      </p>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">

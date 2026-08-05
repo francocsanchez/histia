@@ -30,7 +30,13 @@ type ListPayload = {
   error?: { message?: string };
 };
 
-export function PacientesManager({ canManage }: { canManage: boolean }) {
+export function PacientesManager({
+  canManage,
+  canToggleStatus,
+}: {
+  canManage: boolean;
+  canToggleStatus: boolean;
+}) {
   const [items, setItems] = useState<PacienteDto[]>([]);
   const [obrasSociales, setObrasSociales] = useState<ObraSocialDto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,6 +52,17 @@ export function PacientesManager({ canManage }: { canManage: boolean }) {
     resolver: zodResolver(pacienteSchema),
     defaultValues: { nombre: "", apellido: "", dni: "", obraSocialId: "" },
   });
+  const selectableObrasSociales = selected?.obraSocialId &&
+    selected.obraSocialNombre &&
+    !obrasSociales.some((obra) => obra.id === selected.obraSocialId)
+      ? [
+          {
+            id: selected.obraSocialId,
+            nombre: `${selected.obraSocialNombre} (inactiva)`,
+          } satisfies Pick<ObraSocialDto, "id" | "nombre">,
+          ...obrasSociales,
+        ]
+      : obrasSociales;
 
   const loadObrasSociales = async () => {
     const response = await fetch("/api/obras-sociales?status=active&limit=100", {
@@ -200,7 +217,7 @@ export function PacientesManager({ canManage }: { canManage: boolean }) {
           }}
         >
           <option value="">Todas las obras sociales</option>
-          {obrasSociales.map((obra) => (
+          {selectableObrasSociales.map((obra) => (
             <option key={obra.id} value={obra.id}>
               {obra.nombre}
             </option>
@@ -250,13 +267,15 @@ export function PacientesManager({ canManage }: { canManage: boolean }) {
                           <Button variant="secondary" size="sm" onClick={() => openEdit(item)}>
                             Editar
                           </Button>
-                          <Button
-                            variant={item.activo ? "destructive" : "secondary"}
-                            size="sm"
-                            onClick={() => toggleStatus(item)}
-                          >
-                            {item.activo ? "Desactivar" : "Activar"}
-                          </Button>
+                          {canToggleStatus ? (
+                            <Button
+                              variant={item.activo ? "destructive" : "secondary"}
+                              size="sm"
+                              onClick={() => toggleStatus(item)}
+                            >
+                              {item.activo ? "Desactivar" : "Activar"}
+                            </Button>
+                          ) : null}
                         </div>
                       </td>
                     ) : null}
@@ -308,7 +327,7 @@ export function PacientesManager({ canManage }: { canManage: boolean }) {
             <label className="mb-2 block text-sm font-medium">Obra social</label>
             <Select {...form.register("obraSocialId")}>
               <option value="">Sin obra social</option>
-              {obrasSociales.map((obra) => (
+              {selectableObrasSociales.map((obra) => (
                 <option key={obra.id} value={obra.id}>
                   {obra.nombre}
                 </option>

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { AppError, fromUnknownError, ok } from "@/lib/api";
 import { requireApiSessionUser } from "@/lib/auth/session";
-import { can } from "@/lib/permissions";
+import { isAdmin } from "@/lib/permissions";
 import { setPacienteStatus } from "@/services/pacientes";
 
 const statusSchema = z.object({
@@ -16,7 +16,7 @@ export async function POST(
   try {
     const user = await requireApiSessionUser(request.headers);
 
-    if (!can(user, "pacientes", "write")) {
+    if (!isAdmin(user)) {
       throw new AppError("FORBIDDEN", "No tenes permisos para editar", 403);
     }
 

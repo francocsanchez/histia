@@ -31,6 +31,7 @@ type AttentionFormInput = {
     codigoObraSocialId: string;
     pieza?: string | null;
     coseguroCentavos?: number | null;
+    coseguroOdontoCentavos?: number | null;
     observacion?: string | null;
     pagoOdontologoCentavos: number;
     estado: AttentionCodeStatus;
@@ -48,6 +49,7 @@ type AttentionRow = {
     codigoObraSocialId: unknown;
     pieza: string | null;
     coseguroCentavos: number | null;
+    coseguroOdontoCentavos: number | null;
     observacion: string | null;
     pagoOdontologoCentavos: number;
     estado: AttentionCodeStatus;
@@ -64,6 +66,140 @@ type AttentionRow = {
   }>;
 };
 
+function hasAdministrativeAccess(user: SessionUser) {
+  return user.roles.includes("administrador");
+}
+
+function isSameObjectId(left: unknown, right: string) {
+  return String(left) === right;
+}
+
+function normalizeOptionalText(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = normalizeWhitespace(value);
+  return normalized || null;
+}
+
+function normalizeOptionalPiece(value?: string | null) {
+  return normalizeOptionalText(value);
+}
+
+function ensureAttentionOwnership(attention: { usuarioCargaId: unknown }, currentUser: SessionUser) {
+  if (hasAdministrativeAccess(currentUser)) {
+    return;
+  }
+
+  if (!isSameObjectId(attention.usuarioCargaId, currentUser.id)) {
+    throw new AppError("FORBIDDEN", "No tenes permisos para acceder a esta atencion", 403);
+  }
+}
+
+function ensureEditableAttentionShape(
+  currentAttention: {
+    fecha: Date;
+    pacienteId: unknown;
+    observacionGeneral: string | null;
+    codigos: AttentionFormInput["codigos"];
+  },
+  input: AttentionFormInput,
+) {
+  if (currentAttention.fecha.toISOString().slice(0, 10) !== input.fecha) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "No podes modificar la fecha de una atencion ya creada desde esta vista",
+      400,
+    );
+  }
+
+  if (!input.pacienteId || !isSameObjectId(currentAttention.pacienteId, input.pacienteId)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "No podes modificar el paciente de una atencion ya creada desde esta vista",
+      400,
+    );
+  }
+
+  if (normalizeOptionalText(currentAttention.observacionGeneral) !== normalizeOptionalText(input.observacionGeneral)) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "La observacion general solo puede modificarse desde la vista administrativa",
+      400,
+    );
+  }
+
+  if (currentAttention.codigos.length !== input.codigos.length) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "No podes agregar ni quitar codigos en una atencion ya creada desde esta vista",
+      400,
+    );
+  }
+}
+
+function ensureEditableLineState(
+  persistedLine: AttentionFormInput["codigos"][number],
+  inputLine: AttentionFormInput["codigos"][number],
+  index: number,
+) {
+  if (persistedLine.estado !== inputLine.estado) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Una o mas lineas fueron auditadas mientras editabas la atencion. Recarga la pagina para continuar.",
+      409,
+      {
+        [`codigos.${index}.estado`]:
+          "La fila fue auditada mientras editabas la atencion. Recarga la pagina.",
+      },
+    );
+  }
+}
+
+function ensureAuditedLineUnchanged(
+  persistedLine: AttentionFormInput["codigos"][number],
+  inputLine: AttentionFormInput["codigos"][number],
+  index: number,
+) {
+  ensureEditableLineState(persistedLine, inputLine, index);
+
+  const sameCode = persistedLine.codigoObraSocialId === inputLine.codigoObraSocialId;
+  const samePiece =
+    normalizeOptionalPiece(persistedLine.pieza) === normalizeOptionalPiece(inputLine.pieza);
+  const sameCoseguro =
+    (persistedLine.coseguroCentavos ?? null) === (inputLine.coseguroCentavos ?? null);
+  const sameObservation =
+    normalizeOptionalText(persistedLine.observacion) ===
+    normalizeOptionalText(inputLine.observacion);
+  const samePago =
+    persistedLine.pagoOdontologoCentavos === inputLine.pagoOdontologoCentavos;
+  const sameCoseguroOdonto =
+    (persistedLine.coseguroOdontoCentavos ?? null) ===
+    (inputLine.coseguroOdontoCentavos ?? null);
+
+  if (
+    sameCode &&
+    samePiece &&
+    sameCoseguro &&
+    sameObservation &&
+    samePago &&
+    sameCoseguroOdonto
+  ) {
+    return;
+  }
+
+  throw new AppError(
+    "VALIDATION_ERROR",
+    "Solo podes editar filas que sigan en estado pendiente",
+    400,
+    {
+      [`codigos.${index}`]:
+        "La fila ya fue auditada y no puede modificarse desde esta vista",
+    },
+  );
+}
+
 function toAttentionCodeLineDto(
   line: AttentionRow["codigos"][number],
   codigoDetalle?: { nombre: string; codigo: string },
@@ -74,6 +210,7 @@ function toAttentionCodeLineDto(
     codigo: codigoDetalle?.codigo ?? "",
     pieza: line.pieza,
     coseguroCentavos: line.coseguroCentavos,
+    coseguroOdontoCentavos: line.coseguroOdontoCentavos,
     observacion: line.observacion,
     pagoOdontologoCentavos: line.pagoOdontologoCentavos,
     estado: line.estado,
@@ -89,6 +226,10 @@ function toAttentionDto(row: AttentionRow): AttentionDto {
   );
   const totalCoseguroCentavos = codigos.reduce(
     (sum, line) => sum + (line.coseguroCentavos ?? 0),
+    0,
+  );
+  const totalCoseguroOdontoCentavos = codigos.reduce(
+    (sum, line) => sum + (line.coseguroOdontoCentavos ?? 0),
     0,
   );
   const totalPagoOdontologoCentavos = codigos.reduce(
@@ -114,6 +255,7 @@ function toAttentionDto(row: AttentionRow): AttentionDto {
     codigos,
     cantidadCodigos: codigos.length,
     totalCoseguroCentavos,
+    totalCoseguroOdontoCentavos,
     totalPagoOdontologoCentavos,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -317,6 +459,7 @@ async function resolveAttentionCodes(
       codigoObraSocialId: new Types.ObjectId(line.codigoObraSocialId),
       pieza: line.pieza ? normalizeWhitespace(line.pieza) : null,
       coseguroCentavos: line.coseguroCentavos ?? null,
+      coseguroOdontoCentavos: line.coseguroOdontoCentavos ?? null,
       observacion: line.observacion ? normalizeWhitespace(line.observacion) : null,
       pagoOdontologoCentavos: line.pagoOdontologoCentavos ?? code.valorCentavos,
       estado: line.estado,
@@ -365,7 +508,7 @@ function buildAttentionPipeline(match: Record<string, unknown>) {
   ];
 }
 
-export async function listAttentions(query: QueryParams) {
+export async function listAttentions(query: QueryParams, currentUser: SessionUser) {
   await connectToDatabase();
 
   const match: Record<string, unknown> = {};
@@ -376,7 +519,9 @@ export async function listAttentions(query: QueryParams) {
     match.fecha = dateMatch;
   }
 
-  if (query.userId) {
+  if (!hasAdministrativeAccess(currentUser)) {
+    match.usuarioCargaId = new Types.ObjectId(currentUser.id);
+  } else if (query.userId) {
     match.usuarioCargaId = new Types.ObjectId(query.userId);
   }
 
@@ -430,7 +575,7 @@ export async function listAttentions(query: QueryParams) {
   };
 }
 
-export async function getAttentionById(id: string) {
+export async function getAttentionById(id: string, currentUser: SessionUser) {
   await connectToDatabase();
 
   const rows = await AttentionModel.aggregate([
@@ -443,6 +588,8 @@ export async function getAttentionById(id: string) {
   if (!row) {
     throw new AppError("NOT_FOUND", "La atencion no existe", 404);
   }
+
+  ensureAttentionOwnership(row, currentUser);
 
   return toAttentionDto(row);
 }
@@ -609,10 +756,17 @@ export async function createAttention(input: AttentionFormInput, currentUser: Se
     codigos,
   });
 
-  return getAttentionById(String(attention._id));
+  return getAttentionById(String(attention._id), currentUser);
 }
 
-export async function updateAttention(id: string, input: AttentionFormInput) {
+export async function updateAttention(
+  id: string,
+  input: AttentionFormInput,
+  currentUser: SessionUser,
+  options?: {
+    isAdministrative?: boolean;
+  },
+) {
   await connectToDatabase();
 
   const attention = await AttentionModel.findById(id);
@@ -621,18 +775,82 @@ export async function updateAttention(id: string, input: AttentionFormInput) {
     throw new AppError("NOT_FOUND", "La atencion no existe", 404);
   }
 
+  ensureAttentionOwnership(attention, currentUser);
+
+  const isAdministrative = Boolean(options?.isAdministrative && hasAdministrativeAccess(currentUser));
+
+  if (!isAdministrative) {
+    ensureEditableAttentionShape(
+      {
+        fecha: attention.fecha,
+        pacienteId: attention.pacienteId,
+        observacionGeneral: attention.observacionGeneral,
+        codigos: attention.codigos.map((line) => ({
+          codigoObraSocialId: String(line.codigoObraSocialId),
+          pieza: line.pieza,
+          coseguroCentavos: line.coseguroCentavos,
+          coseguroOdontoCentavos: line.coseguroOdontoCentavos,
+          observacion: line.observacion,
+          pagoOdontologoCentavos: line.pagoOdontologoCentavos,
+          estado: line.estado,
+        })),
+      },
+      input,
+    );
+  }
+
   const paciente = await resolvePaciente(input);
   const obraSocial = await resolveActiveObraSocial(paciente);
   const codigos = await resolveAttentionCodes(String(obraSocial._id), input.codigos);
 
-  attention.fecha = new Date(input.fecha);
-  attention.pacienteId = new Types.ObjectId(String(paciente._id));
-  attention.obraSocialId = new Types.ObjectId(String(obraSocial._id));
-  attention.observacionGeneral = input.observacionGeneral
-    ? normalizeWhitespace(input.observacionGeneral)
-    : null;
-  attention.codigos = codigos;
+  if (isAdministrative) {
+    attention.fecha = new Date(input.fecha);
+    attention.pacienteId = new Types.ObjectId(String(paciente._id));
+    attention.obraSocialId = new Types.ObjectId(String(obraSocial._id));
+    attention.observacionGeneral = input.observacionGeneral
+      ? normalizeWhitespace(input.observacionGeneral)
+      : null;
+    attention.codigos = codigos;
+  } else {
+    attention.codigos = attention.codigos.map((persistedLine, index) => {
+      const inputLine = input.codigos[index];
+      const nextLine = codigos[index];
+
+      if (!inputLine || !nextLine) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "No podes agregar ni quitar codigos en una atencion ya creada desde esta vista",
+          400,
+        );
+      }
+
+      const persistedComparable = {
+        codigoObraSocialId: String(persistedLine.codigoObraSocialId),
+        pieza: persistedLine.pieza,
+        coseguroCentavos: persistedLine.coseguroCentavos,
+        coseguroOdontoCentavos: persistedLine.coseguroOdontoCentavos,
+        observacion: persistedLine.observacion,
+        pagoOdontologoCentavos: persistedLine.pagoOdontologoCentavos,
+        estado: persistedLine.estado,
+      };
+
+      if (persistedLine.estado !== "pendiente") {
+        ensureAuditedLineUnchanged(persistedComparable, inputLine, index);
+        return persistedLine;
+      }
+
+      ensureEditableLineState(persistedComparable, inputLine, index);
+
+      return {
+        ...nextLine,
+        pagoOdontologoCentavos: persistedLine.pagoOdontologoCentavos,
+        coseguroOdontoCentavos: persistedLine.coseguroOdontoCentavos,
+        estado: persistedLine.estado,
+      };
+    });
+  }
+
   await attention.save();
 
-  return getAttentionById(id);
+  return getAttentionById(id, currentUser);
 }

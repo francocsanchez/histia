@@ -13,6 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import {
+  attentionStatusLabels,
+  getAttentionStatusBadgeClassName,
+  getAttentionStatusBadgeVariant,
+  isAttentionCodeEditableByUser,
+} from "@/lib/attention-status";
 import { attentionSchema } from "@/lib/validations/schemas";
 import { AttentionDto } from "@/types/domain";
 
@@ -56,11 +62,38 @@ type LookupPayload = {
   error?: { message?: string };
 };
 
+function formatMoneyInputFromCents(value: number | null | undefined) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "";
+  }
+
+  const pesos = Math.floor(value / 100);
+
+  if (!Number.isFinite(pesos) || pesos <= 0) {
+    return "";
+  }
+
+  return new Intl.NumberFormat("es-AR", {
+    maximumFractionDigits: 0,
+  }).format(pesos);
+}
+
+function parseMoneyInputToCents(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (!digits) {
+    return null;
+  }
+
+  return Number(digits) * 100;
+}
+
 function emptyLine() {
   return {
     codigoObraSocialId: "",
     pieza: "",
     coseguroCentavos: null,
+    coseguroOdontoCentavos: null,
     observacion: "",
     pagoOdontologoCentavos: 0,
     estado: "pendiente" as const,
@@ -86,12 +119,7 @@ function getDefaultValues(initialAttention?: AttentionDto): FormValues {
   return {
     fecha: initialAttention.fecha.slice(0, 10),
     pacienteId: initialAttention.pacienteId,
-    paciente: {
-      nombre: "",
-      apellido: "",
-      dni: initialAttention.pacienteDni,
-      obraSocialId: initialAttention.obraSocialId,
-    },
+    paciente: undefined,
     observacionGeneral: initialAttention.observacionGeneral ?? "",
     codigos:
       initialAttention.codigos.length > 0
@@ -99,6 +127,7 @@ function getDefaultValues(initialAttention?: AttentionDto): FormValues {
             codigoObraSocialId: line.codigoObraSocialId,
             pieza: line.pieza ?? "",
             coseguroCentavos: line.coseguroCentavos,
+            coseguroOdontoCentavos: line.coseguroOdontoCentavos,
             observacion: line.observacion ?? "",
             pagoOdontologoCentavos: line.pagoOdontologoCentavos,
             estado: line.estado,
@@ -110,9 +139,13 @@ function getDefaultValues(initialAttention?: AttentionDto): FormValues {
 export function AttentionForm({
   mode,
   initialAttention,
+  isAdministrative = false,
+  returnPath = "/atenciones",
 }: {
   mode: "create" | "edit";
   initialAttention?: AttentionDto;
+  isAdministrative?: boolean;
+  returnPath?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -179,6 +212,11 @@ export function AttentionForm({
   const projectedExceeded = resumenMensual
     ? projectedUsage > resumenMensual.limiteMensual
     : false;
+  const isUserEditMode = mode === "edit" && !isAdministrative;
+  const hasEditablePendingLines =
+    initialAttention?.codigos.some((line) => isAttentionCodeEditableByUser(line.estado)) ??
+    false;
+  const isReadOnlyUserEdit = isUserEditMode && !hasEditablePendingLines;
 
   const bootstrapData = async () => {
     setLoading(true);
@@ -288,6 +326,26 @@ export function AttentionForm({
     }
   }, [loading, fecha, pacienteId, inlineObraSocialId]);
 
+  const onInvalid = (errors: typeof form.formState.errors) => {
+    const codeErrors = Array.isArray(errors.codigos) ? errors.codigos : [];
+    const firstCodeError = codeErrors.find((line) => Boolean(line)) ?? null;
+    const firstCodeMessage =
+      firstCodeError?.codigoObraSocialId?.message ||
+      firstCodeError?.coseguroCentavos?.message ||
+      firstCodeError?.coseguroOdontoCentavos?.message ||
+      firstCodeError?.pagoOdontologoCentavos?.message ||
+      firstCodeError?.estado?.message ||
+      firstCodeError?.observacion?.message;
+
+    form.setError("root", {
+      message:
+        errors.pacienteId?.message ||
+        errors.fecha?.message ||
+        firstCodeMessage ||
+        "Revisa los datos cargados antes de guardar",
+    });
+  };
+
   const searchPatientByDni = async () => {
     const dni = patientLookupDni.trim();
 
@@ -309,10 +367,10 @@ export function AttentionForm({
 
       if (data.paciente) {
         form.setValue("pacienteId", data.paciente.id);
-        form.setValue("paciente.dni", data.paciente.dni);
-        form.setValue("paciente.nombre", data.paciente.nombre);
-        form.setValue("paciente.apellido", data.paciente.apellido);
-        form.setValue("paciente.obraSocialId", data.paciente.obraSocialId ?? "");
+        form.setValue("paciente", undefined, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       } else {
         form.setValue("pacienteId", "");
         form.setValue("paciente.dni", dni);
@@ -339,7 +397,18 @@ export function AttentionForm({
           Number.isNaN(line.coseguroCentavos)
             ? null
             : Number(line.coseguroCentavos),
-        pagoOdontologoCentavos: Number(line.pagoOdontologoCentavos),
+        coseguroOdontoCentavos:
+          line.coseguroOdontoCentavos === null ||
+          line.coseguroOdontoCentavos === undefined ||
+          Number.isNaN(line.coseguroOdontoCentavos)
+            ? null
+            : Number(line.coseguroOdontoCentavos),
+        pagoOdontologoCentavos:
+          line.pagoOdontologoCentavos === null ||
+          line.pagoOdontologoCentavos === undefined ||
+          Number.isNaN(line.pagoOdontologoCentavos)
+            ? 0
+            : Number(line.pagoOdontologoCentavos),
       })),
     };
 
@@ -349,7 +418,7 @@ export function AttentionForm({
 
     const response = await fetch(
       mode === "edit" && initialAttention
-        ? `/api/atenciones/${initialAttention.id}`
+        ? `/api/atenciones/${initialAttention.id}${isAdministrative ? "?admin=1" : ""}`
         : "/api/atenciones",
       {
         method: mode === "edit" ? "PATCH" : "POST",
@@ -366,9 +435,9 @@ export function AttentionForm({
       return;
     }
 
-    router.push("/atenciones");
+    router.push(returnPath);
     router.refresh();
-  });
+  }, onInvalid);
 
   if (loading) {
     return <LoadingState />;
@@ -385,36 +454,40 @@ export function AttentionForm({
           <div>
             <p className="text-sm font-medium">Paciente</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Busca por DNI y, si no existe, completa el alta inline sin salir del flujo.
+              {isUserEditMode
+                ? "La atencion mantiene su paciente original. Solo podes corregir filas que sigan en pendiente."
+                : "Busca por DNI y, si no existe, completa el alta inline sin salir del flujo."}
             </p>
           </div>
-          <Link href="/atenciones">
+          <Link href={returnPath}>
             <Button type="button" variant="secondary">
               Volver al listado
             </Button>
           </Link>
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
-          <div>
-            <label className="mb-2 block text-sm font-medium">DNI del paciente</label>
-            <Input
-              value={patientLookupDni}
-              onChange={(event) => setPatientLookupDni(event.target.value)}
-              placeholder="Ingresa el DNI y busca"
-            />
+        {!isUserEditMode ? (
+          <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
+            <div>
+              <label className="mb-2 block text-sm font-medium">DNI del paciente</label>
+              <Input
+                value={patientLookupDni}
+                onChange={(event) => setPatientLookupDni(event.target.value)}
+                placeholder="Ingresa el DNI y busca"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={searchPatientByDni}
+                disabled={patientLookupLoading}
+              >
+                {patientLookupLoading ? "Buscando..." : "Buscar paciente"}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-end">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={searchPatientByDni}
-              disabled={patientLookupLoading}
-            >
-              {patientLookupLoading ? "Buscando..." : "Buscar paciente"}
-            </Button>
-          </div>
-        </div>
+        ) : null}
 
         {patientLookupError ? (
           <p className="mt-3 text-sm text-destructive">{patientLookupError}</p>
@@ -444,7 +517,7 @@ export function AttentionForm({
               </div>
             </div>
           </div>
-        ) : (
+        ) : !isUserEditMode ? (
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium">Nombre</label>
@@ -470,21 +543,34 @@ export function AttentionForm({
               </Select>
             </div>
           </div>
-        )}
+        ) : null}
       </Card>
+
+      {isUserEditMode ? (
+        <Card className="border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+          {isReadOnlyUserEdit
+            ? "Esta atencion ya fue auditada por administracion. Las filas quedan solo lectura."
+            : "Solo podes modificar las filas que sigan en estado Pendiente. Las filas auditadas quedan bloqueadas."}
+        </Card>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
         <Card className="p-3">
           <div className="grid gap-3 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-medium">Fecha</label>
-              <Input type="date" {...form.register("fecha")} />
+              <Input
+                type="date"
+                {...form.register("fecha")}
+                readOnly={isUserEditMode}
+              />
             </div>
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium">Observacion general</label>
               <textarea
-                className="min-h-28 w-full border border-input bg-white px-3 py-2 text-sm text-foreground"
+                className="min-h-28 w-full border border-input bg-white px-3 py-2 text-sm text-foreground read-only:bg-muted"
                 {...form.register("observacionGeneral")}
+                readOnly={isUserEditMode}
               />
             </div>
           </div>
@@ -505,8 +591,7 @@ export function AttentionForm({
               </p>
               {projectedExceeded ? (
                 <div className="border border-amber-300 bg-amber-50 p-3 text-amber-900">
-                  Estas superando el tope mensual permitido para este paciente. Se
-                  podra guardar igual, pero quedara advertido en el flujo.
+                  Estas superando el tope mensual permitido para este paciente.
                 </div>
               ) : null}
             </div>
@@ -523,21 +608,42 @@ export function AttentionForm({
           <div>
             <p className="text-sm font-medium">Codigos de la atencion</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Selecciona el codigo y completa solo los datos administrativos necesarios.
+              {isAdministrative
+                ? "Selecciona el codigo y completa solo los datos administrativos necesarios."
+                : isUserEditMode
+                  ? "Solo las filas en estado Pendiente quedan disponibles para correccion."
+                  : "Selecciona el codigo y completa los datos de la atencion."}
             </p>
           </div>
-          <Button type="button" variant="secondary" onClick={() => append(emptyLine())}>
-            Agregar codigo
-          </Button>
+          {!isUserEditMode ? (
+            <Button type="button" variant="secondary" onClick={() => append(emptyLine())}>
+              Agregar codigo
+            </Button>
+          ) : null}
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-[920px] text-sm">
+          <table className="min-w-full text-sm">
+            <colgroup>
+              <col className={isAdministrative ? "w-[28%]" : "w-[34%]"} />
+              <col className="w-[10%]" />
+              <col className="w-[14%]" />
+              {isAdministrative ? <col className="w-[14%]" /> : null}
+              {isAdministrative ? <col className="w-[14%]" /> : null}
+              {mode === "edit" ? <col className="w-[12%]" /> : null}
+              <col className={isAdministrative ? "w-[22%]" : "w-[34%]"} />
+              <col className="w-[8%]" />
+            </colgroup>
             <thead className="bg-muted/70 text-left">
               <tr>
                 <th className="px-3 py-2">Codigo</th>
                 <th className="px-3 py-2">Pieza</th>
-                <th className="px-3 py-2">Coseguro</th>
+                <th className="px-3 py-2">
+                  Coseguro
+                </th>
+                {isAdministrative ? <th className="px-3 py-2">Coseguro odonto</th> : null}
+                {isAdministrative ? <th className="px-3 py-2">Valor atencion</th> : null}
+                {mode === "edit" ? <th className="px-3 py-2">Estado</th> : null}
                 <th className="px-3 py-2">Observacion</th>
                 <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
@@ -546,36 +652,62 @@ export function AttentionForm({
               {fields.map((field, index) => {
                 const selectedCodeId = lineValues?.[index]?.codigoObraSocialId ?? "";
                 const selectedCode = selectedCodeOptions.get(selectedCodeId);
+                const lineStatus = lineValues?.[index]?.estado ?? "pendiente";
+                const canEditLine = !isUserEditMode || isAttentionCodeEditableByUser(lineStatus);
+                const coseguroField = form.register(`codigos.${index}.coseguroCentavos`);
+                const coseguroOdontoField = form.register(
+                  `codigos.${index}.coseguroOdontoCentavos`,
+                );
+                const pagoOdontoField = form.register(
+                  `codigos.${index}.pagoOdontologoCentavos`,
+                );
 
                 return (
                   <tr key={field.id} className="border-t border-border align-top">
                     <td className="px-3 py-2">
-                      <Select
-                        {...form.register(`codigos.${index}.codigoObraSocialId`)}
-                        onChange={(event) => {
-                          const nextCodeId = event.target.value;
-                          form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
-                            shouldDirty: true,
-                            shouldValidate: true,
-                          });
+                      {isUserEditMode && !canEditLine ? (
+                        <>
+                          <input
+                            type="hidden"
+                            {...form.register(`codigos.${index}.codigoObraSocialId`)}
+                          />
+                          <div className="rounded-md border border-border bg-muted/50 px-3 py-2">
+                            <p className="font-medium">
+                              {selectedCode
+                                ? `${selectedCode.codigo} - ${selectedCode.nombre}`
+                                : "Codigo auditado"}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <Select
+                          className="w-full"
+                          {...form.register(`codigos.${index}.codigoObraSocialId`)}
+                          onChange={(event) => {
+                            const nextCodeId = event.target.value;
+                            form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
 
-                          const code = selectedCodeOptions.get(nextCodeId);
-                          if (code) {
-                            form.setValue(
-                              `codigos.${index}.pagoOdontologoCentavos`,
-                              code.valorCentavos,
-                              { shouldDirty: true, shouldValidate: true },
-                            );
-                          }
-                        }}
-                      >
-                        <option value="">Seleccionar codigo</option>
-                        {codigosDisponibles.map((codigo) => (
-                          <option key={codigo.id} value={codigo.id}>
-                            {codigo.codigo} - {codigo.nombre}
-                          </option>
-                        ))}
-                      </Select>
+                            const code = selectedCodeOptions.get(nextCodeId);
+                            if (code) {
+                              form.setValue(
+                                `codigos.${index}.pagoOdontologoCentavos`,
+                                code.valorCentavos,
+                                { shouldDirty: true, shouldValidate: true },
+                              );
+                            }
+                          }}
+                        >
+                          <option value="">Seleccionar codigo</option>
+                          {codigosDisponibles.map((codigo) => (
+                            <option key={codigo.id} value={codigo.id}>
+                              {codigo.codigo} - {codigo.nombre}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
                       {selectedCode ? (
                         <p className="mt-2 text-xs text-muted-foreground">
                           {selectedCode.nombre}
@@ -587,34 +719,133 @@ export function AttentionForm({
                         className="w-20"
                         maxLength={4}
                         {...form.register(`codigos.${index}.pieza`)}
+                        readOnly={!canEditLine}
                       />
                     </td>
                     <td className="px-3 py-2">
                       <Input
-                        type="number"
-                        min={0}
-                        {...form.register(`codigos.${index}.coseguroCentavos`, {
-                          setValueAs: (value) => (value === "" ? null : Number(value)),
-                        })}
+                        className="w-28"
+                        inputMode="numeric"
+                        placeholder="0"
+                        name={coseguroField.name}
+                        onBlur={coseguroField.onBlur}
+                        readOnly={!canEditLine}
+                        value={formatMoneyInputFromCents(
+                          lineValues?.[index]?.coseguroCentavos ?? null,
+                        )}
+                        onChange={(event) => {
+                          form.setValue(
+                            `codigos.${index}.coseguroCentavos`,
+                            parseMoneyInputToCents(event.target.value),
+                            {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            },
+                          );
+                        }}
+                      />
+                    </td>
+                    {isAdministrative ? (
+                      <td className="px-3 py-2">
+                        <Input
+                          className="w-28"
+                          inputMode="numeric"
+                          placeholder="0"
+                          name={coseguroOdontoField.name}
+                          onBlur={coseguroOdontoField.onBlur}
+                          value={formatMoneyInputFromCents(
+                            lineValues?.[index]?.coseguroOdontoCentavos ?? null,
+                          )}
+                          onChange={(event) => {
+                            form.setValue(
+                              `codigos.${index}.coseguroOdontoCentavos`,
+                              parseMoneyInputToCents(event.target.value),
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            );
+                          }}
+                        />
+                      </td>
+                    ) : null}
+                    {isAdministrative ? (
+                      <td className="px-3 py-2">
+                        <Input
+                          className="w-28"
+                          inputMode="numeric"
+                          placeholder="0"
+                          name={pagoOdontoField.name}
+                          onBlur={pagoOdontoField.onBlur}
+                          value={formatMoneyInputFromCents(
+                            lineValues?.[index]?.pagoOdontologoCentavos ?? null,
+                          )}
+                          onChange={(event) => {
+                            form.setValue(
+                              `codigos.${index}.pagoOdontologoCentavos`,
+                            parseMoneyInputToCents(event.target.value) ?? 0,
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            );
+                          }}
+                        />
+                      </td>
+                    ) : null}
+                    {mode === "edit" ? (
+                      <td className="px-3 py-2">
+                        {isAdministrative ? (
+                          <Select {...form.register(`codigos.${index}.estado`)}>
+                            <option value="no-cargado">No cargado</option>
+                            <option value="pendiente">Pendiente</option>
+                            <option value="ok">OK</option>
+                            <option value="diferido">Diferido</option>
+                            <option value="denegado">Denegado</option>
+                          </Select>
+                        ) : (
+                          <>
+                            <input
+                              type="hidden"
+                              {...form.register(`codigos.${index}.estado`)}
+                            />
+                            <Badge
+                              variant={getAttentionStatusBadgeVariant(lineStatus)}
+                              className={getAttentionStatusBadgeClassName(lineStatus)}
+                            >
+                              {attentionStatusLabels[lineStatus]}
+                            </Badge>
+                          </>
+                        )}
+                      </td>
+                    ) : null}
+                    <td className="px-3 py-2">
+                      <Input
+                        className="w-full"
+                        {...form.register(`codigos.${index}.observacion`)}
+                        readOnly={!canEditLine}
                       />
                     </td>
                     <td className="px-3 py-2">
-                      <Input {...form.register(`codigos.${index}.observacion`)} />
-                    </td>
-                    <td className="px-3 py-2">
                       <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => {
-                            if (fields.length > 1) {
-                              remove(index);
-                            }
-                          }}
-                          disabled={fields.length <= 1}
-                        >
-                          Quitar
-                        </Button>
+                        {!isUserEditMode ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => {
+                              if (fields.length > 1) {
+                                remove(index);
+                              }
+                            }}
+                            disabled={fields.length <= 1}
+                          >
+                            Quitar
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {canEditLine ? "Pendiente" : "Auditada"}
+                          </span>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -630,14 +861,16 @@ export function AttentionForm({
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <Link href="/atenciones">
+        <Link href={returnPath}>
           <Button type="button" variant="secondary">
-            Cancelar
+            {isReadOnlyUserEdit ? "Volver" : "Cancelar"}
           </Button>
         </Link>
-        <Button type="submit">
-          {mode === "edit" ? "Guardar cambios" : "Guardar atencion"}
-        </Button>
+        {!isReadOnlyUserEdit ? (
+          <Button type="submit">
+            {mode === "edit" ? "Guardar cambios" : "Guardar atencion"}
+          </Button>
+        ) : null}
       </div>
     </form>
   );

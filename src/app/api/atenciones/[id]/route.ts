@@ -1,6 +1,6 @@
 import { AppError, fromUnknownError, ok } from "@/lib/api";
 import { requireApiSessionUser } from "@/lib/auth/session";
-import { can } from "@/lib/permissions";
+import { can, isAdmin } from "@/lib/permissions";
 import { attentionSchema } from "@/lib/validations/schemas";
 import { updateAttention } from "@/services/atenciones";
 
@@ -17,7 +17,11 @@ export async function PATCH(
 
     const body = attentionSchema.parse(await request.json());
     const { id } = await context.params;
-    const updated = await updateAttention(id, body);
+    const { searchParams } = new URL(request.url);
+    const isAdministrative = searchParams.get("admin") === "1" && isAdmin(user);
+    const updated = await updateAttention(id, body, user, {
+      isAdministrative,
+    });
 
     return ok(updated);
   } catch (error) {

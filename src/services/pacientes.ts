@@ -8,6 +8,34 @@ import { ObraSocialModel } from "@/models/obra-social";
 import { PacienteModel } from "@/models/paciente";
 import { PacienteDto, QueryParams, SessionUser } from "@/types/domain";
 
+function extractObraSocialId(value: unknown) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Types.ObjectId) {
+    return value.toString();
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "object" && "_id" in value) {
+    const nestedId = (value as { _id?: unknown })._id;
+
+    if (nestedId instanceof Types.ObjectId) {
+      return nestedId.toString();
+    }
+
+    if (typeof nestedId === "string") {
+      return nestedId;
+    }
+  }
+
+  return String(value);
+}
+
 function toDto(document: {
   _id: unknown;
   nombre: string;
@@ -24,7 +52,7 @@ function toDto(document: {
     nombre: document.nombre,
     apellido: document.apellido,
     dni: document.dni,
-    obraSocialId: document.obraSocialId ? String(document.obraSocialId) : null,
+    obraSocialId: extractObraSocialId(document.obraSocialId),
     obraSocialNombre: document.obraSocial?.nombre ?? null,
     activo: document.activo,
     createdAt: document.createdAt.toISOString(),
@@ -191,7 +219,12 @@ export async function updatePaciente(
       throw new AppError("NOT_FOUND", "La obra social no existe", 404);
     }
 
-    if (!obraSocial.activo) {
+    const keepsCurrentInactiveObraSocial =
+      !obraSocial.activo &&
+      paciente.obraSocialId &&
+      String(paciente.obraSocialId) === input.obraSocialId;
+
+    if (!obraSocial.activo && !keepsCurrentInactiveObraSocial) {
       throw new AppError(
         "INACTIVE_RELATED_RECORD",
         "La obra social debe estar activa",

@@ -6,6 +6,7 @@ export interface AttentionCodeLineDocument {
   codigoObraSocialId: Types.ObjectId;
   pieza: string | null;
   coseguroCentavos: number | null;
+  coseguroOdontoCentavos: number | null;
   observacion: string | null;
   pagoOdontologoCentavos: number;
   estado: AttentionCodeStatus;
@@ -36,6 +37,11 @@ const attentionCodeLineSchema = new Schema<AttentionCodeLineDocument>(
       trim: true,
     },
     coseguroCentavos: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    coseguroOdontoCentavos: {
       type: Number,
       default: null,
       min: 0,

@@ -11,10 +11,6 @@ export async function GET(request: Request) {
   try {
     const user = await requireApiSessionUser(request.headers);
 
-    if (!can(user, "obras-sociales", "read")) {
-      throw new AppError("FORBIDDEN", "No tenes permisos para acceder", 403);
-    }
-
     const { searchParams } = new URL(request.url);
     const page = parsePositiveInteger(searchParams.get("page"), 1);
     const limit = parsePositiveInteger(searchParams.get("limit"), 10, 50);

@@ -4,6 +4,8 @@ export type ResourceKey =
   | "dashboard"
   | "rx"
   | "atenciones"
+  | "liquidaciones"
+  | "pagos"
   | "obras-sociales"
   | "codigos-obras-sociales"
   | "pacientes"
@@ -34,7 +36,13 @@ export function can(
     return user.roles.includes("odontologo");
   }
 
+  if (resource === "pacientes") {
+    return readOnlyRoles.some((role) => user.roles.includes(role));
+  }
+
   if (
+    resource === "liquidaciones" ||
+    resource === "pagos" ||
     resource === "obras-sociales" ||
     resource === "codigos-obras-sociales" ||
     resource === "usuarios"

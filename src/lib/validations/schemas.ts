@@ -130,6 +130,10 @@ const attentionCodeLineSchema = z.object({
     .union([z.coerce.number().int().min(0), z.null()])
     .optional()
     .transform((value) => value ?? null),
+  coseguroOdontoCentavos: z
+    .union([z.coerce.number().int().min(0), z.null()])
+    .optional()
+    .transform((value) => value ?? null),
   observacion: z.string().optional().nullable(),
   pagoOdontologoCentavos: z
     .coerce.number()

@@ -1,20 +1,18 @@
 import {
   AppError,
   fromUnknownError,
-  ok,
   okWithPagination,
   parsePositiveInteger,
 } from "@/lib/api";
 import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
-import { attentionSchema } from "@/lib/validations/schemas";
-import { createAttention, listAttentions } from "@/services/atenciones";
+import { listAttentions } from "@/services/atenciones";
 
 export async function GET(request: Request) {
   try {
     const user = await requireApiSessionUser(request.headers);
 
-    if (!can(user, "atenciones", "read")) {
+    if (!can(user, "liquidaciones", "read")) {
       throw new AppError("FORBIDDEN", "No tenes permisos para acceder", 403);
     }
 
@@ -26,7 +24,6 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("dateTo") ?? undefined;
     const userId = searchParams.get("userId") ?? undefined;
     const obraSocialId = searchParams.get("obraSocialId") ?? undefined;
-    const patientId = searchParams.get("patientId") ?? undefined;
 
     const result = await listAttentions({
       page,
@@ -36,27 +33,9 @@ export async function GET(request: Request) {
       dateTo,
       userId,
       obraSocialId,
-      patientId,
     }, user);
 
     return okWithPagination(result.data, result.pagination);
-  } catch (error) {
-    return fromUnknownError(error);
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const user = await requireApiSessionUser(request.headers);
-
-    if (!can(user, "atenciones", "write")) {
-      throw new AppError("FORBIDDEN", "No tenes permisos para crear", 403);
-    }
-
-    const body = attentionSchema.parse(await request.json());
-    const created = await createAttention(body, user);
-
-    return ok(created, { status: 201 });
   } catch (error) {
     return fromUnknownError(error);
   }

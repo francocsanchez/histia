@@ -128,6 +128,7 @@ export interface AttentionCodeLineDto {
   codigo: string;
   pieza: string | null;
   coseguroCentavos: number | null;
+  coseguroOdontoCentavos: number | null;
   observacion: string | null;
   pagoOdontologoCentavos: number;
   estado: AttentionCodeStatus;
@@ -147,6 +148,7 @@ export interface AttentionDto {
   codigos: AttentionCodeLineDto[];
   cantidadCodigos: number;
   totalCoseguroCentavos: number;
+  totalCoseguroOdontoCentavos: number;
   totalPagoOdontologoCentavos: number;
   createdAt: string;
   updatedAt: string;
