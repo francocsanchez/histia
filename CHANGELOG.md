@@ -15,6 +15,7 @@
 - La edición administrativa de `Atenciones` ahora respeta completamente las líneas con conceptos pagados y las deja bloqueadas.
 - Las atenciones existentes conservan la obra social histórica guardada al momento de su creación, aunque el paciente cambie o pierda su obra social actual.
 - La validación del formulario de `Atenciones` quedó endurecida para tolerar estados intermedios de inputs monetarios sin romper el guardado.
+- Las acciones de activar y desactivar en `Obras sociales`, `Códigos`, `Pacientes` y `Usuarios` ahora usan diálogos de confirmación propios en lugar de confirmaciones nativas del navegador.
 
 ### Fixed
 
@@ -23,6 +24,8 @@
 - Pérdida de `coseguro`, `coseguro odonto` o valor histórico al editar atenciones con líneas ya pagadas.
 - Error `Expected number, received nan` al guardar cambios en atenciones administrativas.
 - Bloqueo de edición de atenciones históricas cuando el paciente ya no tenía la misma obra social actual.
+- Warning de hidratación en el layout raíz causado por atributos inyectados por extensiones del navegador sobre `<body>`.
+- Pedido residual a `/recordatorios-sw.js` originado por un service worker viejo registrado en el navegador para este origen.
 
 ## 2026-08-05
 

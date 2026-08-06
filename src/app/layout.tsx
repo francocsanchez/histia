@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { ServiceWorkerCleanup } from "@/components/shared/service-worker-cleanup";
 import { env } from "@/lib/env";
 
 import "./globals.css";
@@ -30,7 +31,10 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <ServiceWorkerCleanup />
+        {children}
+      </body>
     </html>
   );
 }

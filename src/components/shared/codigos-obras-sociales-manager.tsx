@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,8 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
   const [totalPages, setTotalPages] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<CodigoObraSocialDto | null>(null);
+  const [statusDialogItem, setStatusDialogItem] = useState<CodigoObraSocialDto | null>(null);
+  const [statusSubmitting, setStatusSubmitting] = useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(codigoObraSocialSchema),
     defaultValues: { nombre: "", codigo: "", obraSocialId: "", valorCentavos: 0 },
@@ -156,23 +159,26 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
     await load();
   });
 
-  const toggleStatus = async (item: CodigoObraSocialDto) => {
-    if (
-      !window.confirm(
-        item.activo ? "Se desactivara el codigo." : "Se activara el codigo.",
-      )
-    ) {
+  const toggleStatus = async () => {
+    if (!statusDialogItem) {
       return;
     }
 
-    const response = await fetch(`/api/codigos-obras-sociales/${item.id}/status`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ activo: !item.activo }),
-    });
+    setStatusSubmitting(true);
 
-    if (response.ok) {
-      await load();
+    try {
+      const response = await fetch(`/api/codigos-obras-sociales/${statusDialogItem.id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activo: !statusDialogItem.activo }),
+      });
+
+      if (response.ok) {
+        setStatusDialogItem(null);
+        await load();
+      }
+    } finally {
+      setStatusSubmitting(false);
     }
   };
 
@@ -266,7 +272,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
                           <Button
                             variant={item.activo ? "destructive" : "secondary"}
                             size="sm"
-                            onClick={() => toggleStatus(item)}
+                            onClick={() => setStatusDialogItem(item)}
                           >
                             {item.activo ? "Desactivar" : "Activar"}
                           </Button>
@@ -347,6 +353,21 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
           </div>
         </form>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(statusDialogItem)}
+        onClose={() => setStatusDialogItem(null)}
+        onConfirm={() => void toggleStatus()}
+        busy={statusSubmitting}
+        title={statusDialogItem?.activo ? "Desactivar codigo" : "Activar codigo"}
+        description={
+          statusDialogItem?.activo
+            ? "El codigo dejara de estar disponible para nuevas atenciones. Queres continuar?"
+            : "El codigo volvera a estar disponible para su uso en el sistema. Queres continuar?"
+        }
+        confirmLabel={statusDialogItem?.activo ? "Desactivar" : "Activar"}
+        confirmVariant={statusDialogItem?.activo ? "destructive" : "primary"}
+      />
     </div>
   );
 }
