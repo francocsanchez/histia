@@ -444,6 +444,40 @@ export function AttentionForm({
       })),
     };
 
+    if (isAdministrative && initialAttention) {
+      body.codigos = body.codigos.map((line) => {
+        const lockedLine = lockedLineById.get(line.lineId ?? "");
+
+        if (!lockedLine) {
+          return line;
+        }
+
+        const paymentState = paymentStateByLineId.get(line.lineId ?? "");
+        const codePaid = paymentState?.codePaymentStatus === "pagado";
+        const coseguroOdontoPaid =
+          paymentState?.coseguroOdontoPaymentStatus === "pagado";
+
+        return {
+          ...line,
+          codigoObraSocialId: codePaid
+            ? lockedLine.codigoObraSocialId
+            : line.codigoObraSocialId,
+          pieza: codePaid ? lockedLine.pieza ?? "" : line.pieza,
+          coseguroCentavos: codePaid
+            ? lockedLine.coseguroCentavos
+            : line.coseguroCentavos,
+          coseguroOdontoCentavos: coseguroOdontoPaid
+            ? lockedLine.coseguroOdontoCentavos
+            : line.coseguroOdontoCentavos,
+          observacion: codePaid ? lockedLine.observacion ?? "" : line.observacion,
+          pagoOdontologoCentavos: codePaid
+            ? lockedLine.pagoOdontologoCentavos
+            : line.pagoOdontologoCentavos,
+          estado: codePaid ? lockedLine.estado : line.estado,
+        };
+      });
+    }
+
     if (body.pacienteId) {
       body.paciente = undefined;
     }
@@ -692,34 +726,42 @@ export function AttentionForm({
                 const isCodePaid = paymentState?.codePaymentStatus === "pagado";
                 const isCoseguroOdontoPaid =
                   paymentState?.coseguroOdontoPaymentStatus === "pagado";
-                const isAnyPaidConcept = isCodePaid || isCoseguroOdontoPaid;
                 const lockedLine = lockedLineById.get(
                   lineValues?.[index]?.lineId ?? field.lineId ?? "",
                 );
                 const displayedPiece =
-                  isAdministrative && isAnyPaidConcept
+                  isAdministrative && isCodePaid
                     ? (lockedLine?.pieza ?? "")
                     : (lineValues?.[index]?.pieza ?? "");
                 const displayedCoseguroCentavos =
-                  isAdministrative && isAnyPaidConcept
+                  isAdministrative && isCodePaid
                     ? (lockedLine?.coseguroCentavos ?? null)
                     : normalizeMoneyLikeValue(lineValues?.[index]?.coseguroCentavos);
                 const displayedCoseguroOdontoCentavos =
-                  isAdministrative && isAnyPaidConcept
+                  isAdministrative && isCoseguroOdontoPaid
                     ? (lockedLine?.coseguroOdontoCentavos ?? null)
                     : normalizeMoneyLikeValue(lineValues?.[index]?.coseguroOdontoCentavos);
                 const displayedPagoOdontologoCentavos =
-                  isAdministrative && isAnyPaidConcept
+                  isAdministrative && isCodePaid
                     ? (lockedLine?.pagoOdontologoCentavos ?? 0)
                     : normalizeMoneyLikeValue(lineValues?.[index]?.pagoOdontologoCentavos);
                 const displayedObservation =
-                  isAdministrative && isAnyPaidConcept
+                  isAdministrative && isCodePaid
                     ? (lockedLine?.observacion ?? "")
                     : (lineValues?.[index]?.observacion ?? "");
                 const displayedStatus =
-                  isAdministrative && isAnyPaidConcept
+                  isAdministrative && isCodePaid
                     ? (lockedLine?.estado ?? lineStatus)
                     : lineStatus;
+                const disablePieceInput =
+                  !canEditLine || (isAdministrative && isCodePaid);
+                const disableCoseguroInput =
+                  !canEditLine || (isAdministrative && isCodePaid);
+                const disableCoseguroOdontoInput =
+                  isAdministrative && isCoseguroOdontoPaid;
+                const disablePagoInput = isAdministrative && isCodePaid;
+                const disableObservationInput =
+                  !canEditLine || (isAdministrative && isCodePaid);
                 const coseguroField = form.register(`codigos.${index}.coseguroCentavos`);
                 const coseguroOdontoField = form.register(
                   `codigos.${index}.coseguroOdontoCentavos`,
@@ -744,34 +786,47 @@ export function AttentionForm({
                           </div>
                         </>
                       ) : (
-                        <Select
-                          className="w-full"
-                          {...form.register(`codigos.${index}.codigoObraSocialId`)}
-                          disabled={isAdministrative && isCodePaid}
-                          onChange={(event) => {
-                            const nextCodeId = event.target.value;
-                            form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            });
+                        isAdministrative && isCodePaid ? (
+                          <>
+                            <input
+                              type="hidden"
+                              {...form.register(`codigos.${index}.codigoObraSocialId`)}
+                            />
+                            <div className="rounded-md border border-border bg-muted px-3 py-2 text-muted-foreground">
+                              {selectedCode
+                                ? `${selectedCode.codigo} - ${selectedCode.nombre}`
+                                : "Codigo bloqueado"}
+                            </div>
+                          </>
+                        ) : (
+                          <Select
+                            className="w-full"
+                            {...form.register(`codigos.${index}.codigoObraSocialId`)}
+                            onChange={(event) => {
+                              const nextCodeId = event.target.value;
+                              form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
 
-                            const code = selectedCodeOptions.get(nextCodeId);
-                            if (code) {
-                              form.setValue(
-                                `codigos.${index}.pagoOdontologoCentavos`,
-                                code.valorCentavos,
-                                { shouldDirty: true, shouldValidate: true },
-                              );
-                            }
-                          }}
-                        >
-                          <option value="">Seleccionar codigo</option>
-                          {codigosDisponibles.map((codigo) => (
-                            <option key={codigo.id} value={codigo.id}>
-                              {codigo.codigo} - {codigo.nombre}
-                            </option>
-                          ))}
-                        </Select>
+                              const code = selectedCodeOptions.get(nextCodeId);
+                              if (code) {
+                                form.setValue(
+                                  `codigos.${index}.pagoOdontologoCentavos`,
+                                  code.valorCentavos,
+                                  { shouldDirty: true, shouldValidate: true },
+                                );
+                              }
+                            }}
+                          >
+                            <option value="">Seleccionar codigo</option>
+                            {codigosDisponibles.map((codigo) => (
+                              <option key={codigo.id} value={codigo.id}>
+                                {codigo.codigo} - {codigo.nombre}
+                              </option>
+                            ))}
+                          </Select>
+                        )
                       )}
                       {selectedCode ? (
                         <p className="mt-2 text-xs text-muted-foreground">
@@ -780,52 +835,55 @@ export function AttentionForm({
                       ) : null}
                     </td>
                     <td className="px-3 py-2">
-                      <Input
-                        className="w-20"
-                        maxLength={4}
-                        {...form.register(`codigos.${index}.pieza`)}
-                        readOnly={!canEditLine || (isAdministrative && isAnyPaidConcept)}
-                        value={displayedPiece}
-                      />
+                      {disablePieceInput ? (
+                        <>
+                          <input type="hidden" {...form.register(`codigos.${index}.pieza`)} />
+                          <Input
+                            className="w-20"
+                            maxLength={4}
+                            value={displayedPiece}
+                            disabled
+                            readOnly
+                          />
+                        </>
+                      ) : (
+                        <Input
+                          className="w-20"
+                          maxLength={4}
+                          {...form.register(`codigos.${index}.pieza`)}
+                          value={displayedPiece}
+                        />
+                      )}
                     </td>
                     <td className="px-3 py-2">
-                      <Input
-                        className="w-28"
-                        inputMode="numeric"
-                        placeholder="0"
-                        name={coseguroField.name}
-                        onBlur={coseguroField.onBlur}
-                        readOnly={!canEditLine || (isAdministrative && isAnyPaidConcept)}
-                        value={formatMoneyInputFromCents(
-                          displayedCoseguroCentavos,
-                        )}
-                        onChange={(event) => {
-                          form.setValue(
-                            `codigos.${index}.coseguroCentavos`,
-                            parseMoneyInputToCents(event.target.value),
-                            {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            },
-                          );
-                        }}
-                      />
-                    </td>
-                    {isAdministrative ? (
-                      <td className="px-3 py-2">
+                      {disableCoseguroInput ? (
+                        <>
+                          <input
+                            type="hidden"
+                            {...form.register(`codigos.${index}.coseguroCentavos`)}
+                          />
+                          <Input
+                            className="w-28"
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={formatMoneyInputFromCents(displayedCoseguroCentavos)}
+                            disabled
+                            readOnly
+                          />
+                        </>
+                      ) : (
                         <Input
                           className="w-28"
                           inputMode="numeric"
                           placeholder="0"
-                          name={coseguroOdontoField.name}
-                          onBlur={coseguroOdontoField.onBlur}
-                          readOnly={isAnyPaidConcept}
+                          name={coseguroField.name}
+                          onBlur={coseguroField.onBlur}
                           value={formatMoneyInputFromCents(
-                            displayedCoseguroOdontoCentavos,
+                            displayedCoseguroCentavos,
                           )}
                           onChange={(event) => {
                             form.setValue(
-                              `codigos.${index}.coseguroOdontoCentavos`,
+                              `codigos.${index}.coseguroCentavos`,
                               parseMoneyInputToCents(event.target.value),
                               {
                                 shouldDirty: true,
@@ -834,47 +892,117 @@ export function AttentionForm({
                             );
                           }}
                         />
+                      )}
+                    </td>
+                    {isAdministrative ? (
+                      <td className="px-3 py-2">
+                        {disableCoseguroOdontoInput ? (
+                          <>
+                            <input
+                              type="hidden"
+                              {...form.register(`codigos.${index}.coseguroOdontoCentavos`)}
+                            />
+                            <Input
+                              className="w-28"
+                              inputMode="numeric"
+                              placeholder="0"
+                              value={formatMoneyInputFromCents(
+                                displayedCoseguroOdontoCentavos,
+                              )}
+                              disabled
+                              readOnly
+                            />
+                          </>
+                        ) : (
+                          <Input
+                            className="w-28"
+                            inputMode="numeric"
+                            placeholder="0"
+                            name={coseguroOdontoField.name}
+                            onBlur={coseguroOdontoField.onBlur}
+                            value={formatMoneyInputFromCents(
+                              displayedCoseguroOdontoCentavos,
+                            )}
+                            onChange={(event) => {
+                              form.setValue(
+                                `codigos.${index}.coseguroOdontoCentavos`,
+                                parseMoneyInputToCents(event.target.value),
+                                {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                },
+                              );
+                            }}
+                          />
+                        )}
                       </td>
                     ) : null}
                     {isAdministrative ? (
                       <td className="px-3 py-2">
-                        <Input
-                          className="w-28"
-                          inputMode="numeric"
-                          placeholder="0"
-                          name={pagoOdontoField.name}
-                          onBlur={pagoOdontoField.onBlur}
-                          readOnly={isAnyPaidConcept}
-                          value={formatMoneyInputFromCents(
-                            displayedPagoOdontologoCentavos,
-                          )}
-                          onChange={(event) => {
-                            form.setValue(
-                              `codigos.${index}.pagoOdontologoCentavos`,
-                            parseMoneyInputToCents(event.target.value) ?? 0,
-                              {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              },
-                            );
-                          }}
-                        />
+                        {disablePagoInput ? (
+                          <>
+                            <input
+                              type="hidden"
+                              {...form.register(`codigos.${index}.pagoOdontologoCentavos`)}
+                            />
+                            <Input
+                              className="w-28"
+                              inputMode="numeric"
+                              placeholder="0"
+                              value={formatMoneyInputFromCents(
+                                displayedPagoOdontologoCentavos,
+                              )}
+                              disabled
+                              readOnly
+                            />
+                          </>
+                        ) : (
+                          <Input
+                            className="w-28"
+                            inputMode="numeric"
+                            placeholder="0"
+                            name={pagoOdontoField.name}
+                            onBlur={pagoOdontoField.onBlur}
+                            value={formatMoneyInputFromCents(
+                              displayedPagoOdontologoCentavos,
+                            )}
+                            onChange={(event) => {
+                              form.setValue(
+                                `codigos.${index}.pagoOdontologoCentavos`,
+                              parseMoneyInputToCents(event.target.value) ?? 0,
+                                {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                },
+                              );
+                            }}
+                          />
+                        )}
                       </td>
                     ) : null}
                     {mode === "edit" ? (
                       <td className="px-3 py-2">
                         {isAdministrative ? (
-                          <Select
-                            {...form.register(`codigos.${index}.estado`)}
-                            disabled={isAnyPaidConcept}
-                            value={displayedStatus}
-                          >
-                            <option value="no-cargado">No cargado</option>
-                            <option value="pendiente">Pendiente</option>
-                            <option value="ok">OK</option>
-                            <option value="diferido">Diferido</option>
-                            <option value="denegado">Denegado</option>
-                          </Select>
+                          isCodePaid ? (
+                            <>
+                              <input
+                                type="hidden"
+                                {...form.register(`codigos.${index}.estado`)}
+                              />
+                              <Input value={attentionStatusLabels[displayedStatus]} disabled readOnly />
+                            </>
+                          ) : (
+                            <Select
+                              {...form.register(`codigos.${index}.estado`)}
+                              value={displayedStatus}
+                            >
+                              <option value="no-cargado">No cargado</option>
+                              <option value="pendiente">Pendiente</option>
+                              <option value="ok">OK</option>
+                              <option value="diferido">Diferido</option>
+                              <option value="denegado">Denegado</option>
+                            </Select>
+                          )
                         ) : (
                           <>
                             <input
@@ -892,12 +1020,26 @@ export function AttentionForm({
                       </td>
                     ) : null}
                     <td className="px-3 py-2">
-                      <Input
-                        className="w-full"
-                        {...form.register(`codigos.${index}.observacion`)}
-                        readOnly={!canEditLine || (isAdministrative && isAnyPaidConcept)}
-                        value={displayedObservation}
-                      />
+                      {disableObservationInput ? (
+                        <>
+                          <input
+                            type="hidden"
+                            {...form.register(`codigos.${index}.observacion`)}
+                          />
+                          <Input
+                            className="w-full"
+                            value={displayedObservation}
+                            disabled
+                            readOnly
+                          />
+                        </>
+                      ) : (
+                        <Input
+                          className="w-full"
+                          {...form.register(`codigos.${index}.observacion`)}
+                          value={displayedObservation}
+                        />
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex justify-end">

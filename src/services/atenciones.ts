@@ -122,6 +122,18 @@ function hasAnyPaidConcept(line: {
   );
 }
 
+function isCodePaid(line: {
+  codePaymentStatus?: PaymentStatus;
+}) {
+  return line.codePaymentStatus === "pagado";
+}
+
+function isCoseguroOdontoPaid(line: {
+  coseguroOdontoPaymentStatus?: PaymentStatus;
+}) {
+  return line.coseguroOdontoPaymentStatus === "pagado";
+}
+
 function ensureAttentionOwnership(attention: { usuarioCargaId: unknown }, currentUser: SessionUser) {
   if (hasAdministrativeAccess(currentUser)) {
     return;
@@ -244,39 +256,48 @@ function ensurePaidLineProtected(
   inputLine: AttentionFormInput["codigos"][number],
   index: number,
 ) {
-  const sameCode = persistedLine.codigoObraSocialId === inputLine.codigoObraSocialId;
-  const samePiece =
-    normalizeOptionalPiece(persistedLine.pieza) === normalizeOptionalPiece(inputLine.pieza);
-  const sameCoseguro =
-    (persistedLine.coseguroCentavos ?? null) === (inputLine.coseguroCentavos ?? null);
-  const sameCoseguroOdonto =
-    (persistedLine.coseguroOdontoCentavos ?? null) ===
-    (inputLine.coseguroOdontoCentavos ?? null);
-  const sameObservation =
-    normalizeOptionalText(persistedLine.observacion) ===
-    normalizeOptionalText(inputLine.observacion);
-  const samePago =
-    persistedLine.pagoOdontologoCentavos === inputLine.pagoOdontologoCentavos;
-  const sameStatus = persistedLine.estado === inputLine.estado;
+  if (persistedPaymentState.codePaymentStatus === "pagado") {
+    const sameCode = persistedLine.codigoObraSocialId === inputLine.codigoObraSocialId;
+    const samePiece =
+      normalizeOptionalPiece(persistedLine.pieza) === normalizeOptionalPiece(inputLine.pieza);
+    const sameCoseguro =
+      (persistedLine.coseguroCentavos ?? null) === (inputLine.coseguroCentavos ?? null);
+    const sameObservation =
+      normalizeOptionalText(persistedLine.observacion) ===
+      normalizeOptionalText(inputLine.observacion);
+    const samePago =
+      persistedLine.pagoOdontologoCentavos === inputLine.pagoOdontologoCentavos;
+    const sameStatus = persistedLine.estado === inputLine.estado;
 
-  if (
-    !sameCode ||
-    !samePiece ||
-    !sameCoseguro ||
-    !sameCoseguroOdonto ||
-    !sameObservation ||
-    !samePago ||
-    !sameStatus
-  ) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      "No podes modificar una linea que ya tiene conceptos pagados",
-      400,
-      {
-        [`codigos.${index}`]:
-          "La linea tiene conceptos pagados y queda bloqueada para edicion",
-      },
-    );
+    if (!sameCode || !samePiece || !sameCoseguro || !sameObservation || !samePago || !sameStatus) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "No podes modificar un codigo que ya fue pagado",
+        400,
+        {
+          [`codigos.${index}`]:
+            "El codigo ya fue pagado y sus datos principales quedan bloqueados",
+        },
+      );
+    }
+  }
+
+  if (persistedPaymentState.coseguroOdontoPaymentStatus === "pagado") {
+    const sameCoseguroOdonto =
+      (persistedLine.coseguroOdontoCentavos ?? null) ===
+      (inputLine.coseguroOdontoCentavos ?? null);
+
+    if (!sameCoseguroOdonto) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "No podes modificar un coseguro odonto que ya fue pagado",
+        400,
+        {
+          [`codigos.${index}.coseguroOdontoCentavos`]:
+            "El coseguro odonto ya fue pagado y no puede modificarse",
+        },
+      );
+    }
   }
 }
 
@@ -313,19 +334,16 @@ function buildAdministrativeProtectedLine(params: {
     coseguroOdontoPaidAt: persistedLine.coseguroOdontoPaidAt ?? null,
   };
 
-  if (hasAnyPaidConcept(persistedLine)) {
-    protectedLine.coseguroCentavos = persistedLine.coseguroCentavos;
-  }
-
-  if (persistedLine.codePaymentStatus === "pagado") {
+  if (isCodePaid(persistedLine)) {
     protectedLine.codigoObraSocialId = persistedLine.codigoObraSocialId;
     protectedLine.pieza = persistedLine.pieza;
+    protectedLine.coseguroCentavos = persistedLine.coseguroCentavos;
     protectedLine.observacion = persistedLine.observacion;
     protectedLine.pagoOdontologoCentavos = persistedLine.pagoOdontologoCentavos;
     protectedLine.estado = persistedLine.estado;
   }
 
-  if (persistedLine.coseguroOdontoPaymentStatus === "pagado") {
+  if (isCoseguroOdontoPaid(persistedLine)) {
     protectedLine.coseguroOdontoCentavos = persistedLine.coseguroOdontoCentavos;
   }
 
@@ -1061,7 +1079,10 @@ export async function updateAttention(
           index,
         );
 
-        return persistedLine;
+        return buildAdministrativeProtectedLine({
+          persistedLine,
+          nextLine,
+        });
       }
 
       return buildAdministrativeProtectedLine({
