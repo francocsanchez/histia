@@ -5,8 +5,12 @@ import { PageHeader } from "@/components/shared/page-header";
 import { requireSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 
-export default async function NuevaAtencionPage() {
+export default async function NuevaAtencionPage({
+  searchParams,
+}: PageProps<"/atenciones/nueva">) {
   const user = await requireSessionUser();
+  const { dni } = await searchParams;
+  const initialLookupDni = typeof dni === "string" ? dni : "";
 
   if (!can(user, "atenciones", "write")) {
     redirect("/inicio");
@@ -18,7 +22,7 @@ export default async function NuevaAtencionPage() {
         title="Nueva atencion"
         description="Carga una atencion odontologica realizada y sus codigos asociados."
       />
-      <AttentionForm mode="create" />
+      <AttentionForm mode="create" initialLookupDni={initialLookupDni} />
     </div>
   );
 }

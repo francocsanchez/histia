@@ -157,11 +157,13 @@ function getDefaultValues(initialAttention?: AttentionDto): FormValues {
 }
 
 export function AttentionForm({
+  initialLookupDni = "",
   mode,
   initialAttention,
   isAdministrative = false,
   returnPath = "/atenciones",
 }: {
+  initialLookupDni?: string;
   mode: "create" | "edit";
   initialAttention?: AttentionDto;
   isAdministrative?: boolean;
@@ -171,7 +173,7 @@ export function AttentionForm({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [patientLookupDni, setPatientLookupDni] = useState(
-    initialAttention?.pacienteDni ?? "",
+    initialAttention?.pacienteDni ?? initialLookupDni,
   );
   const [patientLookupLoading, setPatientLookupLoading] = useState(false);
   const [patientLookupError, setPatientLookupError] = useState("");
@@ -417,6 +419,34 @@ export function AttentionForm({
       setPatientLookupLoading(false);
     }
   };
+
+  const searchPatientByDniFromEffect = useEffectEvent(async () => {
+    await searchPatientByDni();
+  });
+
+  useEffect(() => {
+    if (
+      mode !== "create" ||
+      loading ||
+      !initialLookupDni ||
+      matchedPatient ||
+      patientLookupLoading
+    ) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void searchPatientByDniFromEffect();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [
+    initialLookupDni,
+    loading,
+    matchedPatient,
+    mode,
+    patientLookupLoading,
+  ]);
 
   const submit = form.handleSubmit(async (values: FormValues) => {
     const body: FormValues = {

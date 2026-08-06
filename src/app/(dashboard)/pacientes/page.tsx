@@ -7,6 +7,7 @@ export default async function PacientesPage() {
 
   return (
     <PacientesManager
+      canCreateAttention={can(user, "atenciones", "write")}
       canManage={can(user, "pacientes", "write")}
       canToggleStatus={isAdmin(user)}
     />

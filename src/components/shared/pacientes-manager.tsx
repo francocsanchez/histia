@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useEffectEvent, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,9 +33,11 @@ type ListPayload = {
 };
 
 export function PacientesManager({
+  canCreateAttention,
   canManage,
   canToggleStatus,
 }: {
+  canCreateAttention: boolean;
   canManage: boolean;
   canToggleStatus: boolean;
 }) {
@@ -66,6 +69,7 @@ export function PacientesManager({
           ...obrasSociales,
         ]
       : obrasSociales;
+  const showActions = canManage || canCreateAttention;
 
   const loadObrasSociales = async () => {
     const response = await fetch("/api/obras-sociales?status=active&limit=100", {
@@ -252,7 +256,7 @@ export function PacientesManager({
                   <th className="px-4 py-3">Obra social</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Actualizacion</th>
-                  {canManage ? <th className="px-4 py-3 text-right">Acciones</th> : null}
+                  {showActions ? <th className="px-4 py-3 text-right">Acciones</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -271,12 +275,19 @@ export function PacientesManager({
                     <td className="px-4 py-3 text-muted-foreground">
                       {formatDate(item.updatedAt)}
                     </td>
-                    {canManage ? (
+                    {showActions ? (
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
-                          <Button variant="secondary" size="sm" onClick={() => openEdit(item)}>
-                            Editar
-                          </Button>
+                          {canCreateAttention ? (
+                            <Link href={`/atenciones/nueva?dni=${encodeURIComponent(item.dni)}`}>
+                              <Button size="sm">Atender</Button>
+                            </Link>
+                          ) : null}
+                          {canManage ? (
+                            <Button variant="secondary" size="sm" onClick={() => openEdit(item)}>
+                              Editar
+                            </Button>
+                          ) : null}
                           {canToggleStatus ? (
                             <Button
                               variant={item.activo ? "destructive" : "secondary"}
