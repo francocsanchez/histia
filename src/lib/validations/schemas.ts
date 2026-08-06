@@ -2,10 +2,44 @@ import { z } from "zod";
 
 import {
   attentionCodeStatusValues,
+  paymentStatusValues,
   referrerTypeValues,
   rxTypeValues,
   userRoleValues,
 } from "@/types/domain";
+
+function normalizeIntegerInput(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isNaN(value) ? null : value;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    const normalized = Number(trimmed);
+    return Number.isNaN(normalized) ? null : normalized;
+  }
+
+  const normalized = Number(value);
+  return Number.isNaN(normalized) ? null : normalized;
+}
+
+const nullableNonNegativeIntegerSchema = z.preprocess(
+  normalizeIntegerInput,
+  z
+    .number()
+    .int("Debe ser un numero entero")
+    .min(0, "Debe ser igual o mayor que cero")
+    .nullable(),
+);
 
 export const loginSchema = z.object({
   email: z.string().email("Ingresa un email valido"),
@@ -124,21 +158,21 @@ const attentionInlinePacienteSchema = z.object({
 });
 
 const attentionCodeLineSchema = z.object({
+  lineId: z.string().optional(),
   codigoObraSocialId: z.string().min(1, "Debes seleccionar un codigo"),
   pieza: z.string().optional().nullable(),
-  coseguroCentavos: z
-    .union([z.coerce.number().int().min(0), z.null()])
-    .optional()
-    .transform((value) => value ?? null),
-  coseguroOdontoCentavos: z
-    .union([z.coerce.number().int().min(0), z.null()])
+  coseguroCentavos: nullableNonNegativeIntegerSchema.optional().transform((value) => value ?? null),
+  coseguroOdontoCentavos: nullableNonNegativeIntegerSchema
     .optional()
     .transform((value) => value ?? null),
   observacion: z.string().optional().nullable(),
-  pagoOdontologoCentavos: z
-    .coerce.number()
-    .int("El pago al odontologo debe ser un entero")
-    .min(0, "El pago al odontologo debe ser igual o mayor que cero"),
+  pagoOdontologoCentavos: z.preprocess(
+    (value) => normalizeIntegerInput(value) ?? 0,
+    z
+      .number()
+      .int("El pago al odontologo debe ser un entero")
+      .min(0, "El pago al odontologo debe ser igual o mayor que cero"),
+  ),
   estado: z.enum(attentionCodeStatusValues).default("pendiente"),
 });
 
@@ -164,3 +198,31 @@ export const attentionSchema = z
       });
     }
   });
+
+export const paymentCandidateSelectionSchema = z
+  .object({
+    lineId: z.string().min(1, "La linea es obligatoria"),
+    payCode: z.boolean(),
+    payCoseguroOdonto: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.payCode && !value.payCoseguroOdonto) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["lineId"],
+        message: "Debes seleccionar al menos un concepto a pagar",
+      });
+    }
+  });
+
+export const paymentCreateSchema = z.object({
+  userId: z.string().min(1, "El usuario es obligatorio"),
+  attentionMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "El mes debe tener formato YYYY-MM"),
+  selectedItems: z
+    .array(paymentCandidateSelectionSchema)
+    .min(1, "Debes seleccionar al menos un concepto"),
+});
+
+export const paymentStatusSchema = z.enum(paymentStatusValues);

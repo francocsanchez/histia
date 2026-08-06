@@ -22,7 +22,8 @@ import {
 import { attentionSchema } from "@/lib/validations/schemas";
 import { AttentionDto } from "@/types/domain";
 
-type FormValues = z.input<typeof attentionSchema>;
+type FormInputValues = z.input<typeof attentionSchema>;
+type FormValues = z.output<typeof attentionSchema>;
 
 type LookupPayload = {
   success: boolean;
@@ -88,8 +89,26 @@ function parseMoneyInputToCents(value: string) {
   return Number(digits) * 100;
 }
 
+function normalizeMoneyLikeValue(value: unknown) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value === "number") {
+    return Number.isNaN(value) ? null : value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = Number(value);
+    return Number.isNaN(normalized) ? null : normalized;
+  }
+
+  return null;
+}
+
 function emptyLine() {
   return {
+    lineId: undefined,
     codigoObraSocialId: "",
     pieza: "",
     coseguroCentavos: null,
@@ -124,6 +143,7 @@ function getDefaultValues(initialAttention?: AttentionDto): FormValues {
     codigos:
       initialAttention.codigos.length > 0
         ? initialAttention.codigos.map((line) => ({
+            lineId: line.lineId,
             codigoObraSocialId: line.codigoObraSocialId,
             pieza: line.pieza ?? "",
             coseguroCentavos: line.coseguroCentavos,
@@ -178,7 +198,7 @@ export function AttentionForm({
   const [resumenMensual, setResumenMensual] = useState<
     LookupPayload["data"]["resumenMensual"]
   >(null);
-  const form = useForm<FormValues>({
+  const form = useForm<FormInputValues, unknown, FormValues>({
     resolver: zodResolver(attentionSchema),
     defaultValues: getDefaultValues(initialAttention),
   });
@@ -217,6 +237,18 @@ export function AttentionForm({
     initialAttention?.codigos.some((line) => isAttentionCodeEditableByUser(line.estado)) ??
     false;
   const isReadOnlyUserEdit = isUserEditMode && !hasEditablePendingLines;
+  const paymentStateByLineId = new Map(
+    (initialAttention?.codigos ?? []).map((line) => [
+      line.lineId,
+      {
+        codePaymentStatus: line.codePaymentStatus,
+        coseguroOdontoPaymentStatus: line.coseguroOdontoPaymentStatus,
+      },
+    ]),
+  );
+  const lockedLineById = new Map(
+    (initialAttention?.codigos ?? []).map((line) => [line.lineId, line]),
+  );
 
   const bootstrapData = async () => {
     setLoading(true);
@@ -386,7 +418,7 @@ export function AttentionForm({
     }
   };
 
-  const submit = form.handleSubmit(async (values) => {
+  const submit = form.handleSubmit(async (values: FormValues) => {
     const body: FormValues = {
       ...values,
       codigos: values.codigos.map((line) => ({
@@ -654,6 +686,40 @@ export function AttentionForm({
                 const selectedCode = selectedCodeOptions.get(selectedCodeId);
                 const lineStatus = lineValues?.[index]?.estado ?? "pendiente";
                 const canEditLine = !isUserEditMode || isAttentionCodeEditableByUser(lineStatus);
+                const paymentState = paymentStateByLineId.get(
+                  lineValues?.[index]?.lineId ?? field.lineId ?? "",
+                );
+                const isCodePaid = paymentState?.codePaymentStatus === "pagado";
+                const isCoseguroOdontoPaid =
+                  paymentState?.coseguroOdontoPaymentStatus === "pagado";
+                const isAnyPaidConcept = isCodePaid || isCoseguroOdontoPaid;
+                const lockedLine = lockedLineById.get(
+                  lineValues?.[index]?.lineId ?? field.lineId ?? "",
+                );
+                const displayedPiece =
+                  isAdministrative && isAnyPaidConcept
+                    ? (lockedLine?.pieza ?? "")
+                    : (lineValues?.[index]?.pieza ?? "");
+                const displayedCoseguroCentavos =
+                  isAdministrative && isAnyPaidConcept
+                    ? (lockedLine?.coseguroCentavos ?? null)
+                    : normalizeMoneyLikeValue(lineValues?.[index]?.coseguroCentavos);
+                const displayedCoseguroOdontoCentavos =
+                  isAdministrative && isAnyPaidConcept
+                    ? (lockedLine?.coseguroOdontoCentavos ?? null)
+                    : normalizeMoneyLikeValue(lineValues?.[index]?.coseguroOdontoCentavos);
+                const displayedPagoOdontologoCentavos =
+                  isAdministrative && isAnyPaidConcept
+                    ? (lockedLine?.pagoOdontologoCentavos ?? 0)
+                    : normalizeMoneyLikeValue(lineValues?.[index]?.pagoOdontologoCentavos);
+                const displayedObservation =
+                  isAdministrative && isAnyPaidConcept
+                    ? (lockedLine?.observacion ?? "")
+                    : (lineValues?.[index]?.observacion ?? "");
+                const displayedStatus =
+                  isAdministrative && isAnyPaidConcept
+                    ? (lockedLine?.estado ?? lineStatus)
+                    : lineStatus;
                 const coseguroField = form.register(`codigos.${index}.coseguroCentavos`);
                 const coseguroOdontoField = form.register(
                   `codigos.${index}.coseguroOdontoCentavos`,
@@ -665,12 +731,10 @@ export function AttentionForm({
                 return (
                   <tr key={field.id} className="border-t border-border align-top">
                     <td className="px-3 py-2">
+                      <input type="hidden" {...form.register(`codigos.${index}.lineId`)} />
                       {isUserEditMode && !canEditLine ? (
                         <>
-                          <input
-                            type="hidden"
-                            {...form.register(`codigos.${index}.codigoObraSocialId`)}
-                          />
+                          <input type="hidden" {...form.register(`codigos.${index}.codigoObraSocialId`)} />
                           <div className="rounded-md border border-border bg-muted/50 px-3 py-2">
                             <p className="font-medium">
                               {selectedCode
@@ -683,6 +747,7 @@ export function AttentionForm({
                         <Select
                           className="w-full"
                           {...form.register(`codigos.${index}.codigoObraSocialId`)}
+                          disabled={isAdministrative && isCodePaid}
                           onChange={(event) => {
                             const nextCodeId = event.target.value;
                             form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
@@ -719,7 +784,8 @@ export function AttentionForm({
                         className="w-20"
                         maxLength={4}
                         {...form.register(`codigos.${index}.pieza`)}
-                        readOnly={!canEditLine}
+                        readOnly={!canEditLine || (isAdministrative && isAnyPaidConcept)}
+                        value={displayedPiece}
                       />
                     </td>
                     <td className="px-3 py-2">
@@ -729,9 +795,9 @@ export function AttentionForm({
                         placeholder="0"
                         name={coseguroField.name}
                         onBlur={coseguroField.onBlur}
-                        readOnly={!canEditLine}
+                        readOnly={!canEditLine || (isAdministrative && isAnyPaidConcept)}
                         value={formatMoneyInputFromCents(
-                          lineValues?.[index]?.coseguroCentavos ?? null,
+                          displayedCoseguroCentavos,
                         )}
                         onChange={(event) => {
                           form.setValue(
@@ -753,8 +819,9 @@ export function AttentionForm({
                           placeholder="0"
                           name={coseguroOdontoField.name}
                           onBlur={coseguroOdontoField.onBlur}
+                          readOnly={isAnyPaidConcept}
                           value={formatMoneyInputFromCents(
-                            lineValues?.[index]?.coseguroOdontoCentavos ?? null,
+                            displayedCoseguroOdontoCentavos,
                           )}
                           onChange={(event) => {
                             form.setValue(
@@ -777,8 +844,9 @@ export function AttentionForm({
                           placeholder="0"
                           name={pagoOdontoField.name}
                           onBlur={pagoOdontoField.onBlur}
+                          readOnly={isAnyPaidConcept}
                           value={formatMoneyInputFromCents(
-                            lineValues?.[index]?.pagoOdontologoCentavos ?? null,
+                            displayedPagoOdontologoCentavos,
                           )}
                           onChange={(event) => {
                             form.setValue(
@@ -796,7 +864,11 @@ export function AttentionForm({
                     {mode === "edit" ? (
                       <td className="px-3 py-2">
                         {isAdministrative ? (
-                          <Select {...form.register(`codigos.${index}.estado`)}>
+                          <Select
+                            {...form.register(`codigos.${index}.estado`)}
+                            disabled={isAnyPaidConcept}
+                            value={displayedStatus}
+                          >
                             <option value="no-cargado">No cargado</option>
                             <option value="pendiente">Pendiente</option>
                             <option value="ok">OK</option>
@@ -823,7 +895,8 @@ export function AttentionForm({
                       <Input
                         className="w-full"
                         {...form.register(`codigos.${index}.observacion`)}
-                        readOnly={!canEditLine}
+                        readOnly={!canEditLine || (isAdministrative && isAnyPaidConcept)}
+                        value={displayedObservation}
                       />
                     </td>
                     <td className="px-3 py-2">
@@ -837,7 +910,7 @@ export function AttentionForm({
                                 remove(index);
                               }
                             }}
-                            disabled={fields.length <= 1}
+                            disabled={fields.length <= 1 || isCodePaid || isCoseguroOdontoPaid}
                           >
                             Quitar
                           </Button>

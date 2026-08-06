@@ -1,8 +1,9 @@
 import { Model, Schema, Types, model, models } from "mongoose";
 
-import { AttentionCodeStatus } from "@/types/domain";
+import { AttentionCodeStatus, PaymentStatus } from "@/types/domain";
 
 export interface AttentionCodeLineDocument {
+  _id: Types.ObjectId;
   codigoObraSocialId: Types.ObjectId;
   pieza: string | null;
   coseguroCentavos: number | null;
@@ -10,6 +11,12 @@ export interface AttentionCodeLineDocument {
   observacion: string | null;
   pagoOdontologoCentavos: number;
   estado: AttentionCodeStatus;
+  codePaymentStatus: PaymentStatus;
+  codePaymentId: Types.ObjectId | null;
+  codePaidAt: Date | null;
+  coseguroOdontoPaymentStatus: PaymentStatus;
+  coseguroOdontoPaymentId: Types.ObjectId | null;
+  coseguroOdontoPaidAt: Date | null;
 }
 
 export interface AttentionDocument {
@@ -62,9 +69,36 @@ const attentionCodeLineSchema = new Schema<AttentionCodeLineDocument>(
       required: true,
       default: "pendiente",
     },
-  },
-  {
-    _id: false,
+    codePaymentStatus: {
+      type: String,
+      enum: ["pendiente", "pagado"],
+      required: true,
+      default: "pendiente",
+    },
+    codePaymentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Payment",
+      default: null,
+    },
+    codePaidAt: {
+      type: Date,
+      default: null,
+    },
+    coseguroOdontoPaymentStatus: {
+      type: String,
+      enum: ["pendiente", "pagado"],
+      required: true,
+      default: "pendiente",
+    },
+    coseguroOdontoPaymentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Payment",
+      default: null,
+    },
+    coseguroOdontoPaidAt: {
+      type: Date,
+      default: null,
+    },
   },
 );
 

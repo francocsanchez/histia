@@ -12,6 +12,7 @@ import {
   AttentionCodeLineDto,
   AttentionCodeStatus,
   AttentionDto,
+  PaymentStatus,
   QueryParams,
   SessionUser,
 } from "@/types/domain";
@@ -28,6 +29,7 @@ type AttentionFormInput = {
   };
   observacionGeneral?: string | null;
   codigos: Array<{
+    lineId?: string;
     codigoObraSocialId: string;
     pieza?: string | null;
     coseguroCentavos?: number | null;
@@ -46,6 +48,7 @@ type AttentionRow = {
   usuarioCargaId: unknown;
   observacionGeneral: string | null;
   codigos: Array<{
+    _id?: unknown;
     codigoObraSocialId: unknown;
     pieza: string | null;
     coseguroCentavos: number | null;
@@ -53,6 +56,12 @@ type AttentionRow = {
     observacion: string | null;
     pagoOdontologoCentavos: number;
     estado: AttentionCodeStatus;
+    codePaymentStatus?: PaymentStatus;
+    codePaymentId?: unknown;
+    codePaidAt?: Date | null;
+    coseguroOdontoPaymentStatus?: PaymentStatus;
+    coseguroOdontoPaymentId?: unknown;
+    coseguroOdontoPaidAt?: Date | null;
   }>;
   createdAt: Date;
   updatedAt: Date;
@@ -64,6 +73,22 @@ type AttentionRow = {
     nombre: string;
     codigo: string;
   }>;
+};
+
+type ResolvedAttentionCodeLine = {
+  codigoObraSocialId: Types.ObjectId;
+  pieza: string | null;
+  coseguroCentavos: number | null;
+  coseguroOdontoCentavos: number | null;
+  observacion: string | null;
+  pagoOdontologoCentavos: number;
+  estado: AttentionCodeStatus;
+  codePaymentStatus: PaymentStatus;
+  codePaymentId: null;
+  codePaidAt: null;
+  coseguroOdontoPaymentStatus: PaymentStatus;
+  coseguroOdontoPaymentId: null;
+  coseguroOdontoPaidAt: null;
 };
 
 function hasAdministrativeAccess(user: SessionUser) {
@@ -85,6 +110,16 @@ function normalizeOptionalText(value?: string | null) {
 
 function normalizeOptionalPiece(value?: string | null) {
   return normalizeOptionalText(value);
+}
+
+function hasAnyPaidConcept(line: {
+  codePaymentStatus?: PaymentStatus;
+  coseguroOdontoPaymentStatus?: PaymentStatus;
+}) {
+  return (
+    line.codePaymentStatus === "pagado" ||
+    line.coseguroOdontoPaymentStatus === "pagado"
+  );
 }
 
 function ensureAttentionOwnership(attention: { usuarioCargaId: unknown }, currentUser: SessionUser) {
@@ -200,11 +235,109 @@ function ensureAuditedLineUnchanged(
   );
 }
 
+function ensurePaidLineProtected(
+  persistedLine: AttentionFormInput["codigos"][number],
+  persistedPaymentState: {
+    codePaymentStatus?: PaymentStatus;
+    coseguroOdontoPaymentStatus?: PaymentStatus;
+  },
+  inputLine: AttentionFormInput["codigos"][number],
+  index: number,
+) {
+  const sameCode = persistedLine.codigoObraSocialId === inputLine.codigoObraSocialId;
+  const samePiece =
+    normalizeOptionalPiece(persistedLine.pieza) === normalizeOptionalPiece(inputLine.pieza);
+  const sameCoseguro =
+    (persistedLine.coseguroCentavos ?? null) === (inputLine.coseguroCentavos ?? null);
+  const sameCoseguroOdonto =
+    (persistedLine.coseguroOdontoCentavos ?? null) ===
+    (inputLine.coseguroOdontoCentavos ?? null);
+  const sameObservation =
+    normalizeOptionalText(persistedLine.observacion) ===
+    normalizeOptionalText(inputLine.observacion);
+  const samePago =
+    persistedLine.pagoOdontologoCentavos === inputLine.pagoOdontologoCentavos;
+  const sameStatus = persistedLine.estado === inputLine.estado;
+
+  if (
+    !sameCode ||
+    !samePiece ||
+    !sameCoseguro ||
+    !sameCoseguroOdonto ||
+    !sameObservation ||
+    !samePago ||
+    !sameStatus
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "No podes modificar una linea que ya tiene conceptos pagados",
+      400,
+      {
+        [`codigos.${index}`]:
+          "La linea tiene conceptos pagados y queda bloqueada para edicion",
+      },
+    );
+  }
+}
+
+function buildAdministrativeProtectedLine(params: {
+  persistedLine: {
+    _id?: unknown;
+    codigoObraSocialId: Types.ObjectId;
+    pieza: string | null;
+    coseguroCentavos: number | null;
+    coseguroOdontoCentavos: number | null;
+    observacion: string | null;
+    pagoOdontologoCentavos: number;
+    estado: AttentionCodeStatus;
+    codePaymentStatus?: PaymentStatus;
+    codePaymentId?: unknown;
+    codePaidAt?: Date | null;
+    coseguroOdontoPaymentStatus?: PaymentStatus;
+    coseguroOdontoPaymentId?: unknown;
+    coseguroOdontoPaidAt?: Date | null;
+  };
+  nextLine: ResolvedAttentionCodeLine;
+}) {
+  const { persistedLine, nextLine } = params;
+
+  const protectedLine = {
+    ...nextLine,
+    _id: persistedLine._id,
+    codePaymentStatus: persistedLine.codePaymentStatus ?? "pendiente",
+    codePaymentId: persistedLine.codePaymentId ?? null,
+    codePaidAt: persistedLine.codePaidAt ?? null,
+    coseguroOdontoPaymentStatus:
+      persistedLine.coseguroOdontoPaymentStatus ?? "pendiente",
+    coseguroOdontoPaymentId: persistedLine.coseguroOdontoPaymentId ?? null,
+    coseguroOdontoPaidAt: persistedLine.coseguroOdontoPaidAt ?? null,
+  };
+
+  if (hasAnyPaidConcept(persistedLine)) {
+    protectedLine.coseguroCentavos = persistedLine.coseguroCentavos;
+  }
+
+  if (persistedLine.codePaymentStatus === "pagado") {
+    protectedLine.codigoObraSocialId = persistedLine.codigoObraSocialId;
+    protectedLine.pieza = persistedLine.pieza;
+    protectedLine.observacion = persistedLine.observacion;
+    protectedLine.pagoOdontologoCentavos = persistedLine.pagoOdontologoCentavos;
+    protectedLine.estado = persistedLine.estado;
+  }
+
+  if (persistedLine.coseguroOdontoPaymentStatus === "pagado") {
+    protectedLine.coseguroOdontoCentavos = persistedLine.coseguroOdontoCentavos;
+  }
+
+  return protectedLine;
+}
+
 function toAttentionCodeLineDto(
   line: AttentionRow["codigos"][number],
   codigoDetalle?: { nombre: string; codigo: string },
 ): AttentionCodeLineDto {
   return {
+    lineId: String(line._id ?? ""),
     codigoObraSocialId: String(line.codigoObraSocialId),
     codigoNombre: codigoDetalle?.nombre ?? "Codigo sin datos",
     codigo: codigoDetalle?.codigo ?? "",
@@ -214,6 +347,8 @@ function toAttentionCodeLineDto(
     observacion: line.observacion,
     pagoOdontologoCentavos: line.pagoOdontologoCentavos,
     estado: line.estado,
+    codePaymentStatus: line.codePaymentStatus ?? "pendiente",
+    coseguroOdontoPaymentStatus: line.coseguroOdontoPaymentStatus ?? "pendiente",
   };
 }
 
@@ -365,6 +500,7 @@ async function resolveActiveObraSocial(paciente: {
   _id: unknown;
   obraSocialId: Types.ObjectId | null;
   activo: boolean;
+  currentAttentionObraSocialId?: Types.ObjectId | null;
 }) {
   if (!paciente.activo) {
     throw new AppError(
@@ -374,7 +510,9 @@ async function resolveActiveObraSocial(paciente: {
     );
   }
 
-  if (!paciente.obraSocialId) {
+  const obraSocialId = paciente.currentAttentionObraSocialId ?? paciente.obraSocialId;
+
+  if (!obraSocialId) {
     throw new AppError(
       "VALIDATION_ERROR",
       "El paciente debe tener una obra social activa para registrar atenciones",
@@ -386,7 +524,7 @@ async function resolveActiveObraSocial(paciente: {
     );
   }
 
-  const obraSocial = await ObraSocialModel.findById(paciente.obraSocialId).lean();
+  const obraSocial = await ObraSocialModel.findById(obraSocialId).lean();
 
   if (!obraSocial) {
     throw new AppError("NOT_FOUND", "La obra social del paciente no existe", 404);
@@ -463,6 +601,12 @@ async function resolveAttentionCodes(
       observacion: line.observacion ? normalizeWhitespace(line.observacion) : null,
       pagoOdontologoCentavos: line.pagoOdontologoCentavos ?? code.valorCentavos,
       estado: line.estado,
+      codePaymentStatus: "pendiente" as const,
+      codePaymentId: null,
+      codePaidAt: null,
+      coseguroOdontoPaymentStatus: "pendiente" as const,
+      coseguroOdontoPaymentId: null,
+      coseguroOdontoPaidAt: null,
     };
   });
 }
@@ -506,6 +650,24 @@ function buildAttentionPipeline(match: Record<string, unknown>) {
       },
     },
   ];
+}
+
+export async function listAttentionAssignableUsers() {
+  await connectToDatabase();
+
+  return (
+    await UserModel.find({ activo: true })
+      .sort({ apellido: 1, name: 1 })
+      .lean()
+  )
+    .filter((user) => {
+      const roles = String(user.roles ?? "");
+      return roles.includes("odontologo") || roles.includes("administrador");
+    })
+    .map((user) => ({
+      id: String(user._id),
+      label: normalizeWhitespace(`${user.apellido ?? ""}, ${user.name}`),
+    }));
 }
 
 export async function listAttentions(query: QueryParams, currentUser: SessionUser) {
@@ -610,19 +772,7 @@ export async function getAttentionLookups(input?: {
     nombre: obraSocial.nombre,
     cantidadPrestacionesMes: obraSocial.cantidadPrestacionesMes,
   }));
-  const usuariosCarga = (
-    await UserModel.find({ activo: true })
-      .sort({ apellido: 1, name: 1 })
-      .lean()
-  )
-    .filter((user) => {
-      const roles = String(user.roles ?? "");
-      return roles.includes("odontologo") || roles.includes("administrador");
-    })
-    .map((user) => ({
-      id: String(user._id),
-      label: normalizeWhitespace(`${user.apellido ?? ""}, ${user.name}`),
-    }));
+  const usuariosCarga = await listAttentionAssignableUsers();
 
   let paciente = null as null | {
     id: string;
@@ -649,6 +799,37 @@ export async function getAttentionLookups(input?: {
 
   let pacienteDoc = null;
   let obraSocialIdForCodes = input?.obraSocialId ?? null;
+  let attentionObraSocial = null as null | {
+    _id: unknown;
+    nombre: string;
+    activo: boolean;
+    cantidadPrestacionesMes: number;
+    pacienteId: unknown;
+  };
+
+  if (input?.attentionId) {
+    const attentionDoc = await AttentionModel.findById(input.attentionId)
+      .populate("obraSocialId", "nombre activo cantidadPrestacionesMes")
+      .lean();
+
+    const populatedObraSocial = attentionDoc?.obraSocialId as
+      | {
+          _id: unknown;
+          nombre: string;
+          activo: boolean;
+          cantidadPrestacionesMes: number;
+        }
+      | null
+      | undefined;
+
+    if (attentionDoc && populatedObraSocial) {
+      attentionObraSocial = {
+        ...populatedObraSocial,
+        pacienteId: attentionDoc.pacienteId,
+      };
+      obraSocialIdForCodes = String(populatedObraSocial._id);
+    }
+  }
 
   if (input?.patientId) {
     pacienteDoc = await PacienteModel.findById(input.patientId)
@@ -661,7 +842,7 @@ export async function getAttentionLookups(input?: {
   }
 
   if (pacienteDoc) {
-    const obraSocial = pacienteDoc.obraSocialId as
+    const currentPacienteObraSocial = pacienteDoc.obraSocialId as
       | {
           _id: unknown;
           nombre?: string;
@@ -669,6 +850,17 @@ export async function getAttentionLookups(input?: {
           cantidadPrestacionesMes?: number;
         }
       | null;
+    const shouldUseAttentionObraSocial =
+      Boolean(attentionObraSocial) &&
+      String(attentionObraSocial?.pacienteId) === String(pacienteDoc._id);
+    const obraSocial = shouldUseAttentionObraSocial
+      ? {
+          _id: attentionObraSocial!._id,
+          nombre: attentionObraSocial!.nombre,
+          activo: attentionObraSocial!.activo,
+          cantidadPrestacionesMes: attentionObraSocial!.cantidadPrestacionesMes,
+        }
+      : currentPacienteObraSocial;
 
     paciente = {
       id: String(pacienteDoc._id),
@@ -800,17 +992,83 @@ export async function updateAttention(
   }
 
   const paciente = await resolvePaciente(input);
-  const obraSocial = await resolveActiveObraSocial(paciente);
+  const shouldReuseCurrentAttentionObraSocial =
+    String(attention.pacienteId) === String(paciente._id);
+  const obraSocial = await resolveActiveObraSocial({
+    ...paciente,
+    currentAttentionObraSocialId: shouldReuseCurrentAttentionObraSocial
+      ? attention.obraSocialId
+      : null,
+  });
   const codigos = await resolveAttentionCodes(String(obraSocial._id), input.codigos);
 
   if (isAdministrative) {
+    const persistedLinesById = new Map(
+      attention.codigos.map((line) => [String(line._id), line]),
+    );
+    const incomingLineIds = new Set(
+      input.codigos
+        .map((line) => line.lineId)
+        .filter((lineId): lineId is string => Boolean(lineId)),
+    );
+
+    const removedPaidLine = attention.codigos.find(
+      (line) => !incomingLineIds.has(String(line._id)) && hasAnyPaidConcept(line),
+    );
+
+    if (removedPaidLine) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "No podes quitar una linea que ya tenga conceptos pagados",
+        400,
+      );
+    }
+
     attention.fecha = new Date(input.fecha);
     attention.pacienteId = new Types.ObjectId(String(paciente._id));
     attention.obraSocialId = new Types.ObjectId(String(obraSocial._id));
     attention.observacionGeneral = input.observacionGeneral
       ? normalizeWhitespace(input.observacionGeneral)
       : null;
-    attention.codigos = codigos;
+    attention.codigos = codigos.map((nextLine, index) => {
+      const inputLine = input.codigos[index];
+      const persistedLine =
+        (inputLine?.lineId
+          ? persistedLinesById.get(inputLine.lineId)
+          : undefined) ?? attention.codigos[index];
+
+      if (!persistedLine) {
+        return nextLine;
+      }
+
+      if (hasAnyPaidConcept(persistedLine)) {
+        ensurePaidLineProtected(
+          {
+            codigoObraSocialId: String(persistedLine.codigoObraSocialId),
+            pieza: persistedLine.pieza,
+            coseguroCentavos: persistedLine.coseguroCentavos,
+            coseguroOdontoCentavos: persistedLine.coseguroOdontoCentavos,
+            observacion: persistedLine.observacion,
+            pagoOdontologoCentavos: persistedLine.pagoOdontologoCentavos,
+            estado: persistedLine.estado,
+          },
+          {
+            codePaymentStatus: persistedLine.codePaymentStatus,
+            coseguroOdontoPaymentStatus:
+              persistedLine.coseguroOdontoPaymentStatus,
+          },
+          inputLine,
+          index,
+        );
+
+        return persistedLine;
+      }
+
+      return buildAdministrativeProtectedLine({
+        persistedLine,
+        nextLine,
+      });
+    }) as typeof attention.codigos;
   } else {
     attention.codigos = attention.codigos.map((persistedLine, index) => {
       const inputLine = input.codigos[index];
@@ -839,13 +1097,35 @@ export async function updateAttention(
         return persistedLine;
       }
 
+      if (hasAnyPaidConcept(persistedLine)) {
+        ensurePaidLineProtected(
+          persistedComparable,
+          {
+            codePaymentStatus: persistedLine.codePaymentStatus,
+            coseguroOdontoPaymentStatus:
+              persistedLine.coseguroOdontoPaymentStatus,
+          },
+          inputLine,
+          index,
+        );
+        return persistedLine;
+      }
+
       ensureEditableLineState(persistedComparable, inputLine, index);
 
       return {
         ...nextLine,
+        _id: persistedLine._id,
         pagoOdontologoCentavos: persistedLine.pagoOdontologoCentavos,
         coseguroOdontoCentavos: persistedLine.coseguroOdontoCentavos,
         estado: persistedLine.estado,
+        codePaymentStatus: persistedLine.codePaymentStatus ?? "pendiente",
+        codePaymentId: persistedLine.codePaymentId ?? null,
+        codePaidAt: persistedLine.codePaidAt ?? null,
+        coseguroOdontoPaymentStatus:
+          persistedLine.coseguroOdontoPaymentStatus ?? "pendiente",
+        coseguroOdontoPaymentId: persistedLine.coseguroOdontoPaymentId ?? null,
+        coseguroOdontoPaidAt: persistedLine.coseguroOdontoPaidAt ?? null,
       };
     });
   }

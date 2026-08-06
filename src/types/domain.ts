@@ -88,6 +88,40 @@ export interface DashboardStatsDto {
   usuariosActivos: number;
 }
 
+export interface DashboardUserOptionDto {
+  id: string;
+  label: string;
+}
+
+export interface DashboardSelectedUserDto {
+  id: string;
+  nombreCompleto: string;
+}
+
+export interface DashboardDailyAttentionDto {
+  day: number;
+  date: string;
+  total: number;
+}
+
+export interface DashboardStatusSummaryItemDto {
+  status: AttentionCodeStatus;
+  label: string;
+  total: number;
+}
+
+export interface DashboardMonthlyStatsDto {
+  month: string;
+  selectedUser: DashboardSelectedUserDto;
+  availableUsers: DashboardUserOptionDto[];
+  dailyAttentions: DashboardDailyAttentionDto[];
+  statusSummary: DashboardStatusSummaryItemDto[];
+  totals: {
+    atenciones: number;
+    codigos: number;
+  };
+}
+
 export const rxTypeValues = ["carpal", "panoramica"] as const;
 export type RxType = (typeof rxTypeValues)[number];
 
@@ -121,8 +155,11 @@ export const attentionCodeStatusValues = [
 ] as const;
 
 export type AttentionCodeStatus = (typeof attentionCodeStatusValues)[number];
+export const paymentStatusValues = ["pendiente", "pagado"] as const;
+export type PaymentStatus = (typeof paymentStatusValues)[number];
 
 export interface AttentionCodeLineDto {
+  lineId: string;
   codigoObraSocialId: string;
   codigoNombre: string;
   codigo: string;
@@ -132,6 +169,8 @@ export interface AttentionCodeLineDto {
   observacion: string | null;
   pagoOdontologoCentavos: number;
   estado: AttentionCodeStatus;
+  codePaymentStatus: PaymentStatus;
+  coseguroOdontoPaymentStatus: PaymentStatus;
 }
 
 export interface AttentionDto {
@@ -152,4 +191,81 @@ export interface AttentionDto {
   totalPagoOdontologoCentavos: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PaymentCandidateLineDto {
+  attentionId: string;
+  attentionFecha: string;
+  attentionMonth: string;
+  userId: string;
+  userName: string;
+  pacienteId: string;
+  pacienteNombreCompleto: string;
+  pacienteDni: string;
+  obraSocialId: string;
+  obraSocialNombre: string;
+  lineId: string;
+  codigoObraSocialId: string;
+  codigo: string;
+  codigoNombre: string;
+  pieza: string | null;
+  estado: AttentionCodeStatus;
+  pagoOdontologoCentavos: number;
+  coseguroOdontoCentavos: number | null;
+  codePaymentStatus: PaymentStatus;
+  coseguroOdontoPaymentStatus: PaymentStatus;
+  canPayCode: boolean;
+  canPayCoseguroOdonto: boolean;
+}
+
+export interface PaymentCandidateSelectionDto {
+  lineId: string;
+  payCode: boolean;
+  payCoseguroOdonto: boolean;
+}
+
+export interface PaymentLineItemDto {
+  attentionId: string;
+  attentionFecha: string;
+  pacienteId: string;
+  pacienteNombre: string;
+  pacienteDni: string;
+  obraSocialId: string;
+  obraSocialNombre: string;
+  codigoObraSocialId: string;
+  codigo: string;
+  codigoNombre: string;
+  pieza: string | null;
+  estadoAtencionSnapshot: AttentionCodeStatus;
+  pagoOdontologoCentavos: number;
+  coseguroOdontoCentavos: number | null;
+  includesCodePayment: boolean;
+  includesCoseguroOdontoPayment: boolean;
+  totalLineaCentavos: number;
+}
+
+export interface PaymentDto {
+  id: string;
+  usuarioId: string;
+  usuarioNombreSnapshot: string;
+  attentionMonth: string;
+  paidAt: string;
+  createdByUserId: string;
+  totalPagoCodigosCentavos: number;
+  totalCoseguroOdontoCentavos: number;
+  totalHonorariosCentavos: number;
+  quantityConceptsPaid: number;
+  lineItems: PaymentLineItemDto[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaymentSummaryDto {
+  userId: string;
+  attentionMonth: string;
+  selectedItems: PaymentCandidateSelectionDto[];
+  totalPagoCodigosCentavos: number;
+  totalCoseguroOdontoCentavos: number;
+  totalHonorariosCentavos: number;
+  quantityConceptsPaid: number;
 }

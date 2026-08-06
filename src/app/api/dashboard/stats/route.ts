@@ -1,7 +1,7 @@
 import { can } from "@/lib/permissions";
 import { fromUnknownError, ok, AppError } from "@/lib/api";
 import { requireApiSessionUser } from "@/lib/auth/session";
-import { getDashboardStats } from "@/services/dashboard";
+import { getDashboardMonthlyStats } from "@/services/dashboard";
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +11,16 @@ export async function GET(request: Request) {
       throw new AppError("FORBIDDEN", "No tenes permisos para acceder", 403);
     }
 
-    const stats = await getDashboardStats();
+    const { searchParams } = new URL(request.url);
+    const month = searchParams.get("month") ?? undefined;
+    const userId = searchParams.get("userId") ?? undefined;
+
+    const stats = await getDashboardMonthlyStats({
+      currentUser: user,
+      month,
+      userId,
+    });
+
     return ok(stats);
   } catch (error) {
     return fromUnknownError(error);
