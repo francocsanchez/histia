@@ -8,6 +8,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import { ErrorState, LoadingState } from "@/components/shared/states";
+import { AutocompleteSelect } from "@/components/ui/autocomplete-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -699,7 +700,7 @@ export function AttentionForm({
         </Card>
       </div>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-visible">
         <div className="flex flex-col gap-2 border-b border-border px-3 py-3 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-medium">Codigos de la atencion</p>
@@ -829,33 +830,33 @@ export function AttentionForm({
                             </div>
                           </>
                         ) : (
-                          <Select
-                            className="w-full"
-                            {...form.register(`codigos.${index}.codigoObraSocialId`)}
-                            onChange={(event) => {
-                              const nextCodeId = event.target.value;
-                              form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              });
+                          <>
+                            <input
+                              type="hidden"
+                              {...form.register(`codigos.${index}.codigoObraSocialId`)}
+                            />
+                            <AutocompleteSelect
+                              className="w-full"
+                              options={codigosDisponibles}
+                              value={selectedCodeId}
+                              placeholder="Buscar por codigo o nombre"
+                              onChange={(nextCodeId) => {
+                                form.setValue(`codigos.${index}.codigoObraSocialId`, nextCodeId, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
 
-                              const code = selectedCodeOptions.get(nextCodeId);
-                              if (code) {
-                                form.setValue(
-                                  `codigos.${index}.pagoOdontologoCentavos`,
-                                  code.valorCentavos,
-                                  { shouldDirty: true, shouldValidate: true },
-                                );
-                              }
-                            }}
-                          >
-                            <option value="">Seleccionar codigo</option>
-                            {codigosDisponibles.map((codigo) => (
-                              <option key={codigo.id} value={codigo.id}>
-                                {codigo.codigo} - {codigo.nombre}
-                              </option>
-                            ))}
-                          </Select>
+                                const code = selectedCodeOptions.get(nextCodeId);
+                                if (code) {
+                                  form.setValue(
+                                    `codigos.${index}.pagoOdontologoCentavos`,
+                                    code.valorCentavos,
+                                    { shouldDirty: true, shouldValidate: true },
+                                  );
+                                }
+                              }}
+                            />
+                          </>
                         )
                       )}
                       {selectedCode ? (
