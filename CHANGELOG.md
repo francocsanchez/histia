@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-07
+
+### Changed
+
+- La selección de conceptos en `Pagos` ahora persiste entre páginas del paginador para permitir liquidaciones grandes sin perder ítems ya marcados.
+- Los campos bloqueados en la edición administrativa de `Atenciones` ahora se muestran deshabilitados en UI para evitar falsas señales de edición disponible.
+
+### Fixed
+
+- `Pagos` dejaba de recordar códigos y coseguros seleccionados al cambiar de página.
+- La edición administrativa de `Atenciones` podía arrastrar cambios inválidos sobre campos bloqueados al interactuar con importes ya pagados.
+- El `coseguro odonto` pagado ya no bloquea el cambio de estado del código cuando el código en sí todavía no fue pagado.
+
 ## 2026-08-06
 
 ### Added

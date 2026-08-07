@@ -20,6 +20,7 @@ import {
   getAttentionStatusBadgeVariant,
   isAttentionCodeEditableByUser,
 } from "@/lib/attention-status";
+import { getTodayDateOnly } from "@/lib/utils";
 import { attentionSchema } from "@/lib/validations/schemas";
 import { AttentionDto } from "@/types/domain";
 
@@ -123,7 +124,7 @@ function emptyLine() {
 function getDefaultValues(initialAttention?: AttentionDto): FormValues {
   if (!initialAttention) {
     return {
-      fecha: new Date().toISOString().slice(0, 10),
+      fecha: getTodayDateOnly(),
       pacienteId: "",
       paciente: {
         nombre: "",
@@ -137,7 +138,7 @@ function getDefaultValues(initialAttention?: AttentionDto): FormValues {
   }
 
   return {
-    fecha: initialAttention.fecha.slice(0, 10),
+    fecha: initialAttention.fecha,
     pacienteId: initialAttention.pacienteId,
     paciente: undefined,
     observacionGeneral: initialAttention.observacionGeneral ?? "",
@@ -262,7 +263,7 @@ export function AttentionForm({
         initialAttention
           ? {
               patientId: initialAttention.pacienteId,
-              fecha: initialAttention.fecha.slice(0, 10),
+              fecha: initialAttention.fecha,
             }
           : undefined,
       );

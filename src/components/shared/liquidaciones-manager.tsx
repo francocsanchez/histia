@@ -15,7 +15,7 @@ import {
   getAttentionStatusBadgeClassName,
   getAttentionStatusBadgeVariant,
 } from "@/lib/attention-status";
-import { formatCurrencyFromCents } from "@/lib/utils";
+import { formatCurrencyFromCents, formatDateOnly } from "@/lib/utils";
 import { AttentionDto } from "@/types/domain";
 
 type ListPayload = {
@@ -42,9 +42,7 @@ type LookupPayload = {
 };
 
 function formatTableDate(value: string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "short",
-  }).format(new Date(value));
+  return formatDateOnly(value);
 }
 
 export function LiquidacionesManager() {

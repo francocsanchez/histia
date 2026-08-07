@@ -59,6 +59,50 @@ export function formatCurrencyFromCents(value: number) {
   }).format(value / 100);
 }
 
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+export function getTodayDateOnly() {
+  const today = new Date();
+
+  return `${today.getFullYear()}-${padDatePart(today.getMonth() + 1)}-${padDatePart(today.getDate())}`;
+}
+
+export function parseDateOnlyAsUtc(value: string, options?: { endOfDay?: boolean }) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    throw new Error(`Invalid date-only value: ${value}`);
+  }
+
+  const [, yearValue, monthValue, dayValue] = match;
+  const year = Number(yearValue);
+  const monthIndex = Number(monthValue) - 1;
+  const day = Number(dayValue);
+
+  if (options?.endOfDay) {
+    return new Date(Date.UTC(year, monthIndex, day, 23, 59, 59, 999));
+  }
+
+  return new Date(Date.UTC(year, monthIndex, day, 12, 0, 0, 0));
+}
+
+export function formatDateOnlyValue(value: Date | string) {
+  const date = typeof value === "string" ? new Date(value) : value;
+
+  return `${date.getUTCFullYear()}-${padDatePart(date.getUTCMonth() + 1)}-${padDatePart(date.getUTCDate())}`;
+}
+
+export function formatDateOnly(value: Date | string) {
+  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value
+    : formatDateOnlyValue(value);
+  const [year, month, day] = normalized.split("-");
+
+  return `${day}/${month}/${year}`;
+}
+
 export function formatDate(value: Date | string) {
   return new Intl.DateTimeFormat("es-AR", {
     dateStyle: "short",

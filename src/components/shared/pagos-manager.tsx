@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { attentionStatusLabels } from "@/lib/attention-status";
-import { formatCurrencyFromCents } from "@/lib/utils";
+import { formatCurrencyFromCents, formatDateOnly } from "@/lib/utils";
 import {
   attentionCodeStatusValues,
   PaymentCandidateLineDto,
@@ -52,23 +52,6 @@ type SelectionState = Record<
   }
 >;
 
-function formatTableDate(value: string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "short",
-  }).format(new Date(value));
-}
-
-function getSelectionKey(line: PaymentCandidateLineDto) {
-  return [
-    line.attentionId,
-    line.lineId,
-    line.codigoObraSocialId,
-    line.codigo,
-    line.pieza ?? "sin-pieza",
-    line.estado,
-  ].join(":");
-}
-
 function getInitialSelection(lineId: string) {
   return {
     lineId,
@@ -81,12 +64,19 @@ function getPaymentCellClass(enabled: boolean) {
   return enabled ? "text-foreground" : "text-muted-foreground";
 }
 
+function formatTableDate(value: string) {
+  return formatDateOnly(value);
+}
+
 export function PagosManager() {
   const [users, setUsers] = useState<LookupPayload["data"]["users"]>([]);
   const [months, setMonths] = useState<string[]>([]);
   const [candidates, setCandidates] = useState<PaymentCandidateLineDto[]>([]);
   const [payments, setPayments] = useState<PaymentDto[]>([]);
   const [selection, setSelection] = useState<SelectionState>({});
+  const [candidateCache, setCandidateCache] = useState<Record<string, PaymentCandidateLineDto>>(
+    {},
+  );
   const [lookupLoading, setLookupLoading] = useState(true);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
@@ -147,14 +137,22 @@ export function PagosManager() {
 
       setCandidates(payload.data);
       setCandidateTotalPages(payload.pagination.totalPages);
-      setSelection((current) => {
-        const next: SelectionState = {};
+      setCandidateCache((current) => {
+        const next = { ...current };
 
         payload.data.forEach((line) => {
-          const selectionKey = getSelectionKey(line);
-          const previous = current[selectionKey];
+          next[line.lineId] = line;
+        });
 
-          next[selectionKey] = {
+        return next;
+      });
+      setSelection((current) => {
+        const next = { ...current };
+
+        payload.data.forEach((line) => {
+          const previous = current[line.lineId];
+
+          next[line.lineId] = {
             lineId: line.lineId,
             payCode:
               line.canPayCode &&
@@ -236,31 +234,20 @@ export function PagosManager() {
 
   const selectedItems = useMemo(
     () =>
-      candidates
-        .map((line) => {
-          const selectionKey = getSelectionKey(line);
-          const currentSelection = selection[selectionKey] ?? getInitialSelection(line.lineId);
-
-          return {
-            selectionKey,
-            lineId: line.lineId,
-            payCode: Boolean(currentSelection.payCode),
-            payCoseguroOdonto: Boolean(currentSelection.payCoseguroOdonto),
-          };
-        })
+      Object.values(selection)
         .filter((line) => line.payCode || line.payCoseguroOdonto)
         .map(({ lineId, payCode, payCoseguroOdonto }) => ({
           lineId,
           payCode,
           payCoseguroOdonto,
         })),
-    [candidates, selection],
+    [selection],
   );
 
   const selectedSummary = useMemo(() => {
     return selectedItems.reduce(
       (acc, item) => {
-        const line = candidates.find((candidate) => candidate.lineId === item.lineId);
+        const line = candidateCache[item.lineId];
 
         if (!line) {
           return acc;
@@ -288,24 +275,20 @@ export function PagosManager() {
         quantityConceptsPaid: 0,
       },
     );
-  }, [candidates, selectedItems]);
+  }, [candidateCache, selectedItems]);
 
   const selectedMonths = useMemo(
     () =>
       Array.from(
         new Set(
-          candidates
-            .filter((line) => {
-              const selectionKey = getSelectionKey(line);
-              const currentSelection =
-                selection[selectionKey] ?? getInitialSelection(line.lineId);
-              return currentSelection.payCode || currentSelection.payCoseguroOdonto;
-            })
+          selectedItems
+            .map((item) => candidateCache[item.lineId])
+            .filter((line): line is PaymentCandidateLineDto => Boolean(line))
             .map((line) => line.attentionMonth)
             .filter((month): month is string => Boolean(month)),
         ),
       ),
-    [candidates, selection],
+    [candidateCache, selectedItems],
   );
 
   const effectiveAttentionMonth =
@@ -319,7 +302,6 @@ export function PagosManager() {
     key: "payCode" | "payCoseguroOdonto",
     checked: boolean,
   ) => {
-    const selectionKey = getSelectionKey(line);
     const canToggle =
       (key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto);
 
@@ -329,8 +311,8 @@ export function PagosManager() {
 
     setSelection((current) => ({
       ...current,
-      [selectionKey]: {
-        ...(current[selectionKey] ?? getInitialSelection(line.lineId)),
+      [line.lineId]: {
+        ...(current[line.lineId] ?? getInitialSelection(line.lineId)),
         [key]: checked,
       },
     }));
@@ -362,6 +344,7 @@ export function PagosManager() {
       }
 
       setSelection({});
+      setCandidateCache({});
       setSuccessMessage("El pago se genero correctamente.");
       await Promise.all([loadCandidates(), loadPayments()]);
     } catch (submitError) {
@@ -536,14 +519,13 @@ export function PagosManager() {
               </thead>
               <tbody>
                 {candidates.map((line) => {
-                  const selectionKey = getSelectionKey(line);
                   const currentSelection =
-                    selection[selectionKey] ?? getInitialSelection(line.lineId);
+                    selection[line.lineId] ?? getInitialSelection(line.lineId);
                   const canToggleCode = line.canPayCode;
                   const canToggleCoseguro = line.canPayCoseguroOdonto;
 
                   return (
-                    <tr key={selectionKey} className="border-t border-border align-top">
+                    <tr key={line.lineId} className="border-t border-border align-top">
                       <td className="whitespace-nowrap px-3 py-2">{formatTableDate(line.attentionFecha)}</td>
                       <td className="px-3 py-2 font-medium">
                         <p>{line.pacienteNombreCompleto}</p>

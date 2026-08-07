@@ -2,7 +2,12 @@ import { Types } from "mongoose";
 
 import { AppError } from "@/lib/api";
 import { connectToDatabase } from "@/lib/db/mongoose";
-import { normalizeDni, normalizeWhitespace } from "@/lib/utils";
+import {
+  formatDateOnlyValue,
+  normalizeDni,
+  normalizeWhitespace,
+  parseDateOnlyAsUtc,
+} from "@/lib/utils";
 import { AttentionModel } from "@/models/attention";
 import { CodigoObraSocialModel } from "@/models/codigo-obra-social";
 import { ObraSocialModel } from "@/models/obra-social";
@@ -91,12 +96,93 @@ type ResolvedAttentionCodeLine = {
   coseguroOdontoPaidAt: null;
 };
 
+type PopulatedPacienteRef = {
+  _id?: unknown;
+  nombre: string;
+  apellido: string;
+  dni: string;
+};
+
+type PopulatedObraSocialRef = {
+  _id?: unknown;
+  nombre: string;
+};
+
+type PopulatedUserRef = {
+  _id?: unknown;
+  name: string;
+  apellido?: string | null;
+};
+
 function hasAdministrativeAccess(user: SessionUser) {
   return user.roles.includes("administrador");
 }
 
+function isPopulatedPacienteRef(value: unknown): value is PopulatedPacienteRef {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value === "object" &&
+    "nombre" in value &&
+    "apellido" in value &&
+    "dni" in value
+  );
+}
+
+function isPopulatedObraSocialRef(value: unknown): value is PopulatedObraSocialRef {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value === "object" &&
+    "nombre" in value
+  );
+}
+
+function isPopulatedUserRef(value: unknown): value is PopulatedUserRef {
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value === "object" &&
+    "name" in value
+  );
+}
+
+function getObjectIdString(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "toHexString" in value &&
+    typeof (value as { toHexString?: unknown }).toHexString === "function"
+  ) {
+    return (value as { toHexString: () => string }).toHexString();
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const nestedId =
+      "_id" in value
+        ? (value as { _id?: unknown })._id
+        : "id" in value
+          ? (value as { id?: unknown }).id
+          : undefined;
+
+    if (nestedId) {
+      return getObjectIdString(nestedId);
+    }
+  }
+
+  return String(value);
+}
+
 function isSameObjectId(left: unknown, right: string) {
-  return String(left) === right;
+  return getObjectIdString(left) === right;
 }
 
 function normalizeOptionalText(value?: string | null) {
@@ -153,7 +239,7 @@ function ensureEditableAttentionShape(
   },
   input: AttentionFormInput,
 ) {
-  if (currentAttention.fecha.toISOString().slice(0, 10) !== input.fecha) {
+  if (formatDateOnlyValue(currentAttention.fecha) !== input.fecha) {
     throw new AppError(
       "VALIDATION_ERROR",
       "No podes modificar la fecha de una atencion ya creada desde esta vista",
@@ -392,7 +478,7 @@ function toAttentionDto(row: AttentionRow): AttentionDto {
 
   return {
     id: String(row._id),
-    fecha: row.fecha.toISOString(),
+    fecha: formatDateOnlyValue(row.fecha),
     pacienteId: String(row.pacienteId),
     pacienteNombreCompleto: row.paciente
       ? `${row.paciente.apellido}, ${row.paciente.nombre}`
@@ -419,20 +505,25 @@ function buildDateMatch(query: QueryParams) {
   const fecha: Record<string, Date> = {};
 
   if (query.dateFrom) {
-    fecha.$gte = new Date(`${query.dateFrom}T00:00:00.000`);
+    fecha.$gte = parseDateOnlyAsUtc(query.dateFrom);
   }
 
   if (query.dateTo) {
-    fecha.$lte = new Date(`${query.dateTo}T23:59:59.999`);
+    fecha.$lte = parseDateOnlyAsUtc(query.dateTo, { endOfDay: true });
   }
 
   return Object.keys(fecha).length > 0 ? fecha : undefined;
 }
 
 function getMonthRange(fecha: string | Date) {
-  const baseDate = new Date(fecha);
-  const start = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
-  const end = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0, 23, 59, 59, 999);
+  const baseDate =
+    typeof fecha === "string" && /^\d{4}-\d{2}-\d{2}$/.test(fecha)
+      ? parseDateOnlyAsUtc(fecha)
+      : new Date(fecha);
+  const start = new Date(Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth(), 1, 0, 0, 0, 0));
+  const end = new Date(
+    Date.UTC(baseDate.getUTCFullYear(), baseDate.getUTCMonth() + 1, 0, 23, 59, 59, 999),
+  );
 
   return { start, end };
 }
@@ -758,18 +849,65 @@ export async function listAttentions(query: QueryParams, currentUser: SessionUse
 export async function getAttentionById(id: string, currentUser: SessionUser) {
   await connectToDatabase();
 
-  const rows = await AttentionModel.aggregate([
-    ...buildAttentionPipeline({
-      _id: new Types.ObjectId(id),
-    }),
-  ]);
-  const row = rows[0] as AttentionRow | undefined;
-
-  if (!row) {
+  if (!Types.ObjectId.isValid(id)) {
     throw new AppError("NOT_FOUND", "La atencion no existe", 404);
   }
 
-  ensureAttentionOwnership(row, currentUser);
+  const attention = await AttentionModel.findById(id)
+    .populate("pacienteId", "nombre apellido dni")
+    .populate("obraSocialId", "nombre")
+    .populate("usuarioCargaId", "name apellido")
+    .lean();
+
+  if (!attention) {
+    throw new AppError("NOT_FOUND", "La atencion no existe", 404);
+  }
+
+  ensureAttentionOwnership(attention, currentUser);
+
+  const codeIds = Array.from(
+    new Set(attention.codigos.map((line) => String(line.codigoObraSocialId))),
+  );
+  const codeDetails = await CodigoObraSocialModel.find()
+    .where("_id")
+    .in(codeIds)
+    .select("_id nombre codigo")
+    .lean();
+
+  const row: AttentionRow = {
+    _id: attention._id,
+    fecha: attention.fecha,
+    pacienteId: attention.pacienteId?._id ?? attention.pacienteId,
+    obraSocialId: attention.obraSocialId?._id ?? attention.obraSocialId,
+    usuarioCargaId: attention.usuarioCargaId?._id ?? attention.usuarioCargaId,
+    observacionGeneral: attention.observacionGeneral,
+    codigos: attention.codigos,
+    createdAt: attention.createdAt,
+    updatedAt: attention.updatedAt,
+    paciente: isPopulatedPacienteRef(attention.pacienteId)
+      ? {
+          nombre: attention.pacienteId.nombre,
+          apellido: attention.pacienteId.apellido,
+          dni: attention.pacienteId.dni,
+        }
+      : null,
+    obraSocial: isPopulatedObraSocialRef(attention.obraSocialId)
+      ? {
+          nombre: attention.obraSocialId.nombre,
+        }
+      : null,
+    usuarioCarga: isPopulatedUserRef(attention.usuarioCargaId)
+      ? {
+          name: attention.usuarioCargaId.name,
+          apellido: attention.usuarioCargaId.apellido,
+        }
+      : null,
+    codigosDetalle: codeDetails.map((code) => ({
+      _id: code._id,
+      nombre: code.nombre,
+      codigo: code.codigo,
+    })),
+  };
 
   return toAttentionDto(row);
 }
@@ -956,7 +1094,7 @@ export async function createAttention(input: AttentionFormInput, currentUser: Se
   const codigos = await resolveAttentionCodes(String(obraSocial._id), input.codigos);
 
   const attention = await AttentionModel.create({
-    fecha: new Date(input.fecha),
+    fecha: parseDateOnlyAsUtc(input.fecha),
     pacienteId: new Types.ObjectId(String(paciente._id)),
     obraSocialId: new Types.ObjectId(String(obraSocial._id)),
     usuarioCargaId: new Types.ObjectId(currentUser.id),
@@ -1042,7 +1180,7 @@ export async function updateAttention(
       );
     }
 
-    attention.fecha = new Date(input.fecha);
+    attention.fecha = parseDateOnlyAsUtc(input.fecha);
     attention.pacienteId = new Types.ObjectId(String(paciente._id));
     attention.obraSocialId = new Types.ObjectId(String(obraSocial._id));
     attention.observacionGeneral = input.observacionGeneral

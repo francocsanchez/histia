@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { attentionStatusLabels } from "@/lib/attention-status";
-import { formatDate } from "@/lib/utils";
+import { formatDateOnly } from "@/lib/utils";
 import { AttentionDto } from "@/types/domain";
 
 type ListPayload = {
@@ -235,7 +235,7 @@ export function AtencionesManager({
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="border-t border-border align-top">
-                    <td className="px-4 py-3">{formatDate(item.fecha)}</td>
+                    <td className="px-4 py-3">{formatDateOnly(item.fecha)}</td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{item.pacienteNombreCompleto}</p>
                       <p className="text-muted-foreground">DNI: {item.pacienteDni}</p>
