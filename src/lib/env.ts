@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-const envSchema = z.object({
+const publicEnvSchema = z.object({
+  NEXT_PUBLIC_APP_NAME: z.string().min(1).default("Histia"),
+});
+
+const serverEnvSchema = z.object({
   MONGODB_URI: z.string().min(1, "MONGODB_URI es obligatoria"),
   MONGODB_DB_NAME: z.string().min(1, "MONGODB_DB_NAME es obligatoria"),
   BETTER_AUTH_SECRET: z
@@ -14,24 +18,39 @@ const envSchema = z.object({
   SEED_ADMIN_LAST_NAME: z.string().min(1).optional(),
 });
 
-const parsedEnv = envSchema.safeParse({
-  MONGODB_URI: process.env.MONGODB_URI,
-  MONGODB_DB_NAME: process.env.MONGODB_DB_NAME,
-  BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+export const publicEnv = publicEnvSchema.parse({
   NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
-  SEED_ADMIN_EMAIL: process.env.SEED_ADMIN_EMAIL,
-  SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
-  SEED_ADMIN_NAME: process.env.SEED_ADMIN_NAME,
-  SEED_ADMIN_LAST_NAME: process.env.SEED_ADMIN_LAST_NAME,
 });
 
-if (!parsedEnv.success) {
-  const issues = parsedEnv.error.issues
-    .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
-    .join("\n");
+export type ServerEnv = z.infer<typeof serverEnvSchema>;
 
-  throw new Error(`Configuracion de entorno invalida:\n${issues}`);
+let serverEnvCache: ServerEnv | undefined;
+
+export function getServerEnv(): ServerEnv {
+  if (serverEnvCache) {
+    return serverEnvCache;
+  }
+
+  const parsedEnv = serverEnvSchema.safeParse({
+    MONGODB_URI: process.env.MONGODB_URI,
+    MONGODB_DB_NAME: process.env.MONGODB_DB_NAME,
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME ?? publicEnv.NEXT_PUBLIC_APP_NAME,
+    SEED_ADMIN_EMAIL: process.env.SEED_ADMIN_EMAIL,
+    SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
+    SEED_ADMIN_NAME: process.env.SEED_ADMIN_NAME,
+    SEED_ADMIN_LAST_NAME: process.env.SEED_ADMIN_LAST_NAME,
+  });
+
+  if (!parsedEnv.success) {
+    const issues = parsedEnv.error.issues
+      .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("\n");
+
+    throw new Error(`Configuracion de entorno invalida:\n${issues}`);
+  }
+
+  serverEnvCache = parsedEnv.data;
+  return serverEnvCache;
 }
-
-export const env = parsedEnv.data;

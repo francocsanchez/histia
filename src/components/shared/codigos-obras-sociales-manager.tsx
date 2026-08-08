@@ -1,5 +1,6 @@
 "use client";
 
+import type { z } from "zod";
 import { useEffect, useEffectEvent, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,12 +18,8 @@ import { formatCurrencyFromCents, formatDate } from "@/lib/utils";
 import { codigoObraSocialSchema } from "@/lib/validations/schemas";
 import { CodigoObraSocialDto, ObraSocialDto } from "@/types/domain";
 
-type FormValues = {
-  nombre: string;
-  codigo: string;
-  obraSocialId: string;
-  valorCentavos: number;
-};
+type FormValues = z.input<typeof codigoObraSocialSchema>;
+type SubmitValues = z.output<typeof codigoObraSocialSchema>;
 
 type ListPayload = {
   success: boolean;
@@ -45,7 +42,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
   const [selected, setSelected] = useState<CodigoObraSocialDto | null>(null);
   const [statusDialogItem, setStatusDialogItem] = useState<CodigoObraSocialDto | null>(null);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, SubmitValues>({
     resolver: zodResolver(codigoObraSocialSchema),
     defaultValues: { nombre: "", codigo: "", obraSocialId: "", valorCentavos: 0 },
   });

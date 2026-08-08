@@ -1,25 +1,32 @@
 import { Db, MongoClient } from "mongodb";
 
-import { env } from "@/lib/env";
+import { getServerEnv } from "@/lib/env";
 
 declare global {
   var __histiaMongoClient: MongoClient | undefined;
   var __histiaMongoClientPromise: Promise<MongoClient> | undefined;
 }
 
-const mongoClient = global.__histiaMongoClient ?? new MongoClient(env.MONGODB_URI);
-const mongoClientPromise =
-  global.__histiaMongoClientPromise ?? mongoClient.connect();
+function getMongoClientInstance() {
+  if (!global.__histiaMongoClient) {
+    const env = getServerEnv();
+    global.__histiaMongoClient = new MongoClient(env.MONGODB_URI);
+  }
 
-if (process.env.NODE_ENV !== "production") {
-  global.__histiaMongoClient = mongoClient;
-  global.__histiaMongoClientPromise = mongoClientPromise;
+  return global.__histiaMongoClient;
 }
 
 export async function getMongoClient() {
-  return mongoClientPromise;
+  if (!global.__histiaMongoClientPromise) {
+    global.__histiaMongoClientPromise = getMongoClientInstance().connect();
+  }
+
+  return global.__histiaMongoClientPromise;
 }
 
 export function getMongoDb(): Db {
-  return mongoClient.db(env.MONGODB_DB_NAME);
+  const env = getServerEnv();
+  const client = getMongoClientInstance();
+
+  return client.db(env.MONGODB_DB_NAME);
 }

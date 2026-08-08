@@ -1,5 +1,6 @@
 "use client";
 
+import type { z } from "zod";
 import { useEffect, useEffectEvent, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,22 +17,8 @@ import { formatCurrencyFromCents, formatDate } from "@/lib/utils";
 import { rxAttentionSchema } from "@/lib/validations/schemas";
 import { RxAttentionDto } from "@/types/domain";
 
-type FormValues = {
-  fecha: string;
-  pacienteId?: string | null;
-  paciente?: {
-    nombre: string;
-    apellido: string;
-    dni: string;
-    obraSocialId?: string | null;
-  };
-  derivanteTipo: "interno" | "externo";
-  derivanteUserId?: string | null;
-  derivanteExternoNombre?: string | null;
-  tipoRx: "carpal" | "panoramica";
-  valorCentavos?: number | null;
-  observaciones?: string | null;
-};
+type FormValues = z.input<typeof rxAttentionSchema>;
+type SubmitValues = z.output<typeof rxAttentionSchema>;
 
 type RxListPayload = {
   success: boolean;
@@ -107,7 +94,7 @@ export function RxManager({
   const [patientLookupLoading, setPatientLookupLoading] = useState(false);
   const [patientLookupError, setPatientLookupError] = useState("");
   const [matchedPatient, setMatchedPatient] = useState<LookupPayload["data"]["paciente"]>(null);
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, SubmitValues>({
     resolver: zodResolver(rxAttentionSchema),
     defaultValues: emptyFormValues(),
   });
@@ -259,7 +246,7 @@ export function RxManager({
   };
 
   const submit = form.handleSubmit(async (values) => {
-    const body: FormValues = {
+    const body: SubmitValues = {
       ...values,
       valorCentavos:
         values.valorCentavos === null || values.valorCentavos === undefined || Number.isNaN(values.valorCentavos)

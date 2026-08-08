@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-import { env } from "@/lib/env";
+import { getServerEnv } from "@/lib/env";
 
 declare global {
   var __histiaMongoose:
@@ -21,6 +21,8 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export async function connectToDatabase() {
+  const env = getServerEnv();
+
   if (mongooseCache.connection) {
     return mongooseCache.connection;
   }

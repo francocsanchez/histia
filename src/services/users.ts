@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 
 import { AppError } from "@/lib/api";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db/mongoose";
-import { env } from "@/lib/env";
+import { getServerEnv } from "@/lib/env";
 import { joinRoles, normalizeEmail, normalizeName, splitRoles } from "@/lib/utils";
 import { UserDocument, UserModel } from "@/models/user";
 import { QueryParams, UserDto, UserRole } from "@/types/domain";
@@ -103,7 +103,7 @@ export async function createUser(input: {
   }
 
   const currentHeaders = await headers();
-  const response = await auth.api.createUser({
+  const response = await getAuth().api.createUser({
     headers: currentHeaders,
     body: {
       email,
@@ -217,6 +217,7 @@ export async function setUserStatus(id: string, activo: boolean) {
 
 export async function setUserPassword(userId: string, password: string) {
   const currentHeaders = await headers();
+  const auth = getAuth();
 
   await auth.api.setUserPassword({
     headers: currentHeaders,
@@ -232,6 +233,8 @@ export async function setUserPassword(userId: string, password: string) {
 export async function seedAdminUser() {
   await connectToDatabase();
 
+  const env = getServerEnv();
+  const auth = getAuth();
   const {
     SEED_ADMIN_EMAIL,
     SEED_ADMIN_PASSWORD,

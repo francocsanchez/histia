@@ -2,12 +2,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AppError } from "@/lib/api";
-import { auth } from "@/lib/auth";
+import { getAuth } from "@/lib/auth";
 import { splitRoles } from "@/lib/utils";
 import { SessionUser } from "@/types/domain";
 
 export async function getSession() {
-  return auth.api.getSession({
+  return getAuth().api.getSession({
     headers: await headers(),
   });
 }
@@ -46,7 +46,7 @@ export async function requireSessionUser() {
 }
 
 export async function requireApiSessionUser(requestHeaders: Headers) {
-  const session = await auth.api.getSession({
+  const session = await getAuth().api.getSession({
     headers: requestHeaders,
   });
 

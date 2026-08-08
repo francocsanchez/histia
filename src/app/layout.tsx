@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { ServiceWorkerCleanup } from "@/components/shared/service-worker-cleanup";
-import { env } from "@/lib/env";
+import { publicEnv } from "@/lib/env";
 
 import "./globals.css";
 
@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: env.NEXT_PUBLIC_APP_NAME,
+  title: publicEnv.NEXT_PUBLIC_APP_NAME,
   description: "Sistema administrativo para gestion de prestaciones odontologicas.",
 };
 

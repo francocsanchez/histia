@@ -1,5 +1,6 @@
 "use client";
 
+import type { z } from "zod";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -29,10 +30,8 @@ type ObrasSocialesResponse = {
   error?: { message?: string };
 };
 
-type FormValues = {
-  nombre: string;
-  cantidadPrestacionesMes: number;
-};
+type FormValues = z.input<typeof obraSocialSchema>;
+type SubmitValues = z.output<typeof obraSocialSchema>;
 
 export function ObrasSocialesManager({ canManage }: { canManage: boolean }) {
   const [items, setItems] = useState<ObraSocialDto[]>([]);
@@ -46,7 +45,7 @@ export function ObrasSocialesManager({ canManage }: { canManage: boolean }) {
   const [selected, setSelected] = useState<ObraSocialDto | null>(null);
   const [statusDialogItem, setStatusDialogItem] = useState<ObraSocialDto | null>(null);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
-  const form = useForm<FormValues>({
+  const form = useForm<FormValues, unknown, SubmitValues>({
     resolver: zodResolver(obraSocialSchema),
     defaultValues: { nombre: "", cantidadPrestacionesMes: 0 },
   });
