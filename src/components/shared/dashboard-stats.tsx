@@ -195,11 +195,14 @@ export function DashboardStats() {
                   const barHeight = `${Math.max((item.total / chartMaxValue) * 100, item.total > 0 ? 8 : 2)}%`;
 
                   return (
-                    <div key={item.date} className="flex min-w-0 flex-1 flex-col items-center gap-2">
+                    <div
+                      key={item.date}
+                      className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch"
+                    >
                       <span className="text-[11px] font-medium text-muted-foreground">
                         {item.total}
                       </span>
-                      <div className="flex h-full w-full items-end">
+                      <div className="flex w-full flex-1 items-end">
                         <div
                           className={cn(
                             "w-full border border-primary/40 bg-[color:var(--chart-2)] transition-[height]",
