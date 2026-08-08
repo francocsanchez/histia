@@ -7,6 +7,10 @@ import { AttentionModel } from "@/models/attention";
 import { PaymentModel } from "@/models/payment";
 import { UserModel } from "@/models/user";
 import {
+  createPaymentMovement,
+  deleteMovementByOrigin,
+} from "@/services/movimientos";
+import {
   AttentionCodeStatus,
   PaymentCandidateLineDto,
   PaymentCandidateSelectionDto,
@@ -539,7 +543,7 @@ export async function listPayments(query: PaymentHistoryQuery) {
   };
 }
 
-async function rollbackPaymentMarks(
+async function rollbackPaymentOperation(
   paymentId: Types.ObjectId,
   selectedItems: PaymentCandidateSelectionDto[],
 ) {
@@ -590,6 +594,7 @@ async function rollbackPaymentMarks(
     }
   }
 
+  await deleteMovementByOrigin("payment", paymentId);
   await PaymentModel.deleteOne({ _id: String(paymentId) });
 }
 
@@ -730,6 +735,19 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
   });
 
   try {
+    await createPaymentMovement({
+      paymentId,
+      paidAt,
+      usuarioId: input.userId,
+      usuarioNombreSnapshot: firstCandidate.userName,
+      attentionMonth: input.attentionMonth,
+      totalPagoCodigosCentavos: summary.totalPagoCodigosCentavos,
+      totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
+      totalHonorariosCentavos: summary.totalHonorariosCentavos,
+      quantityConceptsPaid: summary.quantityConceptsPaid,
+      createdByUserId: currentUserId,
+    });
+
     const connection = await connectToDatabase();
     const collection = connection.connection.db!.collection("attentions");
 
@@ -804,7 +822,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
       }
     }
   } catch (error) {
-    await rollbackPaymentMarks(paymentId, normalizedSelection);
+    await rollbackPaymentOperation(paymentId, normalizedSelection);
     throw error;
   }
 

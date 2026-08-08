@@ -10,7 +10,7 @@ This version has breaking changes. Before changing routes, pages, layouts, route
 
 Histia is an administrative web system for a dental clinic. It manages already-completed work only.
 
-Current implemented scope as of August 5, 2026:
+Current implemented scope as of August 8, 2026:
 
 - Authentication with `Better Auth`
 - Users with multiple roles
@@ -20,7 +20,9 @@ Current implemented scope as of August 5, 2026:
 - RX module
 - Atenciones module
 - Administrative Liquidaciones read view
-- Pagos placeholder page
+- Pagos module
+- Movimientos module
+- Tipos de movimientos catalog
 - Dashboard with basic counts
 
 Out of scope:
@@ -86,7 +88,7 @@ Role behavior currently implemented:
 - `administrador`
   - Full access to all current modules
   - Can audit atenciones from the administrative flow
-  - Can access Configuración, Liquidaciones, and Pagos
+  - Can access Configuración, Liquidaciones, Pagos, and Movimientos
 - `odontologo`
   - Can access `Atenciones`
   - Can only list, open, and edit their own atenciones
@@ -111,10 +113,12 @@ Admin-only collapsible sections:
 - `Configuracion`
   - `Obras sociales`
   - `Codigos`
+  - `Tipos de movimientos`
   - `Usuarios`
 - `Finanzas`
   - `Liquidaciones`
   - `Pagos`
+  - `Movimientos`
 
 If a user does not have the required role, the menu item should be hidden and the route/API must still reject access.
 
@@ -287,8 +291,55 @@ Current behavior:
 
 Current scope:
 
-- Admin-only placeholder page
-- Shows the text: `aca se contruye la pagina de pagos`
+- Admin-only operational module
+- Generates odontologist payments by selectable concept line
+- Separates `codigo` and `coseguro odonto` payment marks
+- Persists payment history with snapshots
+- Creates an automatic finance movement for each generated payment
+
+### Movimientos
+
+This module acts as the clinic's operational accounting ledger.
+
+Relevant fields:
+
+- `fecha`
+- `descripcion`
+- `direccion`
+- `tipoMovimientoId | null`
+- `tipo`
+- `montoCentavos`
+- `origenTipo`
+- `origenId | null`
+- `creadoAutomaticamente`
+- `metadata | null`
+
+Rules:
+
+- Access only for `administrador`
+- Manual movements can be created directly from the module
+- Automatic movements are generated from other modules, currently `Pagos`
+- Automatic movements are read-only from the UI
+- Money is stored as integer centavos
+- Accounting sign is represented by `direccion`, not by negative amounts
+
+### Tipos de movimientos
+
+This catalog configures the available movement types for accounting flows.
+
+Relevant fields:
+
+- `nombre`
+- `direccion`
+- `activo`
+- `systemKey | null`
+
+Rules:
+
+- Access only for `administrador`
+- User-created types can be created, edited, activated, and deactivated
+- System types are reserved for integrated flows and cannot be deactivated
+- Manual movement creation only uses active movement types
 
 ## UI And Visual Rules
 
@@ -395,11 +446,13 @@ Current important indexes:
 
 If you find older documentation in the repo describing `Atenciones`, `RX`, `Liquidaciones`, or `Pagos` as future work, consider that documentation outdated.
 
-As of August 5, 2026:
+As of August 8, 2026:
 
 - `RX` exists
 - `Atenciones` exists
 - `Liquidaciones` exists as an administrative read/audit view
-- `Pagos` exists as a placeholder
+- `Pagos` exists as an operational payment module
+- `Movimientos` exists as the accounting ledger module
+- `Tipos de movimientos` exists as a configurable catalog under `Configuracion`
 
 Use the current codebase as the source of truth when older text conflicts with implemented behavior.

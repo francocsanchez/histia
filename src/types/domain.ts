@@ -157,6 +157,11 @@ export const attentionCodeStatusValues = [
 export type AttentionCodeStatus = (typeof attentionCodeStatusValues)[number];
 export const paymentStatusValues = ["pendiente", "pagado"] as const;
 export type PaymentStatus = (typeof paymentStatusValues)[number];
+export const movementDirectionValues = ["ingreso", "egreso"] as const;
+export type MovementDirection = (typeof movementDirectionValues)[number];
+
+export const movementOriginTypeValues = ["manual", "payment"] as const;
+export type MovementOriginType = (typeof movementOriginTypeValues)[number];
 
 export interface AttentionCodeLineDto {
   lineId: string;
@@ -268,4 +273,54 @@ export interface PaymentSummaryDto {
   totalCoseguroOdontoCentavos: number;
   totalHonorariosCentavos: number;
   quantityConceptsPaid: number;
+}
+
+export interface MovementPaymentMetadataDto {
+  paymentId: string;
+  usuarioId: string;
+  usuarioNombreSnapshot: string;
+  attentionMonth: string;
+  totalPagoCodigosCentavos: number;
+  totalCoseguroOdontoCentavos: number;
+  totalHonorariosCentavos: number;
+  quantityConceptsPaid: number;
+}
+
+export interface MovementDto {
+  id: string;
+  fecha: string;
+  descripcion: string;
+  direccion: MovementDirection;
+  tipoMovimientoId: string | null;
+  tipo: string;
+  montoCentavos: number;
+  origenTipo: MovementOriginType;
+  origenId: string | null;
+  creadoAutomaticamente: boolean;
+  metadata: MovementPaymentMetadataDto | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MovementCreateDto {
+  fecha: string;
+  descripcion: string;
+  movementTypeId: string;
+  montoCentavos: number;
+}
+
+export interface MovementTypeDto {
+  id: string;
+  nombre: string;
+  direccion: MovementDirection;
+  activo: boolean;
+  systemKey: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MovementTypeCreateDto {
+  nombre: string;
+  direccion: MovementDirection;
 }

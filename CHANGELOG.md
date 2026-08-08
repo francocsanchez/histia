@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-08
+
+### Added
+
+- Módulo `Movimientos` dentro de `Finanzas` como libro contable operativo con listado, filtros, tarjetas de resumen y carga manual.
+- Catálogo `Tipos de movimientos` dentro de `Configuración` con CRUD administrativo y tipos de sistema iniciales.
+- Persistencia de movimientos contables con dirección, tipo configurable, origen y metadata operativa.
+
+### Changed
+
+- `Pagos` ahora genera automáticamente un movimiento contable al confirmar una liquidación.
+- `Movimientos` dejó de depender de tipos hardcodeados y ahora usa el catálogo configurable de tipos activos.
+- Navegación administrativa ampliada con accesos a `Movimientos` y `Tipos de movimientos`.
+
+### Fixed
+
+- El gráfico mensual de `Inicio` ahora renderiza correctamente la altura de barras en días con atenciones registradas.
+
 ## 2026-08-07
 
 ### Changed

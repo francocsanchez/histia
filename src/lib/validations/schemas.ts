@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   attentionCodeStatusValues,
+  movementDirectionValues,
   paymentStatusValues,
   referrerTypeValues,
   rxTypeValues,
@@ -226,3 +227,18 @@ export const paymentCreateSchema = z.object({
 });
 
 export const paymentStatusSchema = z.enum(paymentStatusValues);
+
+export const movementCreateSchema = z.object({
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe tener formato YYYY-MM-DD"),
+  descripcion: z.string().min(1, "La descripcion es obligatoria"),
+  movementTypeId: z.string().min(1, "El tipo de movimiento es obligatorio"),
+  montoCentavos: z
+    .coerce.number()
+    .int("El monto debe ser un entero")
+    .min(1, "El monto debe ser mayor que cero"),
+});
+
+export const movementTypeSchema = z.object({
+  nombre: z.string().min(1, "El nombre es obligatorio"),
+  direccion: z.enum(movementDirectionValues),
+});

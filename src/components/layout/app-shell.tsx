@@ -29,6 +29,11 @@ const settingsLinks = [
     label: "Codigos",
     resource: "codigos-obras-sociales" as const,
   },
+  {
+    href: "/tipos-movimientos",
+    label: "Tipos de movimientos",
+    resource: "tipos-movimientos" as const,
+  },
   { href: "/usuarios", label: "Usuarios", resource: "usuarios" as const },
 ];
 
@@ -39,6 +44,7 @@ const financeLinks = [
     resource: "liquidaciones" as const,
   },
   { href: "/pagos", label: "Pagos", resource: "pagos" as const },
+  { href: "/movimientos", label: "Movimientos", resource: "movimientos" as const },
 ];
 
 function NavDropdown({

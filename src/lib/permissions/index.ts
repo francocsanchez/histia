@@ -6,6 +6,8 @@ export type ResourceKey =
   | "atenciones"
   | "liquidaciones"
   | "pagos"
+  | "movimientos"
+  | "tipos-movimientos"
   | "obras-sociales"
   | "codigos-obras-sociales"
   | "pacientes"
@@ -43,6 +45,8 @@ export function can(
   if (
     resource === "liquidaciones" ||
     resource === "pagos" ||
+    resource === "movimientos" ||
+    resource === "tipos-movimientos" ||
     resource === "obras-sociales" ||
     resource === "codigos-obras-sociales" ||
     resource === "usuarios"
