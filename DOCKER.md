@@ -61,6 +61,8 @@ docker compose up -d --build
 
 La aplicacion quedara publicada en el puerto `3000`.
 
+En el primer arranque, si la base no tiene usuarios, el contenedor crea automaticamente el administrador inicial usando las variables `SEED_ADMIN_*` y despues levanta la aplicacion.
+
 ## 6. Ver estado y logs
 
 ```bash
@@ -68,9 +70,9 @@ docker compose ps
 docker compose logs -f histia-app
 ```
 
-## 7. Crear el administrador inicial
+## 7. Crear o reconfigurar el administrador manualmente
 
-Con la base vacia, ejecutar dentro del contenedor:
+Si queres ejecutarlo manualmente dentro del contenedor:
 
 ```bash
 docker compose exec -it histia-app npm run seed:admin:prod
