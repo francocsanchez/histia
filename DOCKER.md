@@ -73,7 +73,7 @@ docker compose logs -f histia-app
 Con la base vacia, ejecutar dentro del contenedor:
 
 ```bash
-docker compose exec histia-app npm run seed:admin
+docker compose exec -it histia-app npm run seed:admin:prod
 ```
 
 Si todo sale bien, el comando devuelve algo como:

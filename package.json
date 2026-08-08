@@ -5,9 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:scripts": "node -e \"require('node:fs').rmSync('dist/scripts',{ recursive: true, force: true })\" && tsc -p tsconfig.scripts.json",
     "start": "next start",
     "lint": "eslint .",
-    "seed:admin": "tsx scripts/seed-admin.ts"
+    "seed:admin": "tsx scripts/seed-admin.ts",
+    "seed:admin:prod": "node dist/scripts/seed-admin.js"
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.6.25",
