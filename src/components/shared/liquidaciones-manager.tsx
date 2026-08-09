@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
@@ -16,7 +17,7 @@ import {
   getAttentionStatusBadgeVariant,
 } from "@/lib/attention-status";
 import { formatCurrencyFromCents, formatDateOnly } from "@/lib/utils";
-import { AttentionDto } from "@/types/domain";
+import { attentionCodeStatusValues, AttentionDto } from "@/types/domain";
 
 type ListPayload = {
   success: boolean;
@@ -46,15 +47,12 @@ function formatTableDate(value: string) {
 }
 
 export function LiquidacionesManager() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [items, setItems] = useState<AttentionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [obraSocialId, setObraSocialId] = useState("");
-  const [userId, setUserId] = useState("");
-  const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [obrasSociales, setObrasSociales] = useState<LookupPayload["data"]["obrasSociales"]>(
     [],
@@ -62,6 +60,47 @@ export function LiquidacionesManager() {
   const [usuariosCarga, setUsuariosCarga] = useState<LookupPayload["data"]["usuariosCarga"]>(
     [],
   );
+  const search = searchParams.get("search") ?? "";
+  const dateFrom = searchParams.get("dateFrom") ?? "";
+  const dateTo = searchParams.get("dateTo") ?? "";
+  const obraSocialId = searchParams.get("obraSocialId") ?? "";
+  const userId = searchParams.get("userId") ?? "";
+  const attentionStatus = searchParams.get("attentionStatus") ?? "";
+  const pageParam = Number(searchParams.get("page") ?? "1");
+  const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+  const currentQueryString = searchParams.toString();
+
+  const updateFilters = (
+    nextValues: Partial<{
+      search: string;
+      dateFrom: string;
+      dateTo: string;
+      obraSocialId: string;
+      userId: string;
+      attentionStatus: string;
+      page: string;
+    }>,
+    resetPage = false,
+  ) => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    Object.entries(nextValues).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
+    });
+
+    if (resetPage) {
+      params.delete("page");
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  };
 
   const loadLookups = async () => {
     const response = await fetch("/api/atenciones/lookups", {
@@ -82,16 +121,9 @@ export function LiquidacionesManager() {
     setError("");
 
     try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: "10",
-      });
-
-      if (search) params.set("search", search);
-      if (dateFrom) params.set("dateFrom", dateFrom);
-      if (dateTo) params.set("dateTo", dateTo);
-      if (obraSocialId) params.set("obraSocialId", obraSocialId);
-      if (userId) params.set("userId", userId);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("page", String(page));
+      params.set("limit", "10");
 
       const response = await fetch(`/api/liquidaciones?${params.toString()}`, {
         cache: "no-store",
@@ -112,7 +144,6 @@ export function LiquidacionesManager() {
   };
 
   const loadFromEffect = useEffectEvent(async () => {
-    await loadLookups();
     await load();
   });
 
@@ -122,7 +153,23 @@ export function LiquidacionesManager() {
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [page, search, dateFrom, dateTo, obraSocialId, userId]);
+  }, [currentQueryString]);
+
+  const loadLookupsFromEffect = useEffectEvent(async () => {
+    try {
+      await loadLookups();
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Error inesperado");
+    }
+  });
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      void loadLookupsFromEffect();
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -131,14 +178,13 @@ export function LiquidacionesManager() {
         description="Consulta administrativa de atenciones para preparar futuras liquidaciones."
       />
 
-      <Card className="grid gap-2 p-3 xl:grid-cols-[1fr_150px_150px_220px_220px]">
+      <Card className="grid gap-2 p-3 xl:grid-cols-[1fr_150px_150px_220px_220px_180px]">
         <Input
           className="h-10"
           placeholder="Buscar por paciente, DNI, obra social o codigo"
           value={search}
           onChange={(event) => {
-            setPage(1);
-            setSearch(event.target.value);
+            updateFilters({ search: event.target.value }, true);
           }}
         />
         <Input
@@ -146,8 +192,7 @@ export function LiquidacionesManager() {
           type="date"
           value={dateFrom}
           onChange={(event) => {
-            setPage(1);
-            setDateFrom(event.target.value);
+            updateFilters({ dateFrom: event.target.value }, true);
           }}
         />
         <Input
@@ -155,16 +200,14 @@ export function LiquidacionesManager() {
           type="date"
           value={dateTo}
           onChange={(event) => {
-            setPage(1);
-            setDateTo(event.target.value);
+            updateFilters({ dateTo: event.target.value }, true);
           }}
         />
         <Select
           className="h-10"
           value={obraSocialId}
           onChange={(event) => {
-            setPage(1);
-            setObraSocialId(event.target.value);
+            updateFilters({ obraSocialId: event.target.value }, true);
           }}
         >
           <option value="">Todas las obras sociales</option>
@@ -178,14 +221,27 @@ export function LiquidacionesManager() {
           className="h-10"
           value={userId}
           onChange={(event) => {
-            setPage(1);
-            setUserId(event.target.value);
+            updateFilters({ userId: event.target.value }, true);
           }}
         >
           <option value="">Todos los cargadores</option>
           {usuariosCarga.map((usuario) => (
             <option key={usuario.id} value={usuario.id}>
               {usuario.label}
+            </option>
+          ))}
+        </Select>
+        <Select
+          className="h-10"
+          value={attentionStatus}
+          onChange={(event) => {
+            updateFilters({ attentionStatus: event.target.value }, true);
+          }}
+        >
+          <option value="">Todos los estados</option>
+          {attentionCodeStatusValues.map((status) => (
+            <option key={status} value={status}>
+              {attentionStatusLabels[status]}
             </option>
           ))}
         </Select>
@@ -284,7 +340,11 @@ export function LiquidacionesManager() {
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      <Link href={`/atenciones/${item.id}/editar?admin=1`}>
+                      <Link
+                        href={`/atenciones/${item.id}/editar?${buildEditQueryString(
+                          currentQueryString,
+                        )}`}
+                      >
                         <Button variant="secondary" size="sm" className="w-full">
                           Editar
                         </Button>
@@ -304,7 +364,7 @@ export function LiquidacionesManager() {
                 variant="secondary"
                 size="sm"
                 disabled={page <= 1}
-                onClick={() => setPage((value) => value - 1)}
+                onClick={() => updateFilters({ page: String(page - 1) })}
               >
                 Anterior
               </Button>
@@ -312,7 +372,7 @@ export function LiquidacionesManager() {
                 variant="secondary"
                 size="sm"
                 disabled={page >= totalPages}
-                onClick={() => setPage((value) => value + 1)}
+                onClick={() => updateFilters({ page: String(page + 1) })}
               >
                 Siguiente
               </Button>
@@ -322,4 +382,11 @@ export function LiquidacionesManager() {
       ) : null}
     </div>
   );
+}
+
+function buildEditQueryString(currentQueryString: string) {
+  const params = new URLSearchParams(currentQueryString);
+  params.set("admin", "1");
+
+  return params.toString();
 }

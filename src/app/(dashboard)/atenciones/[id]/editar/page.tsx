@@ -12,7 +12,16 @@ export default async function EditarAtencionPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ admin?: string }>;
+  searchParams: Promise<{
+    admin?: string;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    obraSocialId?: string;
+    userId?: string;
+    attentionStatus?: string;
+    page?: string;
+  }>;
 }) {
   const user = await requireSessionUser();
 
@@ -21,7 +30,16 @@ export default async function EditarAtencionPage({
   }
 
   const { id } = await params;
-  const { admin } = await searchParams;
+  const {
+    admin,
+    search,
+    dateFrom,
+    dateTo,
+    obraSocialId,
+    userId,
+    attentionStatus,
+    page,
+  } = await searchParams;
   const isAdministrative = admin === "1" && isAdmin(user);
   let attention;
 
@@ -39,6 +57,20 @@ export default async function EditarAtencionPage({
     throw error;
   }
 
+  const returnParams = new URLSearchParams();
+
+  if (search) returnParams.set("search", search);
+  if (dateFrom) returnParams.set("dateFrom", dateFrom);
+  if (dateTo) returnParams.set("dateTo", dateTo);
+  if (obraSocialId) returnParams.set("obraSocialId", obraSocialId);
+  if (userId) returnParams.set("userId", userId);
+  if (attentionStatus) returnParams.set("attentionStatus", attentionStatus);
+  if (page) returnParams.set("page", page);
+
+  const returnPath = isAdministrative
+    ? `/liquidaciones${returnParams.size > 0 ? `?${returnParams.toString()}` : ""}`
+    : "/atenciones";
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -53,7 +85,7 @@ export default async function EditarAtencionPage({
         mode="edit"
         initialAttention={attention}
         isAdministrative={isAdministrative}
-        returnPath={isAdministrative ? "/liquidaciones" : "/atenciones"}
+        returnPath={returnPath}
       />
     </div>
   );

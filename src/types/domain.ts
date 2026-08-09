@@ -18,6 +18,7 @@ export interface QueryParams {
   limit: number;
   search?: string;
   status?: "all" | "active" | "inactive";
+  attentionStatus?: AttentionCodeStatus;
   obraSocialId?: string;
   role?: UserRole;
   rxType?: RxType;

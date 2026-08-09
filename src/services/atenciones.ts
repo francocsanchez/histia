@@ -804,6 +804,10 @@ export async function listAttentions(query: QueryParams, currentUser: SessionUse
     match.pacienteId = new Types.ObjectId(query.patientId);
   }
 
+  if (query.attentionStatus) {
+    match["codigos.estado"] = query.attentionStatus;
+  }
+
   const pipeline = buildAttentionPipeline(match);
 
   if (search) {

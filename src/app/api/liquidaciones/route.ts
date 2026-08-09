@@ -6,7 +6,12 @@ import {
 } from "@/lib/api";
 import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
+import { attentionCodeStatusValues, AttentionCodeStatus } from "@/types/domain";
 import { listAttentions } from "@/services/atenciones";
+
+function isAttentionCodeStatus(value: string): value is AttentionCodeStatus {
+  return attentionCodeStatusValues.includes(value as AttentionCodeStatus);
+}
 
 export async function GET(request: Request) {
   try {
@@ -24,6 +29,11 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("dateTo") ?? undefined;
     const userId = searchParams.get("userId") ?? undefined;
     const obraSocialId = searchParams.get("obraSocialId") ?? undefined;
+    const attentionStatusParam = searchParams.get("attentionStatus");
+    const attentionStatus =
+      attentionStatusParam && isAttentionCodeStatus(attentionStatusParam)
+        ? attentionStatusParam
+        : undefined;
 
     const result = await listAttentions({
       page,
@@ -33,6 +43,7 @@ export async function GET(request: Request) {
       dateTo,
       userId,
       obraSocialId,
+      attentionStatus,
     }, user);
 
     return okWithPagination(result.data, result.pagination);
