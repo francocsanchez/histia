@@ -1,13 +1,11 @@
 services:
   histia-app:
     container_name: histia-app
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/francocsanchez/histia:latest
     env_file:
       - .env.production
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
