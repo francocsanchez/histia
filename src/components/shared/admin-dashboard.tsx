@@ -699,6 +699,16 @@ export function AdminDashboard() {
         </ChartShell>
 
         <ChartShell
+          title="RX realizadas"
+          description="Cantidad de estudios RX registrados por mes en el año seleccionado."
+        >
+          <BarChart
+            items={data.rxByMonth}
+            valueFormatter={(value) => String(value)}
+          />
+        </ChartShell>
+
+        <ChartShell
           title="Ingresos vs egresos anualizados"
           description="Comparacion mensual de movimientos de ingreso y egreso."
         >

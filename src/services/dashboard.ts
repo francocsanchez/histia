@@ -7,6 +7,7 @@ import { normalizeWhitespace } from "@/lib/utils";
 import { AttentionModel } from "@/models/attention";
 import { MovementModel } from "@/models/movement";
 import { PacienteModel } from "@/models/paciente";
+import { RxAttentionModel } from "@/models/rx-attention";
 import { UserModel } from "@/models/user";
 import { listAttentionAssignableUsers } from "@/services/atenciones";
 import {
@@ -257,6 +258,7 @@ export async function getAdminDashboardStats(params: {
     balanceRows,
     patientsByObraSocialRows,
     attentionsByMonthRows,
+    rxByMonthRows,
     movementsByMonthRows,
     incomeByTypeRows,
     expenseByTypeRows,
@@ -308,6 +310,28 @@ export async function getAdminDashboardStats(params: {
       },
     ]),
     AttentionModel.aggregate<{ _id: number; total: number }>([
+      {
+        $match: {
+          fecha: {
+            $gte: year.start,
+            $lte: year.end,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $month: {
+              date: "$fecha",
+              timezone: BUSINESS_TIMEZONE,
+            },
+          },
+          total: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]),
+    RxAttentionModel.aggregate<{ _id: number; total: number }>([
       {
         $match: {
           fecha: {
@@ -512,6 +536,7 @@ export async function getAdminDashboardStats(params: {
 
   const balanceMap = new Map(balanceRows.map((row) => [row._id, row.total]));
   const attentionMonthMap = new Map(attentionsByMonthRows.map((row) => [row._id, row.total]));
+  const rxMonthMap = new Map(rxByMonthRows.map((row) => [row._id, row.total]));
   const codeStatusMap = new Map(codesByStatusRows.map((row) => [row._id, row.total]));
   const movementMonthMap = new Map(
     movementsByMonthRows.map((row) => [`${row._id.month}-${row._id.direction}`, row.total]),
@@ -584,6 +609,11 @@ export async function getAdminDashboardStats(params: {
       month: index + 1,
       label,
       total: attentionMonthMap.get(index + 1) ?? 0,
+    })),
+    rxByMonth: monthLabels.map((label, index) => ({
+      month: index + 1,
+      label,
+      total: rxMonthMap.get(index + 1) ?? 0,
     })),
     movementsByMonth: monthLabels.map((label, index) => ({
       month: index + 1,

@@ -174,6 +174,7 @@ export interface AdminDashboardDto {
   summary: AdminDashboardSummaryDto;
   patientsByObraSocial: AdminDashboardPieItemDto[];
   attentionsByMonth: AdminDashboardMonthlyItemDto[];
+  rxByMonth: AdminDashboardMonthlyItemDto[];
   movementsByMonth: AdminDashboardIncomeExpenseItemDto[];
   incomeByMovementType: AdminDashboardPieItemDto[];
   expenseByMovementType: AdminDashboardPieItemDto[];
