@@ -12,6 +12,7 @@ import { can } from "@/lib/permissions";
 import { SessionUser } from "@/types/domain";
 
 const primaryLinks = [
+  { href: "/dashboard", label: "Dashboard", resource: "admin-dashboard" as const },
   { href: "/inicio", label: "Inicio", resource: "dashboard" as const },
   { href: "/atenciones", label: "Atenciones", resource: "atenciones" as const },
   { href: "/rx", label: "RX", resource: "rx" as const },

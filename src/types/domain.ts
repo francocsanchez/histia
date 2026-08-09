@@ -122,6 +122,65 @@ export interface DashboardMonthlyStatsDto {
   };
 }
 
+export interface AdminDashboardSummaryDto {
+  pacientesActivos: number;
+  odontologosActivos: number;
+  balanceTotalCentavos: number;
+}
+
+export interface AdminDashboardPieItemDto {
+  id: string;
+  label: string;
+  total: number;
+}
+
+export interface AdminDashboardMonthlyItemDto {
+  month: number;
+  label: string;
+  total: number;
+}
+
+export interface AdminDashboardIncomeExpenseItemDto {
+  month: number;
+  label: string;
+  ingresosCentavos: number;
+  egresosCentavos: number;
+}
+
+export interface AdminDashboardCodeStatusItemDto {
+  status: AttentionCodeStatus;
+  label: string;
+  total: number;
+}
+
+export interface AdminDashboardDentistStatusItemDto {
+  status: AttentionCodeStatus;
+  label: string;
+  total: number;
+}
+
+export interface AdminDashboardDentistPerformanceDto {
+  userId: string;
+  nombreCompleto: string;
+  total: number;
+  statuses: AdminDashboardDentistStatusItemDto[];
+}
+
+export interface AdminDashboardDto {
+  year: number;
+  month: string;
+  availableYears: number[];
+  availableMonths: string[];
+  summary: AdminDashboardSummaryDto;
+  patientsByObraSocial: AdminDashboardPieItemDto[];
+  attentionsByMonth: AdminDashboardMonthlyItemDto[];
+  movementsByMonth: AdminDashboardIncomeExpenseItemDto[];
+  incomeByMovementType: AdminDashboardPieItemDto[];
+  expenseByMovementType: AdminDashboardPieItemDto[];
+  codesByStatus: AdminDashboardCodeStatusItemDto[];
+  dentistPerformanceByMonth: AdminDashboardDentistPerformanceDto[];
+}
+
 export const rxTypeValues = ["carpal", "panoramica"] as const;
 export type RxType = (typeof rxTypeValues)[number];
 
@@ -289,7 +348,7 @@ export interface MovementPaymentMetadataDto {
 export interface MovementDto {
   id: string;
   fecha: string;
-  descripcion: string;
+  descripcion: string | null;
   direccion: MovementDirection;
   tipoMovimientoId: string | null;
   tipo: string;
@@ -305,7 +364,7 @@ export interface MovementDto {
 
 export interface MovementCreateDto {
   fecha: string;
-  descripcion: string;
+  descripcion?: string | null;
   movementTypeId: string;
   montoCentavos: number;
 }

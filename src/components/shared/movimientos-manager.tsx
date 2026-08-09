@@ -15,7 +15,14 @@ import {
   movementDirectionLabels,
   movementOriginLabels,
 } from "@/lib/movement";
-import { formatCurrencyFromCents, formatDateOnly, getTodayDateOnly } from "@/lib/utils";
+import {
+  formatCurrencyFromCents,
+  formatDateOnly,
+  formatMoneyInputFromCents,
+  formatMoneyMaskedInput,
+  getTodayDateOnly,
+  parseMoneyInputToCents,
+} from "@/lib/utils";
 import {
   MovementCreateDto,
   MovementDirection,
@@ -90,6 +97,7 @@ export function MovimientosManager() {
     montoCentavos: 0,
     direction: "egreso",
   });
+  const [amountInput, setAmountInput] = useState("");
   const [formError, setFormError] = useState("");
   const [formFields, setFormFields] = useState<Record<string, string>>({});
 
@@ -190,6 +198,7 @@ export function MovimientosManager() {
       montoCentavos: 0,
       direction: defaultDirection,
     });
+    setAmountInput("");
     setFormError("");
     setFormFields({});
   };
@@ -200,6 +209,14 @@ export function MovimientosManager() {
     setFormFields({});
     setSuccessMessage("");
 
+    const montoCentavos = parseMoneyInputToCents(amountInput);
+
+    if (!montoCentavos || montoCentavos < 1) {
+      setFormFields({ montoCentavos: "El monto debe ser mayor que cero" });
+      setSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/movimientos", {
         method: "POST",
@@ -208,7 +225,7 @@ export function MovimientosManager() {
           fecha: form.fecha,
           descripcion: form.descripcion,
           movementTypeId: form.movementTypeId,
-          montoCentavos: form.montoCentavos,
+          montoCentavos,
         } satisfies MovementCreateDto),
       });
       const payload = (await response.json()) as CreatePayload;
@@ -506,18 +523,24 @@ export function MovimientosManager() {
             ) : null}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Monto (centavos)</label>
+            <label className="mb-1 block text-sm font-medium">Monto</label>
             <Input
-              type="number"
-              min="1"
-              step="1"
-              value={form.montoCentavos || ""}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  montoCentavos: Number(event.target.value || 0),
-                }))
-              }
+              inputMode="decimal"
+              placeholder="0,00"
+              value={amountInput}
+              onChange={(event) => {
+                setAmountInput(formatMoneyMaskedInput(event.target.value));
+              }}
+              onBlur={() => {
+                const parsed = parseMoneyInputToCents(amountInput);
+
+                if (parsed === null) {
+                  setAmountInput("");
+                  return;
+                }
+
+                setAmountInput(formatMoneyInputFromCents(parsed));
+              }}
             />
             {formFields.montoCentavos ? (
               <p className="mt-1 text-xs text-rose-700">{formFields.montoCentavos}</p>
@@ -526,7 +549,7 @@ export function MovimientosManager() {
           <div className="md:col-span-2">
             <label className="mb-1 block text-sm font-medium">Descripcion</label>
             <Input
-              value={form.descripcion}
+              value={form.descripcion ?? ""}
               onChange={(event) =>
                 setForm((current) => ({ ...current, descripcion: event.target.value }))
               }

@@ -59,6 +59,46 @@ export function formatCurrencyFromCents(value: number) {
   }).format(value / 100);
 }
 
+export function formatMoneyInputFromCents(value: number) {
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value / 100);
+}
+
+export function parseMoneyInputToCents(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const normalized = trimmed.replace(/\./g, "").replace(",", ".");
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+
+  return Math.round(parsed * 100);
+}
+
+export function formatMoneyMaskedInput(value: string) {
+  const sanitized = value.replace(/[^\d,]/g, "");
+  const commaIndex = sanitized.indexOf(",");
+  const hasComma = commaIndex >= 0;
+  const integerRaw = hasComma ? sanitized.slice(0, commaIndex) : sanitized;
+  const decimalRaw = hasComma ? sanitized.slice(commaIndex + 1).replace(/,/g, "") : "";
+  const integerDigits = integerRaw.replace(/^0+(?=\d)/, "") || "0";
+  const integerWithSeparators = integerDigits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  if (!hasComma) {
+    return sanitized ? integerWithSeparators : "";
+  }
+
+  return `${integerWithSeparators},${decimalRaw.slice(0, 2)}`;
+}
+
 function padDatePart(value: number) {
   return String(value).padStart(2, "0");
 }

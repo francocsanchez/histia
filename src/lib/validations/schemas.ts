@@ -230,7 +230,7 @@ export const paymentStatusSchema = z.enum(paymentStatusValues);
 
 export const movementCreateSchema = z.object({
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "La fecha debe tener formato YYYY-MM-DD"),
-  descripcion: z.string().min(1, "La descripcion es obligatoria"),
+  descripcion: z.string().optional().nullable(),
   movementTypeId: z.string().min(1, "El tipo de movimiento es obligatorio"),
   montoCentavos: z
     .coerce.number()

@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-08-09
+
+### Added
+
+- Dashboard administrativo nuevo en `/dashboard`, exclusivo para administradores, con tarjetas de pacientes activos, odontólogos activos y balance histórico total.
+- Gráficos administrativos anuales para pacientes por obra social, atenciones por mes, ingresos vs egresos, ingresos por tipo, egresos por tipo y códigos por estado.
+- Análisis mensual de odontólogos por volumen de códigos y distribución por estado para detectar quién más atiende.
+
+### Changed
+
+- `Inicio` se mantiene como tablero operativo mensual y queda separado del nuevo dashboard administrativo.
+- `Movimientos` y sus vistas administrativas quedaron integrados como fuente contable para indicadores de ingresos, egresos y balance.
+
+### Fixed
+
+- Tooltips de los gráficos del dashboard administrativo ahora permanecen visibles dentro del contenedor incluso al inspeccionar puntos cercanos a los bordes.
+- Inputs monetarios de carga manual en `Movimientos` respetan la máscara visual `x.xxx.xxx,xx`.
+
 ## 2026-08-08
 
 ### Added

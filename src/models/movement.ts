@@ -1,4 +1,4 @@
-import { Model, Schema, Types, model, models } from "mongoose";
+import { Schema, Types, model, models } from "mongoose";
 
 import {
   MovementDirection,
@@ -9,7 +9,7 @@ import {
 export interface MovementDocument {
   _id: Types.ObjectId;
   fecha: Date;
-  descripcion: string;
+  descripcion: string | null;
   direccion: MovementDirection;
   tipoMovimientoId: Types.ObjectId | null;
   tipo: string;
@@ -32,7 +32,7 @@ const movementSchema = new Schema<MovementDocument>(
     },
     descripcion: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
     },
     direccion: {
@@ -101,6 +101,8 @@ movementSchema.index(
   },
 );
 
-export const MovementModel =
-  (models.Movement as Model<MovementDocument>) ||
-  model<MovementDocument>("Movement", movementSchema);
+if (models.Movement) {
+  delete models.Movement;
+}
+
+export const MovementModel = model<MovementDocument>("Movement", movementSchema);

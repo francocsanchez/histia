@@ -10,7 +10,7 @@ This version has breaking changes. Before changing routes, pages, layouts, route
 
 Histia is an administrative web system for a dental clinic. It manages already-completed work only.
 
-Current implemented scope as of August 8, 2026:
+Current implemented scope as of August 9, 2026:
 
 - Authentication with `Better Auth`
 - Users with multiple roles
@@ -23,7 +23,8 @@ Current implemented scope as of August 8, 2026:
 - Pagos module
 - Movimientos module
 - Tipos de movimientos catalog
-- Dashboard with basic counts
+- Dashboard operativo mensual en `Inicio`
+- Dashboard administrativo de indicadores
 
 Out of scope:
 
@@ -88,7 +89,7 @@ Role behavior currently implemented:
 - `administrador`
   - Full access to all current modules
   - Can audit atenciones from the administrative flow
-  - Can access Configuración, Liquidaciones, Pagos, and Movimientos
+  - Can access Dashboard, Configuración, Liquidaciones, Pagos, and Movimientos
 - `odontologo`
   - Can access `Atenciones`
   - Can only list, open, and edit their own atenciones
@@ -103,6 +104,7 @@ Permissions are centralized in `src/lib/permissions/` and must always be validat
 
 Main sidebar entries:
 
+- `Dashboard`
 - `Inicio`
 - `Atenciones`
 - `RX`
@@ -121,6 +123,11 @@ Admin-only collapsible sections:
   - `Movimientos`
 
 If a user does not have the required role, the menu item should be hidden and the route/API must still reject access.
+
+Notes:
+
+- `Dashboard` is admin-only and must remain separate from `/inicio`
+- `/inicio` keeps the operational monthly dashboard used by current non-admin flows
 
 ## Domain Modules
 
@@ -341,6 +348,26 @@ Rules:
 - System types are reserved for integrated flows and cannot be deactivated
 - Manual movement creation only uses active movement types
 
+### Dashboard Admin
+
+Admin-only route:
+
+- `/dashboard`
+
+Current behavior:
+
+- Global cards for active patients, active odontologists, and historical balance
+- Annual charts for patients by obra social, attentions by month, income vs expense by month, income by movement type, expense by movement type, and codes by status
+- Monthly chart for odontologist performance based on total code volume and status distribution
+- Chart tooltips must stay visible within their chart container bounds
+
+Rules:
+
+- Keep this dashboard separate from `/inicio`
+- The annual selector only affects annualized charts
+- The historical balance card must remain all-time
+- Odontologist comparison is month-based and should make it easy to identify who attends the highest code volume
+
 ## UI And Visual Rules
 
 The project uses a custom visual system on top of the configured shadcn preset.
@@ -352,6 +379,7 @@ Current UI conventions:
 - Desktop-first layouts, but still usable on mobile
 - Compact administrative tables
 - Cards for filters, stats, and forms
+- Every user-facing money input must use the money mask format `x.xxx.xxx,xx`
 - Status badges for attention status colors:
   - `No cargado`: black
   - `Pendiente`: yellow

@@ -72,7 +72,7 @@ type PaymentMovementInput = {
 function toMovementDto(movement: {
   _id: Types.ObjectId | string;
   fecha: Date;
-  descripcion: string;
+  descripcion: string | null;
   direccion: MovementDirection;
   tipoMovimientoId: Types.ObjectId | null;
   tipo: string;
@@ -186,7 +186,9 @@ export async function createManualMovement(
 
   const movement = await MovementModel.create({
     fecha: parseDateOnlyAsUtc(input.fecha),
-    descripcion: normalizeWhitespace(input.descripcion),
+    descripcion: input.descripcion?.trim()
+      ? normalizeWhitespace(input.descripcion)
+      : null,
     direccion: movementType.direccion,
     tipoMovimientoId: new Types.ObjectId(movementType.id),
     tipo: movementType.nombre,
