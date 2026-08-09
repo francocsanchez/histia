@@ -5,11 +5,17 @@ import { PageHeader } from "@/components/shared/page-header";
 import { requireSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 
+type NuevaAtencionPageProps = {
+  searchParams?: Promise<{
+    dni?: string | string[];
+  }>;
+};
+
 export default async function NuevaAtencionPage({
   searchParams,
-}: PageProps<"/atenciones/nueva">) {
+}: NuevaAtencionPageProps) {
   const user = await requireSessionUser();
-  const { dni } = await searchParams;
+  const { dni } = (await searchParams) ?? {};
   const initialLookupDni = typeof dni === "string" ? dni : "";
 
   if (!can(user, "atenciones", "write")) {
