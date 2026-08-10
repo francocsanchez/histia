@@ -20,6 +20,7 @@
 - La tarjeta `Balance total en pesos` de `/dashboard` ahora muestra tambien la conversion a USD usando la cotizacion oficial `venta` de `https://dolarapi.com/v1/dolares/oficial`.
 - La tarjeta `Balance total en pesos` de `/dashboard` ahora separa `Importe en pesos` e `Importe en dolares` con tipografias mas chicas para evitar que el card crezca con montos largos.
 - El formulario de `Codigos de obras sociales` ahora captura importes en pesos con mascara monetaria y los convierte correctamente a centavos al guardar.
+- Los pacientes ahora normalizan `nombre` y `apellido` a minusculas al crear o editar, evitando diferencias de escritura como `Sanchez` vs `sanchez`.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.
