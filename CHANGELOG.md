@@ -18,6 +18,7 @@
 - `Movimientos` ahora admite el origen `Mercado Pago` junto a `Manual` y `Pago`, manteniendo la tabla unificada y los filtros existentes.
 - Los tipos de movimiento de sistema ahora incluyen variantes especificas para ingresos, impuestos y comisiones de Mercado Pago.
 - La tarjeta `Balance total en pesos` de `/dashboard` ahora muestra tambien la conversion a USD usando la cotizacion oficial `venta` de `https://dolarapi.com/v1/dolares/oficial`.
+- La tarjeta `Balance total en pesos` de `/dashboard` ahora separa `Importe en pesos` e `Importe en dolares` con tipografias mas chicas para evitar que el card crezca con montos largos.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.
