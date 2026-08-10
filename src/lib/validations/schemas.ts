@@ -96,6 +96,18 @@ export const userPasswordSchema = z.object({
   password: z.string().min(8, "La contrasena debe tener al menos 8 caracteres"),
 });
 
+export const userPasswordChangeSchema = z
+  .object({
+    password: z.string().min(8, "La contrasena debe tener al menos 8 caracteres"),
+    confirmPassword: z
+      .string()
+      .min(8, "La confirmacion debe tener al menos 8 caracteres"),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Las contrasenas no coinciden",
+  });
+
 const inlinePacienteSchema = z.object({
   nombre: z.string().min(1, "El nombre es obligatorio"),
   apellido: z.string().min(1, "El apellido es obligatorio"),

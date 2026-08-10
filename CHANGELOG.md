@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-10
+
+### Added
+
+- Opción `Cambiar contrasena` en el menú del ícono de usuario, con modal de confirmación por doble ingreso.
+- Endpoint de autoservicio `POST /api/account/password` para que cualquier usuario autenticado cambie su propia contraseña.
+
+### Changed
+
+- `Liquidaciones` ahora soporta filtro por estado de código.
+- Los filtros y la paginación de `/liquidaciones` ahora persisten en la URL y se conservan al entrar y salir de la edición administrativa de atenciones.
+
 ## 2026-08-09
 
 ### Added

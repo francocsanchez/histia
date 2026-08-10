@@ -1,16 +1,22 @@
 # Histia Agent Guide
 
+# Sugerencia commit
+
+Siempre debes actualizar el CHANGELOG.md de este proyecto y una vez de hacer eso debes sugerir el commit mostrando el mensaje en pantalla para que el usuario tenga una opcion para crear el commit.
+
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes. Before changing routes, pages, layouts, route handlers, or framework behavior, read the relevant guide in `node_modules/next/dist/docs/`.
+
 <!-- END:nextjs-agent-rules -->
 
 ## Project Snapshot
 
 Histia is an administrative web system for a dental clinic. It manages already-completed work only.
 
-Current implemented scope as of August 9, 2026:
+Current implemented scope as of August 10, 2026:
 
 - Authentication with `Better Auth`
 - Users with multiple roles
@@ -195,6 +201,7 @@ Rules:
 - Unique lowercase email
 - No public registration
 - Only admins create users
+- Authenticated users can change their own password from the account menu
 - Never expose `passwordHash`
 - Prevent leaving the last active admin without admin role or active status
 
@@ -292,6 +299,8 @@ Current behavior:
 - Uses existing `Atenciones` data
 - One row per atención
 - Compact table with code lines, values, coseguro totals, odontólogo totals, and statuses
+- Supports filtering by code status
+- Persists active filters and pagination in the URL across navigation and administrative edits
 - Includes access to administrative edit
 
 ### Pagos

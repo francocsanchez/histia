@@ -4,12 +4,22 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, LogOut, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { Button } from "@/components/ui/button";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
 import { can } from "@/lib/permissions";
 import { SessionUser } from "@/types/domain";
+import { userPasswordChangeSchema } from "@/lib/validations/schemas";
+
+type PasswordChangeValues = {
+  password: string;
+  confirmPassword: string;
+};
 
 const primaryLinks = [
   { href: "/dashboard", label: "Dashboard", resource: "admin-dashboard" as const },
@@ -120,7 +130,15 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [openMenu, setOpenMenu] = useState<"settings" | "finance" | "account" | null>(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
+  const passwordForm = useForm<PasswordChangeValues>({
+    resolver: zodResolver(userPasswordChangeSchema),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  });
   const visiblePrimaryLinks = primaryLinks.filter((link) =>
     can(user, link.resource, "read"),
   );
@@ -148,6 +166,28 @@ export function AppShell({
       document.removeEventListener("mousedown", handlePointerDown);
     };
   }, []);
+
+  const submitPasswordChange = passwordForm.handleSubmit(async (values) => {
+    const response = await fetch("/api/account/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: values.password }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok || !payload.success) {
+      passwordForm.setError("root", {
+        message: payload.error?.message || "No se pudo cambiar la contrasena",
+      });
+      return;
+    }
+
+    passwordForm.reset({
+      password: "",
+      confirmPassword: "",
+    });
+    setPasswordDialogOpen(false);
+  });
 
   return (
     <div className="min-h-screen bg-muted/35">
@@ -236,6 +276,22 @@ export function AppShell({
                   <Button
                     type="button"
                     variant="secondary"
+                    className="mb-2 w-full justify-between"
+                    onClick={() => {
+                      setOpenMenu(null);
+                      passwordForm.reset({
+                        password: "",
+                        confirmPassword: "",
+                      });
+                      setPasswordDialogOpen(true);
+                    }}
+                  >
+                    Cambiar contrasena
+                    <User className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
                     className="w-full justify-between"
                     onClick={async () => {
                       setOpenMenu(null);
@@ -255,6 +311,67 @@ export function AppShell({
       </header>
 
       <main className="min-w-0 p-4 md:p-8">{children}</main>
+
+      <Dialog
+        open={passwordDialogOpen}
+        onClose={() => {
+          passwordForm.reset({
+            password: "",
+            confirmPassword: "",
+          });
+          setPasswordDialogOpen(false);
+        }}
+        title="Cambiar contrasena"
+        description="Ingresa la nueva contrasena dos veces para confirmarla."
+        className="max-w-md"
+      >
+        <form className="space-y-4" onSubmit={submitPasswordChange}>
+          <div>
+            <label className="mb-2 block text-sm font-medium">Nueva contrasena</label>
+            <Input type="password" {...passwordForm.register("password")} />
+            {passwordForm.formState.errors.password ? (
+              <p className="mt-1 text-sm text-destructive">
+                {passwordForm.formState.errors.password.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium">
+              Repetir nueva contrasena
+            </label>
+            <Input type="password" {...passwordForm.register("confirmPassword")} />
+            {passwordForm.formState.errors.confirmPassword ? (
+              <p className="mt-1 text-sm text-destructive">
+                {passwordForm.formState.errors.confirmPassword.message}
+              </p>
+            ) : null}
+          </div>
+
+          {passwordForm.formState.errors.root ? (
+            <p className="text-sm text-destructive">
+              {passwordForm.formState.errors.root.message}
+            </p>
+          ) : null}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                passwordForm.reset({
+                  password: "",
+                  confirmPassword: "",
+                });
+                setPasswordDialogOpen(false);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit">Actualizar</Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }
