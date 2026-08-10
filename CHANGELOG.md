@@ -8,6 +8,7 @@
 - Persistencia de sincronizaciones de Mercado Pago con auditoria de estado, cantidades procesadas, errores y metadata de conciliacion.
 - Script `npm run test:mercadopago` con pruebas focalizadas para parseo CSV, descomposicion de componentes y claves idempotentes de importacion.
 - Boton `Forzar sync` en `Movimientos`, con icono de recarga, para disparar manualmente la sincronizacion de Mercado Pago desde la pantalla administrativa.
+- Documentacion y ejemplos de despliegue Docker actualizados para incluir `MERCADOPAGO_ACCESS_TOKEN` en runtime.
 - Opción `Cambiar contrasena` en el menú del ícono de usuario, con modal de confirmación por doble ingreso.
 - Endpoint de autoservicio `POST /api/account/password` para que cualquier usuario autenticado cambie su propia contraseña.
 

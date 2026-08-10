@@ -6,7 +6,7 @@ import { updateMovementDetails } from "@/services/movimientos";
 
 export async function PATCH(
   request: Request,
-  context: RouteContext<"/api/movimientos/[id]">,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     const user = await requireApiSessionUser(request.headers);

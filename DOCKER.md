@@ -42,6 +42,7 @@ Completar al menos:
 - `BETTER_AUTH_SECRET`
 - `BETTER_AUTH_URL`
 - `NEXT_PUBLIC_APP_NAME`
+- `MERCADOPAGO_ACCESS_TOKEN`
 - `SEED_ADMIN_EMAIL`
 - `SEED_ADMIN_PASSWORD`
 - `SEED_ADMIN_NAME`
@@ -53,7 +54,11 @@ URI conceptual de MongoDB:
 MONGODB_URI=mongodb://admin:TU_PASSWORD@histia-mongo:27017/histia?authSource=admin
 ```
 
-`NEXT_PUBLIC_APP_NAME` es la unica variable publica usada por el frontend. El resto son variables server-side y deben existir solo en runtime dentro del VPS. El build de GitHub Actions usa valores dummy no sensibles para compilar y nunca necesita secretos reales.
+`NEXT_PUBLIC_APP_NAME` es la unica variable publica usada por el frontend. El resto son variables server-side y deben existir solo en runtime dentro del VPS.
+
+`MERCADOPAGO_ACCESS_TOKEN` debe configurarse en `.env.production` para habilitar la sincronizacion automatica y manual de movimientos con Mercado Pago. Nunca debe exponerse al frontend ni subirse con un valor real al repositorio.
+
+El build de GitHub Actions y el build Docker usan valores dummy no sensibles para compilar y nunca necesitan secretos reales.
 
 ## 5. Deploy con GitHub Actions + GHCR
 

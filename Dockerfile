@@ -14,6 +14,7 @@ RUN MONGODB_URI=mongodb://127.0.0.1:27017/histia \
     BETTER_AUTH_SECRET=build-only-secret-1234 \
     BETTER_AUTH_URL=http://127.0.0.1:3000 \
     NEXT_PUBLIC_APP_NAME=Histia \
+    MERCADOPAGO_ACCESS_TOKEN=build-only-mercadopago-token \
     npm run build
 RUN npm run build:scripts
 
