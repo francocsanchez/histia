@@ -309,7 +309,11 @@ export async function getAdminDashboardStats(params: {
         },
       },
     ]),
-    AttentionModel.aggregate<{ _id: number; total: number }>([
+    AttentionModel.aggregate<{
+      _id: { month: number; obraSocialId: Types.ObjectId | null };
+      total: number;
+      obraSocialNombre?: string;
+    }>([
       {
         $match: {
           fecha: {
@@ -319,17 +323,35 @@ export async function getAdminDashboardStats(params: {
         },
       },
       {
-        $group: {
-          _id: {
-            $month: {
-              date: "$fecha",
-              timezone: BUSINESS_TIMEZONE,
-            },
-          },
-          total: { $sum: 1 },
+        $lookup: {
+          from: "obras_sociales",
+          localField: "obraSocialId",
+          foreignField: "_id",
+          as: "obraSocial",
         },
       },
-      { $sort: { _id: 1 } },
+      {
+        $unwind: {
+          path: "$obraSocial",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $group: {
+          _id: {
+            month: {
+              $month: {
+                date: "$fecha",
+                timezone: BUSINESS_TIMEZONE,
+              },
+            },
+            obraSocialId: "$obraSocialId",
+          },
+          total: { $sum: 1 },
+          obraSocialNombre: { $first: "$obraSocial.nombre" },
+        },
+      },
+      { $sort: { "_id.month": 1, obraSocialNombre: 1 } },
     ]),
     RxAttentionModel.aggregate<{ _id: number; total: number }>([
       {
@@ -535,7 +557,6 @@ export async function getAdminDashboardStats(params: {
   ]);
 
   const balanceMap = new Map(balanceRows.map((row) => [row._id, row.total]));
-  const attentionMonthMap = new Map(attentionsByMonthRows.map((row) => [row._id, row.total]));
   const rxMonthMap = new Map(rxByMonthRows.map((row) => [row._id, row.total]));
   const codeStatusMap = new Map(codesByStatusRows.map((row) => [row._id, row.total]));
   const movementMonthMap = new Map(
@@ -587,6 +608,24 @@ export async function getAdminDashboardStats(params: {
     dentistMap.set(userId, existing);
   });
 
+  const attentionsByMonthMap = new Map<
+    number,
+    Array<{ id: string; label: string; total: number }>
+  >();
+
+  attentionsByMonthRows.forEach((row) => {
+    const monthValue = row._id.month;
+    const currentMonthRows = attentionsByMonthMap.get(monthValue) ?? [];
+
+    currentMonthRows.push({
+      id: row._id.obraSocialId ? String(row._id.obraSocialId) : "sin-obra-social",
+      label: row.obraSocialNombre?.trim() || "Sin obra social",
+      total: row.total,
+    });
+
+    attentionsByMonthMap.set(monthValue, currentMonthRows);
+  });
+
   return {
     year: year.value,
     month: month.value,
@@ -605,11 +644,19 @@ export async function getAdminDashboardStats(params: {
         total: row.total,
       }))
       .sort((left, right) => right.total - left.total),
-    attentionsByMonth: monthLabels.map((label, index) => ({
-      month: index + 1,
-      label,
-      total: attentionMonthMap.get(index + 1) ?? 0,
-    })),
+    attentionsByMonth: monthLabels.map((label, index) => {
+      const monthValue = index + 1;
+      const segments = (attentionsByMonthMap.get(monthValue) ?? []).sort(
+        (left, right) => right.total - left.total,
+      );
+
+      return {
+        month: monthValue,
+        label,
+        total: segments.reduce((sum, item) => sum + item.total, 0),
+        segments,
+      };
+    }),
     rxByMonth: monthLabels.map((label, index) => ({
       month: index + 1,
       label,

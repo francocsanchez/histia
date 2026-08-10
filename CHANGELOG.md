@@ -9,6 +9,7 @@
 
 ### Changed
 
+- El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.
 - Los filtros y la paginación de `/liquidaciones` ahora persisten en la URL y se conservan al entrar y salir de la edición administrativa de atenciones.
 

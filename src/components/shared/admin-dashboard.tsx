@@ -339,6 +339,106 @@ function BarChart({
   );
 }
 
+function StackedBarChart({
+  items,
+  valueFormatter,
+}: {
+  items: AdminDashboardDto["attentionsByMonth"];
+  valueFormatter: (value: number) => string;
+}) {
+  const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
+  const maxValue = Math.max(...items.map((item) => item.total), 0);
+  const obraSocialOrder = Array.from(
+    new Map(
+      items
+        .flatMap((item) => item.segments)
+        .sort((left, right) => right.total - left.total)
+        .map((segment) => [segment.id, segment]),
+    ).values(),
+  );
+  const colorByObraSocial = new Map(
+    obraSocialOrder.map((item, index) => [
+      item.id,
+      chartPalette[index % chartPalette.length],
+    ]),
+  );
+
+  if (maxValue === 0) {
+    return <EmptyChart label="No hay datos para el año seleccionado." />;
+  }
+
+  return (
+    <div className="relative space-y-4 overflow-x-auto" onMouseLeave={() => setTooltip(null)}>
+      <ChartTooltip tooltip={tooltip} />
+      <div className="flex flex-wrap gap-4 text-sm">
+        {obraSocialOrder.map((item) => (
+          <span key={item.id} className="inline-flex items-center gap-2 text-muted-foreground">
+            <span
+              className="h-3 w-3 rounded-full"
+              style={{ backgroundColor: colorByObraSocial.get(item.id) }}
+            />
+            {item.label}
+          </span>
+        ))}
+      </div>
+      <div className="min-w-[720px]">
+        <div className="flex h-72 items-end gap-3 border-b border-l border-border px-3 pb-3 pt-6">
+          {items.map((item) => {
+            const height = `${Math.max((item.total / maxValue) * 100, item.total > 0 ? 8 : 2)}%`;
+
+            return (
+              <div
+                key={item.month}
+                className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch"
+              >
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {valueFormatter(item.total)}
+                </span>
+                <div className="flex w-full flex-1 items-end">
+                  <div
+                    className="flex w-full cursor-pointer flex-col overflow-hidden border border-primary/20 transition-opacity hover:opacity-90"
+                    style={{ height }}
+                  >
+                    {item.segments.map((segment) => (
+                      <div
+                        key={`${item.month}-${segment.id}`}
+                        className="w-full"
+                        style={{
+                          height: `${(segment.total / item.total) * 100}%`,
+                          backgroundColor: colorByObraSocial.get(segment.id),
+                        }}
+                        onMouseMove={(event) => {
+                          const bounds =
+                            event.currentTarget.parentElement?.parentElement?.parentElement?.parentElement?.getBoundingClientRect();
+
+                          if (!bounds) {
+                            return;
+                          }
+
+                          setTooltip({
+                            x: event.clientX - bounds.left,
+                            y: event.clientY - bounds.top,
+                            lines: [
+                              item.label,
+                              `${segment.label}: ${valueFormatter(segment.total)}`,
+                              `Total del mes: ${valueFormatter(item.total)}`,
+                            ],
+                          });
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <span className="text-[11px] text-muted-foreground">{item.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LineChart({
   items,
 }: {
@@ -690,9 +790,9 @@ export function AdminDashboard() {
 
         <ChartShell
           title="Atenciones anualizadas"
-          description="Cantidad de atenciones registradas por mes en el año seleccionado."
+          description="Cantidad de atenciones registradas por mes, apiladas por obra social del paciente."
         >
-          <BarChart
+          <StackedBarChart
             items={data.attentionsByMonth}
             valueFormatter={(value) => String(value)}
           />

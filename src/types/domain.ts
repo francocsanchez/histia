@@ -154,6 +154,19 @@ export interface AdminDashboardCodeStatusItemDto {
   total: number;
 }
 
+export interface AdminDashboardMonthlyStackSegmentDto {
+  id: string;
+  label: string;
+  total: number;
+}
+
+export interface AdminDashboardMonthlyStackItemDto {
+  month: number;
+  label: string;
+  total: number;
+  segments: AdminDashboardMonthlyStackSegmentDto[];
+}
+
 export interface AdminDashboardDentistStatusItemDto {
   status: AttentionCodeStatus;
   label: string;
@@ -174,7 +187,7 @@ export interface AdminDashboardDto {
   availableMonths: string[];
   summary: AdminDashboardSummaryDto;
   patientsByObraSocial: AdminDashboardPieItemDto[];
-  attentionsByMonth: AdminDashboardMonthlyItemDto[];
+  attentionsByMonth: AdminDashboardMonthlyStackItemDto[];
   rxByMonth: AdminDashboardMonthlyItemDto[];
   movementsByMonth: AdminDashboardIncomeExpenseItemDto[];
   incomeByMovementType: AdminDashboardPieItemDto[];
