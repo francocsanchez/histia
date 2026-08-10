@@ -1,9 +1,10 @@
 import { Schema, Types, model, models } from "mongoose";
 
 import {
+  MercadoPagoExternalComponent,
   MovementDirection,
+  MovementMetadataDto,
   MovementOriginType,
-  MovementPaymentMetadataDto,
 } from "@/types/domain";
 
 export interface MovementDocument {
@@ -16,8 +17,10 @@ export interface MovementDocument {
   montoCentavos: number;
   origenTipo: MovementOriginType;
   origenId: Types.ObjectId | null;
+  externalId: string | null;
+  externalComponent: MercadoPagoExternalComponent | null;
   creadoAutomaticamente: boolean;
-  metadata: MovementPaymentMetadataDto | null;
+  metadata: MovementMetadataDto | null;
   createdByUserId: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -59,13 +62,25 @@ const movementSchema = new Schema<MovementDocument>(
     },
     origenTipo: {
       type: String,
-      enum: ["manual", "payment"],
+      enum: ["manual", "payment", "mercadopago"],
       required: true,
       index: true,
     },
     origenId: {
       type: Schema.Types.ObjectId,
       default: null,
+    },
+    externalId: {
+      type: String,
+      default: null,
+      trim: true,
+      index: true,
+    },
+    externalComponent: {
+      type: String,
+      enum: ["TRANSACTION", "TAX", "FEE", null],
+      default: null,
+      index: true,
     },
     creadoAutomaticamente: {
       type: Boolean,
@@ -97,6 +112,17 @@ movementSchema.index(
     partialFilterExpression: {
       origenTipo: { $ne: "manual" },
       origenId: { $type: "objectId" },
+    },
+  },
+);
+movementSchema.index(
+  { origenTipo: 1, externalId: 1, externalComponent: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      origenTipo: "mercadopago",
+      externalId: { $type: "string" },
+      externalComponent: { $type: "string" },
     },
   },
 );

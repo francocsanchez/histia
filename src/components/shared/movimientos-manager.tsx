@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
-import { TrendingDown, TrendingUp } from "lucide-react";
+import { RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { PageHeader } from "@/components/shared/page-header";
@@ -12,6 +12,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
+  isPaymentMovementMetadata,
   movementDirectionLabels,
   movementOriginLabels,
 } from "@/lib/movement";
@@ -57,6 +58,20 @@ type CreatePayload = {
   error?: { message?: string; fields?: Record<string, string> };
 };
 
+type UpdatePayload = {
+  success: boolean;
+  data: MovementDto;
+  error?: { message?: string; fields?: Record<string, string> };
+};
+
+type MercadoPagoSyncTriggerPayload = {
+  success: boolean;
+  data?: {
+    created: boolean;
+  };
+  error?: { message?: string };
+};
+
 type FormState = MovementCreateDto & {
   direction: MovementDirection;
 };
@@ -67,6 +82,16 @@ function MovementDirectionIcon({ direction }: { direction: MovementDirection }) 
   }
 
   return <TrendingDown className="h-4 w-4 text-rose-700" strokeWidth={2.5} />;
+}
+
+function formatSignedMovementAmount(item: MovementDto) {
+  const formatted = formatCurrencyFromCents(item.montoCentavos);
+
+  if (item.direccion === "egreso") {
+    return `-${formatted}`;
+  }
+
+  return formatted;
 }
 
 export function MovimientosManager() {
@@ -83,7 +108,9 @@ export function MovimientosManager() {
   const [typeId, setTypeId] = useState("");
   const [originType, setOriginType] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [syncSubmitting, setSyncSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [summary, setSummary] = useState<ListPayload["summary"]>({
     ingresosCentavos: 0,
@@ -100,6 +127,14 @@ export function MovimientosManager() {
   const [amountInput, setAmountInput] = useState("");
   const [formError, setFormError] = useState("");
   const [formFields, setFormFields] = useState<Record<string, string>>({});
+  const [selectedMovement, setSelectedMovement] = useState<MovementDto | null>(null);
+  const [editForm, setEditForm] = useState({
+    movementTypeId: "",
+    descripcion: "",
+  });
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editFields, setEditFields] = useState<Record<string, string>>({});
 
   const activeMovementTypes = useMemo(
     () => movementTypes.filter((item) => item.activo),
@@ -118,6 +153,16 @@ export function MovimientosManager() {
     () => activeMovementTypes.filter((item) => item.direccion === form.direction),
     [activeMovementTypes, form.direction],
   );
+
+  const editableTypeOptions = useMemo(() => {
+    if (!selectedMovement) {
+      return activeMovementTypes;
+    }
+
+    return activeMovementTypes.filter(
+      (item) => item.direccion === selectedMovement.direccion,
+    );
+  }, [activeMovementTypes, selectedMovement]);
 
   const loadMovementTypes = async () => {
     setLookupsLoading(true);
@@ -251,6 +296,84 @@ export function MovimientosManager() {
     setDialogOpen(true);
   };
 
+  const openEdit = (movement: MovementDto) => {
+    setSelectedMovement(movement);
+    setEditForm({
+      movementTypeId: movement.tipoMovimientoId ?? "",
+      descripcion: movement.descripcion ?? "",
+    });
+    setEditError("");
+    setEditFields({});
+    setEditDialogOpen(true);
+  };
+
+  const submitMovementEdit = async () => {
+    if (!selectedMovement) {
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError("");
+    setEditFields({});
+    setSuccessMessage("");
+
+    try {
+      const response = await fetch(`/api/movimientos/${selectedMovement.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          movementTypeId: editForm.movementTypeId,
+          descripcion: editForm.descripcion,
+        }),
+      });
+      const payload = (await response.json()) as UpdatePayload;
+
+      if (!response.ok || !payload.success) {
+        setEditFields(payload.error?.fields ?? {});
+        throw new Error(payload.error?.message || "No se pudo editar el movimiento");
+      }
+
+      setEditDialogOpen(false);
+      setSelectedMovement(null);
+      setSuccessMessage("El movimiento se actualizo correctamente.");
+      await load();
+    } catch (updateError) {
+      setEditError(updateError instanceof Error ? updateError.message : "Error inesperado");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const triggerMercadoPagoSync = async () => {
+    setSyncSubmitting(true);
+    setSuccessMessage("");
+    setError("");
+
+    try {
+      const response = await fetch("/api/mercadopago/sync", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as MercadoPagoSyncTriggerPayload;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.error?.message || "No se pudo iniciar la sincronizacion de Mercado Pago",
+        );
+      }
+
+      setSuccessMessage(
+        payload.data?.created
+          ? "Se inicio la sincronizacion manual de Mercado Pago."
+          : "Ya existe una sincronizacion reciente de Mercado Pago en curso.",
+      );
+      await load();
+    } catch (syncError) {
+      setError(syncError instanceof Error ? syncError.message : "Error inesperado");
+    } finally {
+      setSyncSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -258,6 +381,20 @@ export function MovimientosManager() {
         description="Libro contable operativo de ingresos y egresos de la clinica."
         actionLabel="Nuevo movimiento"
         onAction={openCreate}
+        actions={
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => void triggerMercadoPagoSync()}
+            disabled={syncSubmitting}
+            title="Forzar sincronizacion de Mercado Pago"
+          >
+            <RefreshCw
+              className={`mr-2 h-4 w-4 ${syncSubmitting ? "animate-spin" : ""}`}
+            />
+            {syncSubmitting ? "Sincronizando..." : "Forzar sync"}
+          </Button>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -373,11 +510,11 @@ export function MovimientosManager() {
               <colgroup>
                 <col className="w-[90px]" />
                 <col className="w-[90px]" />
-                <col className="w-[190px]" />
+                <col className="w-[260px]" />
                 <col />
-                <col className="w-[140px]" />
-                <col className="w-[120px]" />
-                <col className="w-[100px]" />
+              <col className="w-[140px]" />
+              <col className="w-[190px]" />
+              <col className="w-[120px]" />
               </colgroup>
               <thead className="bg-muted/70 text-left">
                 <tr>
@@ -387,7 +524,7 @@ export function MovimientosManager() {
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Descripcion</th>
                   <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-muted-foreground">Monto</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Origen</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Estado</th>
+                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Accion</th>
                 </tr>
               </thead>
               <tbody>
@@ -405,22 +542,33 @@ export function MovimientosManager() {
                     <td className="px-3 py-2">{item.tipo}</td>
                     <td className="px-3 py-2">
                       <p>{item.descripcion}</p>
-                      {item.metadata?.usuarioNombreSnapshot ? (
+                      {isPaymentMovementMetadata(item.metadata) ? (
                         <p className="mt-1 text-xs text-muted-foreground">
                           {item.metadata.usuarioNombreSnapshot} - {item.metadata.attentionMonth}
                         </p>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2 text-right font-medium tabular-nums">
-                      {formatCurrencyFromCents(item.montoCentavos)}
+                    <td
+                      className={`px-3 py-2 text-right font-medium tabular-nums ${
+                        item.direccion === "ingreso" ? "text-emerald-700" : "text-rose-700"
+                      }`}
+                    >
+                      {formatSignedMovementAmount(item)}
                     </td>
                     <td className="px-3 py-2">
-                      <Badge variant="muted">{movementOriginLabels[item.origenTipo]}</Badge>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge variant={item.creadoAutomaticamente ? "muted" : "default"}>
-                        {item.creadoAutomaticamente ? "Bloqueado" : "Manual"}
+                      <Badge variant="muted" className="inline-flex whitespace-nowrap">
+                        {movementOriginLabels[item.origenTipo]}
                       </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => openEdit(item)}
+                      >
+                        Editar
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -577,6 +725,86 @@ export function MovimientosManager() {
           </Button>
           <Button type="button" onClick={() => void submitManualMovement()} disabled={submitting}>
             {submitting ? "Guardando..." : "Guardar movimiento"}
+          </Button>
+        </div>
+      </Dialog>
+
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => {
+          if (!editSubmitting) {
+            setEditDialogOpen(false);
+            setSelectedMovement(null);
+          }
+        }}
+        title="Editar movimiento"
+        description="Actualiza el concepto y la descripcion del movimiento."
+      >
+        <div className="grid gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Concepto</label>
+            <Select
+              value={editForm.movementTypeId}
+              onChange={(event) =>
+                setEditForm((current) => ({
+                  ...current,
+                  movementTypeId: event.target.value,
+                }))
+              }
+            >
+              <option value="">Selecciona un concepto</option>
+              {editableTypeOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.nombre}
+                </option>
+              ))}
+            </Select>
+            {editFields.movementTypeId ? (
+              <p className="mt-1 text-xs text-rose-700">{editFields.movementTypeId}</p>
+            ) : null}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Descripcion</label>
+            <Input
+              value={editForm.descripcion}
+              onChange={(event) =>
+                setEditForm((current) => ({
+                  ...current,
+                  descripcion: event.target.value,
+                }))
+              }
+            />
+            {editFields.descripcion ? (
+              <p className="mt-1 text-xs text-rose-700">{editFields.descripcion}</p>
+            ) : null}
+          </div>
+        </div>
+
+        {editError ? (
+          <Card className="mt-4 border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+            {editError}
+          </Card>
+        ) : null}
+
+        <div className="mt-6 flex justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              setEditDialogOpen(false);
+              setSelectedMovement(null);
+            }}
+            disabled={editSubmitting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={() => void submitMovementEdit()}
+            disabled={editSubmitting}
+          >
+            {editSubmitting ? "Guardando..." : "Guardar cambios"}
           </Button>
         </div>
       </Dialog>

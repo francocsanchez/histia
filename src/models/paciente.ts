@@ -15,7 +15,7 @@ const pacienteSchema = new Schema<PacienteDocument>(
   {
     nombre: { type: String, required: true, trim: true },
     apellido: { type: String, required: true, trim: true },
-    dni: { type: String, required: true, unique: true },
+    dni: { type: String, required: true },
     obraSocialId: {
       type: Schema.Types.ObjectId,
       ref: "ObraSocial",

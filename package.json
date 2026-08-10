@@ -9,6 +9,7 @@
     "start": "next start",
     "start:prod": "node dist/scripts/start-prod.js",
     "lint": "eslint .",
+    "test:mercadopago": "tsx --test scripts/tests/mercadopago-sync.test.ts",
     "seed:admin": "tsx scripts/seed-admin.ts",
     "seed:admin:prod": "node dist/scripts/seed-admin.js"
   },
@@ -18,6 +19,7 @@
     "better-auth": "^1.6.25",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "csv-parse": "^5.6.0",
     "lucide-react": "^1.28.0",
     "mongodb": "^7.5.0",
     "mongoose": "^9.9.1",

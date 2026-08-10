@@ -16,7 +16,7 @@ export interface MovementTypeDocument {
 const movementTypeSchema = new Schema<MovementTypeDocument>(
   {
     nombre: { type: String, required: true, trim: true },
-    nombreNormalizado: { type: String, required: true, unique: true },
+    nombreNormalizado: { type: String, required: true },
     direccion: {
       type: String,
       enum: ["ingreso", "egreso"],

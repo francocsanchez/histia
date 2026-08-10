@@ -1,4 +1,8 @@
-import { MovementDirection, MovementOriginType } from "@/types/domain";
+import {
+  MovementDirection,
+  MovementOriginType,
+  MovementMetadataDto,
+} from "@/types/domain";
 
 export const movementDirectionLabels: Record<MovementDirection, string> = {
   ingreso: "Ingreso",
@@ -8,6 +12,7 @@ export const movementDirectionLabels: Record<MovementDirection, string> = {
 export const movementOriginLabels: Record<MovementOriginType, string> = {
   manual: "Manual",
   payment: "Pago",
+  mercadopago: "Mercado Pago",
 };
 
 export function buildPaymentMovementDescription(
@@ -15,4 +20,10 @@ export function buildPaymentMovementDescription(
   attentionMonth: string,
 ) {
   return `Pago honorarios odontologicos - ${userName} - ${attentionMonth}`;
+}
+
+export function isPaymentMovementMetadata(
+  metadata: MovementMetadataDto | null,
+): metadata is Extract<MovementMetadataDto, { kind: "payment" }> {
+  return metadata?.kind === "payment";
 }

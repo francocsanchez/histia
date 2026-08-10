@@ -20,7 +20,7 @@ export interface UserDocument {
 const userSchema = new Schema<UserDocument>(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, lowercase: true, unique: true },
+    email: { type: String, required: true, lowercase: true },
     emailVerified: { type: Boolean, default: false },
     image: { type: String, default: null },
     role: { type: String, default: "user" },
@@ -37,7 +37,6 @@ const userSchema = new Schema<UserDocument>(
   },
 );
 
-userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ roles: 1 });
 
 export const UserModel =

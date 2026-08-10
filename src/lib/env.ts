@@ -16,6 +16,7 @@ const serverEnvSchema = z.object({
   SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
   SEED_ADMIN_NAME: z.string().min(1).optional(),
   SEED_ADMIN_LAST_NAME: z.string().min(1).optional(),
+  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1).optional(),
 });
 
 export const publicEnv = publicEnvSchema.parse({
@@ -41,6 +42,7 @@ export function getServerEnv(): ServerEnv {
     SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
     SEED_ADMIN_NAME: process.env.SEED_ADMIN_NAME,
     SEED_ADMIN_LAST_NAME: process.env.SEED_ADMIN_LAST_NAME,
+    MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
   });
 
   if (!parsedEnv.success) {

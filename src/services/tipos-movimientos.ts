@@ -30,6 +30,36 @@ const defaultMovementTypes = [
     nombre: "Otro egreso",
     direccion: "egreso" as const,
   },
+  {
+    systemKey: "mercadopago-income",
+    nombre: "Mercado Pago ingreso",
+    direccion: "ingreso" as const,
+  },
+  {
+    systemKey: "mercadopago-expense",
+    nombre: "Mercado Pago egreso",
+    direccion: "egreso" as const,
+  },
+  {
+    systemKey: "mercadopago-tax-income",
+    nombre: "Impuestos Mercado Pago ingreso",
+    direccion: "ingreso" as const,
+  },
+  {
+    systemKey: "mercadopago-tax-expense",
+    nombre: "Impuestos Mercado Pago egreso",
+    direccion: "egreso" as const,
+  },
+  {
+    systemKey: "mercadopago-fee-income",
+    nombre: "Comision Mercado Pago ingreso",
+    direccion: "ingreso" as const,
+  },
+  {
+    systemKey: "mercadopago-fee-expense",
+    nombre: "Comision Mercado Pago egreso",
+    direccion: "egreso" as const,
+  },
 ];
 
 function toDto(document: MovementTypeDocument): MovementTypeDto {
@@ -55,7 +85,7 @@ export async function ensureDefaultMovementTypes() {
       await MovementTypeModel.updateOne(
         { systemKey: item.systemKey },
         {
-          $setOnInsert: {
+          $set: {
             nombre,
             nombreNormalizado,
             direccion: item.direccion,

@@ -4,11 +4,18 @@
 
 ### Added
 
+- Integracion automatica con Mercado Pago para importar movimientos contables desde `account/settlement_report`, con endpoints administrativos protegidos, deduplicacion por `SOURCE_ID + COMPONENTE` y scheduler server-side.
+- Persistencia de sincronizaciones de Mercado Pago con auditoria de estado, cantidades procesadas, errores y metadata de conciliacion.
+- Script `npm run test:mercadopago` con pruebas focalizadas para parseo CSV, descomposicion de componentes y claves idempotentes de importacion.
+- Boton `Forzar sync` en `Movimientos`, con icono de recarga, para disparar manualmente la sincronizacion de Mercado Pago desde la pantalla administrativa.
 - Opción `Cambiar contrasena` en el menú del ícono de usuario, con modal de confirmación por doble ingreso.
 - Endpoint de autoservicio `POST /api/account/password` para que cualquier usuario autenticado cambie su propia contraseña.
 
 ### Changed
 
+- La columna `Estado` de `Movimientos` fue reemplazada por `Accion`, con modal de edicion para cambiar concepto y descripcion desde la tabla.
+- `Movimientos` ahora admite el origen `Mercado Pago` junto a `Manual` y `Pago`, manteniendo la tabla unificada y los filtros existentes.
+- Los tipos de movimiento de sistema ahora incluyen variantes especificas para ingresos, impuestos y comisiones de Mercado Pago.
 - La tarjeta `Balance total en pesos` de `/dashboard` ahora muestra tambien la conversion a USD usando la cotizacion oficial `venta` de `https://dolarapi.com/v1/dolares/oficial`.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.

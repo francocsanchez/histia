@@ -250,6 +250,11 @@ export const movementCreateSchema = z.object({
     .min(1, "El monto debe ser mayor que cero"),
 });
 
+export const movementUpdateSchema = z.object({
+  descripcion: z.string().optional().nullable(),
+  movementTypeId: z.string().min(1, "El tipo de movimiento es obligatorio"),
+});
+
 export const movementTypeSchema = z.object({
   nombre: z.string().min(1, "El nombre es obligatorio"),
   direccion: z.enum(movementDirectionValues),
