@@ -63,6 +63,13 @@ function formatMonthOption(month: string) {
   }).format(date);
 }
 
+function formatUsdValue(value: number) {
+  return new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function SummaryCard({
   label,
   value,
@@ -772,7 +779,11 @@ export function AdminDashboard() {
         />
         <SummaryCard
           label="Balance total en pesos"
-          value={formatCurrencyFromCents(data.summary.balanceTotalCentavos)}
+          value={
+            data.summary.balanceTotalUsd !== null
+              ? `${formatCurrencyFromCents(data.summary.balanceTotalCentavos)} | USD ${formatUsdValue(data.summary.balanceTotalUsd)}`
+              : formatCurrencyFromCents(data.summary.balanceTotalCentavos)
+          }
           tone={data.summary.balanceTotalCentavos >= 0 ? "success" : "danger"}
         />
       </div>

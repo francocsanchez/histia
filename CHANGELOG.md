@@ -9,6 +9,8 @@
 
 ### Changed
 
+- La tarjeta `Balance total en pesos` de `/dashboard` ahora muestra tambien la conversion a USD usando la cotizacion oficial `venta` de `https://dolarapi.com/v1/dolares/oficial`.
+
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.
 - Los filtros y la paginación de `/liquidaciones` ahora persisten en la URL y se conservan al entrar y salir de la edición administrativa de atenciones.

@@ -18,6 +18,11 @@ import {
 } from "@/types/domain";
 
 const BUSINESS_TIMEZONE = "America/Argentina/Buenos_Aires";
+const DOLAR_API_OFICIAL_URL = "https://dolarapi.com/v1/dolares/oficial";
+
+type OfficialDollarQuoteResponse = {
+  venta?: number;
+};
 
 function isAdmin(user: SessionUser) {
   return user.roles.includes("administrador");
@@ -96,6 +101,30 @@ function getMonthLabels() {
     "Nov",
     "Dic",
   ];
+}
+
+async function getOfficialDollarVenta() {
+  try {
+    const response = await fetch(DOLAR_API_OFICIAL_URL, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as OfficialDollarQuoteResponse;
+    const venta = payload.venta;
+
+    if (typeof venta !== "number" || !Number.isFinite(venta) || venta <= 0) {
+      return null;
+    }
+
+    return venta;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveDashboardUser(
@@ -255,6 +284,7 @@ export async function getAdminDashboardStats(params: {
   const [
     pacientesActivos,
     odontologosActivos,
+    dolarOficialVenta,
     balanceRows,
     patientsByObraSocialRows,
     attentionsByMonthRows,
@@ -273,6 +303,7 @@ export async function getAdminDashboardStats(params: {
       activo: true,
       roles: { $regex: /(^|,)odontologo(,|$)/ },
     }),
+    getOfficialDollarVenta(),
     MovementModel.aggregate<{ _id: string; total: number }>([
       {
         $group: {
@@ -557,6 +588,8 @@ export async function getAdminDashboardStats(params: {
   ]);
 
   const balanceMap = new Map(balanceRows.map((row) => [row._id, row.total]));
+  const balanceTotalCentavos =
+    (balanceMap.get("ingreso") ?? 0) - (balanceMap.get("egreso") ?? 0);
   const rxMonthMap = new Map(rxByMonthRows.map((row) => [row._id, row.total]));
   const codeStatusMap = new Map(codesByStatusRows.map((row) => [row._id, row.total]));
   const movementMonthMap = new Map(
@@ -634,8 +667,9 @@ export async function getAdminDashboardStats(params: {
     summary: {
       pacientesActivos,
       odontologosActivos,
-      balanceTotalCentavos:
-        (balanceMap.get("ingreso") ?? 0) - (balanceMap.get("egreso") ?? 0),
+      balanceTotalCentavos,
+      balanceTotalUsd:
+        dolarOficialVenta !== null ? balanceTotalCentavos / 100 / dolarOficialVenta : null,
     },
     patientsByObraSocial: patientsByObraSocialRows
       .map((row) => ({

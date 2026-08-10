@@ -127,6 +127,7 @@ export interface AdminDashboardSummaryDto {
   pacientesActivos: number;
   odontologosActivos: number;
   balanceTotalCentavos: number;
+  balanceTotalUsd: number | null;
 }
 
 export interface AdminDashboardPieItemDto {
