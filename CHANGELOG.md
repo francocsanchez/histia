@@ -21,6 +21,7 @@
 - La tarjeta `Balance total en pesos` de `/dashboard` ahora separa `Importe en pesos` e `Importe en dolares` con tipografias mas chicas para evitar que el card crezca con montos largos.
 - El formulario de `Codigos de obras sociales` ahora captura importes en pesos con mascara monetaria y los convierte correctamente a centavos al guardar.
 - Los pacientes ahora normalizan `nombre` y `apellido` a minusculas al crear o editar, evitando diferencias de escritura como `Sanchez` vs `sanchez`.
+- Las consultas administrativas de `Movimientos` y del historial de syncs ahora disparan mantenimiento automatico de Mercado Pago si la sincronizacion horaria o la revision de pendientes estan vencidas.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.

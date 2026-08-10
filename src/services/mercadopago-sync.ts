@@ -68,6 +68,8 @@ const NON_TERMINAL_SYNC_STATUSES: MercadoPagoSyncStatus[] = [
   "PROCESSING",
 ];
 const PROCESSING_LEASE_MS = 30 * 60 * 1000;
+const MERCADO_PAGO_AUTOMATIC_PENDING_CHECK_WINDOW_MS = 5 * 60 * 1000;
+const MERCADO_PAGO_AUTOMATIC_HOURLY_SYNC_WINDOW_MS = 60 * 60 * 1000;
 
 function toMercadoPagoSyncDto(sync: {
   _id: Types.ObjectId | string;
@@ -716,6 +718,46 @@ export async function startMercadoPagoSync(input: StartSyncInput) {
       500,
     );
   }
+}
+
+export async function runMercadoPagoAutomaticMaintenanceIfDue() {
+  await connectToDatabase();
+
+  if (!hasMercadoPagoAccessToken()) {
+    return { checkedPending: false, startedHourlySync: false };
+  }
+
+  const now = new Date();
+  let checkedPending = false;
+  let startedHourlySync = false;
+
+  const recentPendingCheckThreshold = new Date(
+    now.getTime() - MERCADO_PAGO_AUTOMATIC_PENDING_CHECK_WINDOW_MS,
+  );
+  const hasRecentPendingReview = await MercadoPagoSettlementSyncModel.exists({
+    status: { $in: NON_TERMINAL_SYNC_STATUSES },
+    lastCheckedAt: { $gte: recentPendingCheckThreshold },
+  });
+
+  if (!hasRecentPendingReview) {
+    await checkPendingMercadoPagoSyncs();
+    checkedPending = true;
+  }
+
+  const recentHourlyThreshold = new Date(
+    now.getTime() - MERCADO_PAGO_AUTOMATIC_HOURLY_SYNC_WINDOW_MS,
+  );
+  const hasRecentHourlySync = await MercadoPagoSettlementSyncModel.exists({
+    tipoSincronizacion: "hourly",
+    createdAt: { $gte: recentHourlyThreshold },
+  });
+
+  if (!hasRecentHourlySync) {
+    const result = await startMercadoPagoSync({ syncType: "hourly" });
+    startedHourlySync = result.created;
+  }
+
+  return { checkedPending, startedHourlySync };
 }
 
 export async function listMercadoPagoSyncs(query: ListSyncsQuery) {
