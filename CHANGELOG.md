@@ -27,6 +27,7 @@
 - El helper interno de errores de Mercado Pago ahora descarta `null` explicitamente para evitar advertencias de TypeScript en build.
 - Las fallas al iniciar syncs de Mercado Pago ahora exponen el mensaje concreto persistido por la sincronizacion en lugar de responder solo con un error generico.
 - Las syncs de Mercado Pago ahora respetan un cooldown de 15 minutos despues de un rechazo por limite de uso para evitar seguir golpeando la API innecesariamente.
+- La creacion automatica de reportes de Mercado Pago vuelve a un ritmo conservador de 1 hora, manteniendo el chequeo de pendientes cada 5 minutos para no saturar la API.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.
