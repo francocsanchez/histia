@@ -22,6 +22,7 @@
 - El formulario de `Codigos de obras sociales` ahora captura importes en pesos con mascara monetaria y los convierte correctamente a centavos al guardar.
 - Los pacientes ahora normalizan `nombre` y `apellido` a minusculas al crear o editar, evitando diferencias de escritura como `Sanchez` vs `sanchez`.
 - Las consultas administrativas de `Movimientos` y del historial de syncs ahora disparan mantenimiento automatico de Mercado Pago si la sincronizacion horaria o la revision de pendientes estan vencidas.
+- La importacion de Mercado Pago ahora registra tambien transferencias cuyo impacto llega solo en `REAL_AMOUNT`, evitando perder egresos sin `TRANSACTION_AMOUNT`.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.

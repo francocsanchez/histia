@@ -379,6 +379,23 @@ export function buildMovementComponents(row: {
     });
   }
 
+  // Algunas transferencias llegan sin TRANSACTION_AMOUNT, FEE ni TAXES,
+  // pero con el impacto neto solo en REAL_AMOUNT.
+  if (
+    components.length === 0 &&
+    row.transactionAmountCentavos === 0 &&
+    row.taxesAmountCentavos === 0 &&
+    row.feeAmountCentavos === 0 &&
+    row.realAmountCentavos !== 0
+  ) {
+    components.push({
+      externalComponent: "TRANSACTION",
+      descripcion: getMercadoPagoMovementDescription("TRANSACTION"),
+      direccion: getComponentDirection(row.realAmountCentavos),
+      montoCentavos: getComponentAmount(row.realAmountCentavos),
+    });
+  }
+
   return components.map((component) => ({
     ...component,
     reportId: row.reportId,
