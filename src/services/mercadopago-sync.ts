@@ -70,6 +70,7 @@ const NON_TERMINAL_SYNC_STATUSES: MercadoPagoSyncStatus[] = [
 const PROCESSING_LEASE_MS = 30 * 60 * 1000;
 const MERCADO_PAGO_AUTOMATIC_PENDING_CHECK_WINDOW_MS = 5 * 60 * 1000;
 const MERCADO_PAGO_AUTOMATIC_HOURLY_SYNC_WINDOW_MS = 60 * 60 * 1000;
+const MERCADO_PAGO_RATE_LIMIT_COOLDOWN_MS = 15 * 60 * 1000;
 
 function toMercadoPagoSyncDto(sync: {
   _id: Types.ObjectId | string;
@@ -134,6 +135,37 @@ function logMercadoPagoWarning(message: string, details?: Record<string, unknown
 
 function logMercadoPagoError(message: string, details?: Record<string, unknown>) {
   console.error("[mercadopago-sync]", message, details ?? {});
+}
+
+function isMercadoPagoRateLimitMessage(message: string | null | undefined) {
+  return message?.includes("Mercado Pago rechazo temporalmente la solicitud por limite de uso") ?? false;
+}
+
+async function assertMercadoPagoRateLimitCooldownInactive() {
+  const threshold = new Date(Date.now() - MERCADO_PAGO_RATE_LIMIT_COOLDOWN_MS);
+  const recentRateLimitedSync = await MercadoPagoSettlementSyncModel.findOne({
+    status: "FAILED",
+    createdAt: { $gte: threshold },
+    error: { $regex: "Mercado Pago rechazo temporalmente la solicitud por limite de uso", $options: "i" },
+  })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!recentRateLimitedSync) {
+    return;
+  }
+
+  const availableAt = new Date(
+    recentRateLimitedSync.createdAt.getTime() + MERCADO_PAGO_RATE_LIMIT_COOLDOWN_MS,
+  );
+  const remainingMs = Math.max(0, availableAt.getTime() - Date.now());
+  const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+
+  throw new AppError(
+    "INTERNAL_ERROR",
+    `Mercado Pago rechazo temporalmente la solicitud por limite de uso. Reintenta en ${remainingMinutes} minuto(s).`,
+    429,
+  );
 }
 
 function buildMercadoPagoWindow(syncType: MercadoPagoSyncType, now = new Date()) {
@@ -458,6 +490,8 @@ async function finalizeSyncFailure(syncId: Types.ObjectId | string, error: unkno
     syncId: String(syncId),
     error: message,
   });
+
+  return message;
 }
 
 async function processMercadoPagoSyncDocument(
@@ -649,6 +683,8 @@ export async function startMercadoPagoSync(input: StartSyncInput) {
     );
   }
 
+  await assertMercadoPagoRateLimitCooldownInactive();
+
   const createdByUserId = await resolveSyncActorUserId(input.requestedByUserId);
   const now = new Date();
   const recentThreshold = new Date(now.getTime() - getSyncRecencyWindowMs(input.syncType));
@@ -758,10 +794,10 @@ export async function startMercadoPagoSync(input: StartSyncInput) {
       sync: toMercadoPagoSyncDto(updated ?? sync.toObject()),
     };
   } catch (error) {
-    await finalizeSyncFailure(sync._id, error);
+    const failureMessage = await finalizeSyncFailure(sync._id, error);
     throw new AppError(
       "INTERNAL_ERROR",
-      "No se pudo iniciar la sincronizacion con Mercado Pago",
+      failureMessage,
       500,
     );
   }
@@ -800,8 +836,20 @@ export async function runMercadoPagoAutomaticMaintenanceIfDue() {
   });
 
   if (!hasRecentHourlySync) {
-    const result = await startMercadoPagoSync({ syncType: "hourly" });
-    startedHourlySync = result.created;
+    try {
+      const result = await startMercadoPagoSync({ syncType: "hourly" });
+      startedHourlySync = result.created;
+    } catch (error) {
+      const message = sanitizeMercadoPagoError(error);
+
+      if (!isMercadoPagoRateLimitMessage(message)) {
+        throw error;
+      }
+
+      logMercadoPagoWarning("Se omitio una sync automatica de Mercado Pago por cooldown de rate limit", {
+        error: message,
+      });
+    }
   }
 
   return { checkedPending, startedHourlySync };

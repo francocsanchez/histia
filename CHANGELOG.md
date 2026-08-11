@@ -25,6 +25,8 @@
 - La importacion de Mercado Pago ahora registra tambien transferencias cuyo impacto llega solo en `REAL_AMOUNT`, evitando perder egresos sin `TRANSACTION_AMOUNT`.
 - La sincronizacion de Mercado Pago ahora tolera `reportId` reutilizados por la API y reaprovecha la sync existente en lugar de fallar con error interno.
 - El helper interno de errores de Mercado Pago ahora descarta `null` explicitamente para evitar advertencias de TypeScript en build.
+- Las fallas al iniciar syncs de Mercado Pago ahora exponen el mensaje concreto persistido por la sincronizacion en lugar de responder solo con un error generico.
+- Las syncs de Mercado Pago ahora respetan un cooldown de 15 minutos despues de un rechazo por limite de uso para evitar seguir golpeando la API innecesariamente.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.
