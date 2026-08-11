@@ -306,13 +306,14 @@ async function createMercadoPagoReport(beginDate: Date, endDate: Date) {
   return payload;
 }
 
-function isMongoDuplicateKeyError(error: unknown) {
-  return (
-    Boolean(error) &&
-    typeof error === "object" &&
-    "code" in error &&
-    error.code === 11000
-  );
+function isMongoDuplicateKeyError(
+  error: unknown,
+): error is { code: number } {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  return "code" in error && error.code === 11000;
 }
 
 async function listMercadoPagoReports() {
