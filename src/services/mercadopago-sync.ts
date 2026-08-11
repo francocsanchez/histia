@@ -306,6 +306,15 @@ async function createMercadoPagoReport(beginDate: Date, endDate: Date) {
   return payload;
 }
 
+function isMongoDuplicateKeyError(error: unknown) {
+  return (
+    Boolean(error) &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === 11000
+  );
+}
+
 async function listMercadoPagoReports() {
   const payload = await mercadoPagoFetch("/v1/account/settlement_report/list");
   return extractMercadoPagoReports(payload);
@@ -680,25 +689,45 @@ export async function startMercadoPagoSync(input: StartSyncInput) {
 
   try {
     const report = await createMercadoPagoReport(beginDate, endDate);
+    let updated;
 
-    const updated = await MercadoPagoSettlementSyncModel.findByIdAndUpdate(
-      sync._id,
-      {
-        $set: {
-          reportId: report.id ?? null,
-          fileName: report.file_name ?? null,
-          remoteStatus: report.status ?? null,
-          status:
-            report.status === "processed" && report.file_name
-              ? "PROCESSING"
-              : "WAITING_REPORT",
-          processingStartedAt:
-            report.status === "processed" && report.file_name ? new Date() : null,
-          lastCheckedAt: new Date(),
+    try {
+      updated = await MercadoPagoSettlementSyncModel.findByIdAndUpdate(
+        sync._id,
+        {
+          $set: {
+            reportId: report.id ?? null,
+            fileName: report.file_name ?? null,
+            remoteStatus: report.status ?? null,
+            status:
+              report.status === "processed" && report.file_name
+                ? "PROCESSING"
+                : "WAITING_REPORT",
+            processingStartedAt:
+              report.status === "processed" && report.file_name ? new Date() : null,
+            lastCheckedAt: new Date(),
+          },
         },
-      },
-      { returnDocument: "after" },
-    ).lean();
+        { returnDocument: "after" },
+      ).lean();
+    } catch (error) {
+      if (isMongoDuplicateKeyError(error) && typeof report.id === "number") {
+        const existing = await MercadoPagoSettlementSyncModel.findOne({
+          reportId: report.id,
+        }).lean();
+
+        await MercadoPagoSettlementSyncModel.findByIdAndDelete(sync._id);
+
+        if (existing) {
+          return {
+            created: false,
+            sync: toMercadoPagoSyncDto(existing),
+          };
+        }
+      }
+
+      throw error;
+    }
 
     if (
       updated &&
