@@ -171,6 +171,14 @@ function isMercadoPagoRateLimitMessage(message: string | null | undefined) {
   return message?.includes("Mercado Pago rechazo temporalmente la solicitud por limite de uso") ?? false;
 }
 
+export function isMercadoPagoRateLimitError(error: unknown) {
+  if (error instanceof AppError && error.status === 429) {
+    return true;
+  }
+
+  return isMercadoPagoRateLimitMessage(sanitizeMercadoPagoError(error));
+}
+
 async function assertMercadoPagoRateLimitCooldownInactive() {
   const threshold = new Date(Date.now() - MERCADO_PAGO_RATE_LIMIT_COOLDOWN_MS);
   const recentRateLimitedSync = await MercadoPagoSettlementSyncModel.findOne({

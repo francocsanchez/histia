@@ -15,6 +15,7 @@
 - La persistencia de `Tipos de movimientos` ahora sincroniza el indice compuesto `nombreNormalizado + direccion`, evitando conflictos con nombres iguales en direcciones distintas.
 - La importacion automatica de Mercado Pago ahora etiqueta mejor las salidas de dinero reales como egresos de tipo `Salida de dinero Mercado Pago`.
 - Las sincronizaciones fallidas de Mercado Pago ahora escriben el error persistido y su contexto en la consola del server, incluso cuando la API remota marca el reporte como fallido.
+- El scheduler de Mercado Pago ahora trata los bloqueos `429` por limite de reportes como una omision esperada y los baja a warning en lugar de registrarlos como fallo de tarea.
 - El modelo de sincronizaciones de Mercado Pago dejo de declarar dos veces el indice de `reportId`, eliminando el warning de Mongoose en runtime.
 
 ## 2026-08-10

@@ -1,5 +1,6 @@
 import {
   checkPendingMercadoPagoSyncs,
+  isMercadoPagoRateLimitError,
   startMercadoPagoSync,
 } from "@/services/mercadopago-sync";
 import {
@@ -45,6 +46,14 @@ async function runSchedulerJob(name: string, task: () => Promise<void>) {
   try {
     await task();
   } catch (error) {
+    if (isMercadoPagoRateLimitError(error)) {
+      console.warn("[mercadopago-scheduler] se omitio una tarea por rate limit de Mercado Pago", {
+        name,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return;
+    }
+
     console.error("[mercadopago-scheduler] fallo una tarea", {
       name,
       error: error instanceof Error ? error.message : String(error),
