@@ -32,6 +32,16 @@
 - `Movimientos` ahora admite el origen `Mercado Pago` junto a `Manual` y `Pago`, manteniendo la tabla unificada y los filtros existentes.
 - Los tipos de movimiento de sistema ahora incluyen variantes especificas para ingresos, impuestos y comisiones de Mercado Pago.
 - La tarjeta `Balance total en pesos` de `/dashboard` ahora muestra tambien la conversion a USD usando la cotizacion oficial `venta` de `https://dolarapi.com/v1/dolares/oficial`.
+- La tarjeta `Balance total en pesos` de `/dashboard` ahora separa `Importe en pesos` e `Importe en dolares` con tipografias mas chicas para evitar que el card crezca con montos largos.
+- El formulario de `Codigos de obras sociales` ahora captura importes en pesos con mascara monetaria y los convierte correctamente a centavos al guardar.
+- Los pacientes ahora normalizan `nombre` y `apellido` a minusculas al crear o editar, evitando diferencias de escritura como `Sanchez` vs `sanchez`.
+- Las consultas administrativas de `Movimientos` y del historial de syncs ahora disparan mantenimiento automatico de Mercado Pago si la sincronizacion horaria o la revision de pendientes estan vencidas.
+- La importacion de Mercado Pago ahora registra tambien transferencias cuyo impacto llega solo en `REAL_AMOUNT`, evitando perder egresos sin `TRANSACTION_AMOUNT`.
+- La sincronizacion de Mercado Pago ahora tolera `reportId` reutilizados por la API y reaprovecha la sync existente en lugar de fallar con error interno.
+- El helper interno de errores de Mercado Pago ahora descarta `null` explicitamente para evitar advertencias de TypeScript en build.
+- Las fallas al iniciar syncs de Mercado Pago ahora exponen el mensaje concreto persistido por la sincronizacion en lugar de responder solo con un error generico.
+- Las syncs de Mercado Pago ahora respetan un cooldown de 15 minutos despues de un rechazo por limite de uso para evitar seguir golpeando la API innecesariamente.
+- La creacion automatica de reportes de Mercado Pago vuelve a un ritmo conservador de 1 hora, manteniendo el chequeo de pendientes cada 5 minutos para no saturar la API.
 
 - El gráfico `Atenciones anualizadas` del dashboard administrativo ahora muestra barras apiladas por obra social del paciente en cada mes.
 - `Liquidaciones` ahora soporta filtro por estado de código.

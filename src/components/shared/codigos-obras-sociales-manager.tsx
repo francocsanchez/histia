@@ -14,7 +14,13 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatCurrencyFromCents, formatDate } from "@/lib/utils";
+import {
+  formatCurrencyFromCents,
+  formatDate,
+  formatMoneyInputFromCents,
+  formatMoneyMaskedInput,
+  parseMoneyInputToCents,
+} from "@/lib/utils";
 import { codigoObraSocialSchema } from "@/lib/validations/schemas";
 import { CodigoObraSocialDto, ObraSocialDto } from "@/types/domain";
 
@@ -42,6 +48,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
   const [selected, setSelected] = useState<CodigoObraSocialDto | null>(null);
   const [statusDialogItem, setStatusDialogItem] = useState<CodigoObraSocialDto | null>(null);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [valorInput, setValorInput] = useState("0,00");
   const form = useForm<FormValues, unknown, SubmitValues>({
     resolver: zodResolver(codigoObraSocialSchema),
     defaultValues: { nombre: "", codigo: "", obraSocialId: "", valorCentavos: 0 },
@@ -118,6 +125,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
   const openCreate = () => {
     setSelected(null);
     form.reset({ nombre: "", codigo: "", obraSocialId: "", valorCentavos: 0 });
+    setValorInput("0,00");
     setDialogOpen(true);
   };
 
@@ -129,6 +137,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
       obraSocialId: item.obraSocialId,
       valorCentavos: item.valorCentavos,
     });
+    setValorInput(formatMoneyInputFromCents(item.valorCentavos));
     setDialogOpen(true);
   };
 
@@ -317,12 +326,24 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
             <Input {...form.register("codigo")} />
           </div>
           <div>
-            <label className="mb-2 block text-sm font-medium">Valor (centavos)</label>
+            <label className="mb-2 block text-sm font-medium">Valor</label>
             <Input
-              type="number"
-              min={0}
-              {...form.register("valorCentavos", { valueAsNumber: true })}
+              inputMode="numeric"
+              placeholder="0,00"
+              value={valorInput}
+              onChange={(event) => {
+                const formattedValue = formatMoneyMaskedInput(event.target.value);
+                setValorInput(formattedValue);
+                form.setValue(
+                  "valorCentavos",
+                  parseMoneyInputToCents(formattedValue) ?? 0,
+                  { shouldDirty: true, shouldValidate: true },
+                );
+              }}
             />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Ingresa el importe en pesos. El sistema lo guarda internamente en centavos.
+            </p>
           </div>
           <div className="md:col-span-2">
             <label className="mb-2 block text-sm font-medium">Obra social</label>

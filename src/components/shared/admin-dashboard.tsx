@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { ErrorState, LoadingState } from "@/components/shared/states";
@@ -28,13 +21,7 @@ type ChartTooltipState = {
   lines: string[];
 };
 
-const chartPalette = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
-];
+const chartPalette = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)"];
 
 const statusChartColors: Record<AdminDashboardCodeStatusItemDto["status"], string> = {
   "no-cargado": "#0f172a",
@@ -70,42 +57,20 @@ function formatUsdValue(value: number) {
   }).format(value);
 }
 
-function SummaryCard({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "success" | "danger";
-}) {
+function SummaryCard({ label, value, tone }: { label: string; value: React.ReactNode; tone?: "default" | "success" | "danger" }) {
   return (
     <Card className="p-5">
-      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
-      </p>
-      <p
-        className={cn(
-          "mt-4 text-4xl font-semibold tracking-tight",
-          tone === "success" && "text-emerald-700",
-          tone === "danger" && "text-rose-700",
-        )}
+      <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+      <div
+        className={cn("mt-4 text-4xl font-semibold tracking-tight", tone === "success" && "text-emerald-700", tone === "danger" && "text-rose-700")}
       >
         {value}
-      </p>
+      </div>
     </Card>
   );
 }
 
-function ChartShell({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
+function ChartShell({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
     <Card className="overflow-hidden">
       <div className="border-b border-border px-4 py-4">
@@ -118,11 +83,7 @@ function ChartShell({
 }
 
 function EmptyChart({ label }: { label: string }) {
-  return (
-    <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">
-      {label}
-    </div>
-  );
+  return <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">{label}</div>;
 }
 
 function ChartTooltip({ tooltip }: { tooltip: ChartTooltipState | null }) {
@@ -154,9 +115,7 @@ function ChartTooltip({ tooltip }: { tooltip: ChartTooltipState | null }) {
     const topBelow = tooltip.y + gap;
     const minTop = margin;
     const maxTop = Math.max(parentHeight - tooltipHeight - margin, margin);
-    const top = topAbove >= minTop
-      ? topAbove
-      : Math.min(Math.max(topBelow, minTop), maxTop);
+    const top = topAbove >= minTop ? topAbove : Math.min(Math.max(topBelow, minTop), maxTop);
 
     setPosition({ left, top });
   }, [tooltip]);
@@ -201,9 +160,7 @@ function PieChart({
   const radius = 72;
   const circumference = 2 * Math.PI * radius;
   const slices = items.map((item, index) => {
-    const previousTotal = items
-      .slice(0, index)
-      .reduce((sum, currentItem) => sum + currentItem.total, 0);
+    const previousTotal = items.slice(0, index).reduce((sum, currentItem) => sum + currentItem.total, 0);
     const fraction = item.total / total;
 
     return {
@@ -219,19 +176,8 @@ function PieChart({
     <div className="relative grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
       <ChartTooltip tooltip={tooltip} />
       <div className="flex justify-center">
-        <svg
-          viewBox="0 0 200 200"
-          className="h-52 w-52 -rotate-90"
-          onMouseLeave={() => setTooltip(null)}
-        >
-          <circle
-            cx="100"
-            cy="100"
-            r={radius}
-            fill="none"
-            stroke="color-mix(in oklab, var(--border) 70%, transparent)"
-            strokeWidth="28"
-          />
+        <svg viewBox="0 0 200 200" className="h-52 w-52 -rotate-90" onMouseLeave={() => setTooltip(null)}>
+          <circle cx="100" cy="100" r={radius} fill="none" stroke="color-mix(in oklab, var(--border) 70%, transparent)" strokeWidth="28" />
           {slices.map((item) => (
             <circle
               key={item.id}
@@ -255,10 +201,7 @@ function PieChart({
                 setTooltip({
                   x: event.clientX - bounds.left,
                   y: event.clientY - bounds.top,
-                  lines: [
-                    item.label,
-                    `${unitFormatter(item.total)} (${item.percentage.toFixed(1)}%)`,
-                  ],
+                  lines: [item.label, `${unitFormatter(item.total)} (${item.percentage.toFixed(1)}%)`],
                 });
               }}
             />
@@ -268,14 +211,8 @@ function PieChart({
       </div>
       <div className="space-y-3">
         {slices.map((item) => (
-          <div
-            key={item.id}
-            className="grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 text-sm"
-          >
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: item.color }}
-            />
+          <div key={item.id} className="grid grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 text-sm">
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
             <span className="truncate">{item.label}</span>
             <span className="text-right font-medium">
               {unitFormatter(item.total)} ({item.percentage.toFixed(1)}%)
@@ -310,13 +247,8 @@ function BarChart({
             const height = `${Math.max((item.total / maxValue) * 100, item.total > 0 ? 8 : 2)}%`;
 
             return (
-              <div
-                key={item.month}
-                className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch"
-              >
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {valueFormatter(item.total)}
-                </span>
+              <div key={item.month} className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch">
+                <span className="text-[11px] font-medium text-muted-foreground">{valueFormatter(item.total)}</span>
                 <div className="flex w-full flex-1 items-end">
                   <div
                     className="w-full cursor-pointer border border-primary/40 bg-[color:var(--chart-2)] transition-opacity hover:opacity-85"
@@ -346,13 +278,7 @@ function BarChart({
   );
 }
 
-function StackedBarChart({
-  items,
-  valueFormatter,
-}: {
-  items: AdminDashboardDto["attentionsByMonth"];
-  valueFormatter: (value: number) => string;
-}) {
+function StackedBarChart({ items, valueFormatter }: { items: AdminDashboardDto["attentionsByMonth"]; valueFormatter: (value: number) => string }) {
   const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
   const maxValue = Math.max(...items.map((item) => item.total), 0);
   const obraSocialOrder = Array.from(
@@ -363,12 +289,7 @@ function StackedBarChart({
         .map((segment) => [segment.id, segment]),
     ).values(),
   );
-  const colorByObraSocial = new Map(
-    obraSocialOrder.map((item, index) => [
-      item.id,
-      chartPalette[index % chartPalette.length],
-    ]),
-  );
+  const colorByObraSocial = new Map(obraSocialOrder.map((item, index) => [item.id, chartPalette[index % chartPalette.length]]));
 
   if (maxValue === 0) {
     return <EmptyChart label="No hay datos para el año seleccionado." />;
@@ -380,10 +301,7 @@ function StackedBarChart({
       <div className="flex flex-wrap gap-4 text-sm">
         {obraSocialOrder.map((item) => (
           <span key={item.id} className="inline-flex items-center gap-2 text-muted-foreground">
-            <span
-              className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: colorByObraSocial.get(item.id) }}
-            />
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: colorByObraSocial.get(item.id) }} />
             {item.label}
           </span>
         ))}
@@ -394,13 +312,8 @@ function StackedBarChart({
             const height = `${Math.max((item.total / maxValue) * 100, item.total > 0 ? 8 : 2)}%`;
 
             return (
-              <div
-                key={item.month}
-                className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch"
-              >
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {valueFormatter(item.total)}
-                </span>
+              <div key={item.month} className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch">
+                <span className="text-[11px] font-medium text-muted-foreground">{valueFormatter(item.total)}</span>
                 <div className="flex w-full flex-1 items-end">
                   <div
                     className="flex w-full cursor-pointer flex-col overflow-hidden border border-primary/20 transition-opacity hover:opacity-90"
@@ -415,8 +328,7 @@ function StackedBarChart({
                           backgroundColor: colorByObraSocial.get(segment.id),
                         }}
                         onMouseMove={(event) => {
-                          const bounds =
-                            event.currentTarget.parentElement?.parentElement?.parentElement?.parentElement?.getBoundingClientRect();
+                          const bounds = event.currentTarget.parentElement?.parentElement?.parentElement?.parentElement?.getBoundingClientRect();
 
                           if (!bounds) {
                             return;
@@ -425,11 +337,7 @@ function StackedBarChart({
                           setTooltip({
                             x: event.clientX - bounds.left,
                             y: event.clientY - bounds.top,
-                            lines: [
-                              item.label,
-                              `${segment.label}: ${valueFormatter(segment.total)}`,
-                              `Total del mes: ${valueFormatter(item.total)}`,
-                            ],
+                            lines: [item.label, `${segment.label}: ${valueFormatter(segment.total)}`, `Total del mes: ${valueFormatter(item.total)}`],
                           });
                         }}
                       />
@@ -457,10 +365,7 @@ function LineChart({
   }>;
 }) {
   const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
-  const maxValue = Math.max(
-    ...items.flatMap((item) => [item.ingresosCentavos, item.egresosCentavos]),
-    0,
-  );
+  const maxValue = Math.max(...items.flatMap((item) => [item.ingresosCentavos, item.egresosCentavos]), 0);
 
   if (maxValue === 0) {
     return <EmptyChart label="No hay movimientos para el año seleccionado." />;
@@ -477,10 +382,7 @@ function LineChart({
     items
       .map((item, index) => {
         const x = paddingX + (index / Math.max(items.length - 1, 1)) * chartWidth;
-        const y =
-          height -
-          paddingY -
-          ((item[key] ?? 0) / maxValue) * chartHeight;
+        const y = height - paddingY - ((item[key] ?? 0) / maxValue) * chartHeight;
 
         return `${index === 0 ? "M" : "L"} ${x} ${y}`;
       })
@@ -499,11 +401,7 @@ function LineChart({
           Egresos
         </span>
       </div>
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        className="min-w-[720px]"
-        onMouseLeave={() => setTooltip(null)}
-      >
+      <svg viewBox={`0 0 ${width} ${height}`} className="min-w-[720px]" onMouseLeave={() => setTooltip(null)}>
         <rect x="0" y="0" width={width} height={height} fill="white" />
         {[0, 0.25, 0.5, 0.75, 1].map((tick) => {
           const y = height - paddingY - tick * chartHeight;
@@ -523,10 +421,8 @@ function LineChart({
         <path d={buildPath("egresosCentavos")} fill="none" stroke="#e11d48" strokeWidth="3" />
         {items.map((item, index) => {
           const x = paddingX + (index / Math.max(items.length - 1, 1)) * chartWidth;
-          const incomeY =
-            height - paddingY - (item.ingresosCentavos / maxValue) * chartHeight;
-          const expenseY =
-            height - paddingY - (item.egresosCentavos / maxValue) * chartHeight;
+          const incomeY = height - paddingY - (item.ingresosCentavos / maxValue) * chartHeight;
+          const expenseY = height - paddingY - (item.egresosCentavos / maxValue) * chartHeight;
           const areaWidth = chartWidth / Math.max(items.length - 1, 1);
 
           return (
@@ -557,13 +453,7 @@ function LineChart({
                   });
                 }}
               />
-              <text
-                x={x}
-                y={height - 6}
-                textAnchor="middle"
-                fontSize="11"
-                fill="var(--muted-foreground)"
-              >
+              <text x={x} y={height - 6} textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">
                 {item.label}
               </text>
             </g>
@@ -574,11 +464,7 @@ function LineChart({
   );
 }
 
-function HorizontalBarChart({
-  items,
-}: {
-  items: AdminDashboardCodeStatusItemDto[];
-}) {
+function HorizontalBarChart({ items }: { items: AdminDashboardCodeStatusItemDto[] }) {
   const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
   const maxValue = Math.max(...items.map((item) => item.total), 0);
 
@@ -597,10 +483,7 @@ function HorizontalBarChart({
             <div key={item.status} className="grid gap-2">
               <div className="flex items-center justify-between gap-4 text-sm">
                 <span className="inline-flex items-center gap-2 font-medium">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: statusChartColors[item.status] }}
-                  />
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: statusChartColors[item.status] }} />
                   {item.label}
                 </span>
                 <span className="text-muted-foreground">{item.total}</span>
@@ -684,14 +567,8 @@ export function AdminDashboard() {
     return () => window.clearTimeout(timeout);
   }, []);
 
-  const availableYears = useMemo(
-    () => data?.availableYears.map((item) => String(item)) ?? [year],
-    [data, year],
-  );
-  const availableMonths = useMemo(
-    () => data?.availableMonths ?? [month],
-    [data, month],
-  );
+  const availableYears = useMemo(() => data?.availableYears.map((item) => String(item)) ?? [year], [data, year]);
+  const availableMonths = useMemo(() => data?.availableMonths ?? [month], [data, month]);
 
   if (loading && !data) {
     return <LoadingState label="Cargando indicadores del sistema..." />;
@@ -707,28 +584,17 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Dashboard"
-        description="Tablero de indicadores administrativos del sistema."
-      />
+      <PageHeader title="Dashboard" description="Tablero de indicadores administrativos del sistema." />
 
       <Card className="flex flex-col gap-4 p-4 md:flex-row md:items-end md:justify-between">
         <div className="md:flex-1">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            Vista anual
-          </p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-            Indicadores {data.year}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            El balance total siempre refleja el historico completo de movimientos.
-          </p>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Vista anual</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight">Indicadores {data.year}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">El balance total siempre refleja el historico completo de movimientos.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="w-full md:w-44">
-            <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Año
-            </label>
+            <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">Año</label>
             <Select
               value={year}
               onChange={(event) => {
@@ -745,9 +611,7 @@ export function AdminDashboard() {
             </Select>
           </div>
           <div className="w-full md:w-52">
-            <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              Mes odontologos
-            </label>
+            <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">Mes odontologos</label>
             <Select
               value={month}
               onChange={(event) => {
@@ -769,67 +633,44 @@ export function AdminDashboard() {
       {error ? <ErrorState label={error} retry={() => void load()} /> : null}
 
       <div className="grid gap-4 md:grid-cols-3">
+        <SummaryCard label="Pacientes activos" value={String(data.summary.pacientesActivos)} />
+        <SummaryCard label="Odontologos activos" value={String(data.summary.odontologosActivos)} />
         <SummaryCard
-          label="Pacientes activos"
-          value={String(data.summary.pacientesActivos)}
-        />
-        <SummaryCard
-          label="Odontologos activos"
-          value={String(data.summary.odontologosActivos)}
-        />
-        <SummaryCard
-          label="Balance total en pesos"
+          label="Balance total"
           value={
-            data.summary.balanceTotalUsd !== null
-              ? `${formatCurrencyFromCents(data.summary.balanceTotalCentavos)} | USD ${formatUsdValue(data.summary.balanceTotalUsd)}`
-              : formatCurrencyFromCents(data.summary.balanceTotalCentavos)
+            <div className="space-y-2">
+              <div>
+                <p className="text-2xl font-semibold tracking-tight">{formatCurrencyFromCents(data.summary.balanceTotalCentavos)}</p>
+              </div>
+              {data.summary.balanceTotalUsd !== null ? (
+                <div>
+                  <p className="text-lg font-semibold tracking-tight">USD {formatUsdValue(data.summary.balanceTotalUsd)}</p>
+                </div>
+              ) : null}
+            </div>
           }
           tone={data.summary.balanceTotalCentavos >= 0 ? "success" : "danger"}
         />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <ChartShell
-          title="Pacientes por obra social"
-          description="Distribucion actual de pacientes activos segun su cobertura."
-        >
-          <PieChart
-            items={data.patientsByObraSocial}
-            unitFormatter={(value) => String(value)}
-          />
+        <ChartShell title="Pacientes por obra social" description="Distribucion actual de pacientes activos segun su cobertura.">
+          <PieChart items={data.patientsByObraSocial} unitFormatter={(value) => String(value)} />
         </ChartShell>
 
-        <ChartShell
-          title="Atenciones anualizadas"
-          description="Cantidad de atenciones registradas por mes, apiladas por obra social del paciente."
-        >
-          <StackedBarChart
-            items={data.attentionsByMonth}
-            valueFormatter={(value) => String(value)}
-          />
+        <ChartShell title="Atenciones anualizadas" description="Cantidad de atenciones registradas por mes, apiladas por obra social del paciente.">
+          <StackedBarChart items={data.attentionsByMonth} valueFormatter={(value) => String(value)} />
         </ChartShell>
 
-        <ChartShell
-          title="RX realizadas"
-          description="Cantidad de estudios RX registrados por mes en el año seleccionado."
-        >
-          <BarChart
-            items={data.rxByMonth}
-            valueFormatter={(value) => String(value)}
-          />
+        <ChartShell title="RX realizadas" description="Cantidad de estudios RX registrados por mes en el año seleccionado.">
+          <BarChart items={data.rxByMonth} valueFormatter={(value) => String(value)} />
         </ChartShell>
 
-        <ChartShell
-          title="Ingresos vs egresos anualizados"
-          description="Comparacion mensual de movimientos de ingreso y egreso."
-        >
+        <ChartShell title="Ingresos vs egresos anualizados" description="Comparacion mensual de movimientos de ingreso y egreso.">
           <LineChart items={data.movementsByMonth} />
         </ChartShell>
 
-        <ChartShell
-          title="Codigos por estado"
-          description="Distribucion anual de lineas de codigos segun su estado de auditoria."
-        >
+        <ChartShell title="Codigos por estado" description="Distribucion anual de lineas de codigos segun su estado de auditoria.">
           <HorizontalBarChart items={data.codesByStatus} />
         </ChartShell>
 
@@ -840,35 +681,19 @@ export function AdminDashboard() {
           <DentistPerformanceChart items={data.dentistPerformanceByMonth} />
         </ChartShell>
 
-        <ChartShell
-          title="Ingresos por tipo de movimiento"
-          description="Distribucion anual de ingresos segun el tipo de movimiento."
-        >
-          <PieChart
-            items={data.incomeByMovementType}
-            unitFormatter={(value) => formatCurrencyFromCents(value)}
-          />
+        <ChartShell title="Ingresos por tipo de movimiento" description="Distribucion anual de ingresos segun el tipo de movimiento.">
+          <PieChart items={data.incomeByMovementType} unitFormatter={(value) => formatCurrencyFromCents(value)} />
         </ChartShell>
 
-        <ChartShell
-          title="Egresos por tipo de movimiento"
-          description="Distribucion anual de egresos segun el tipo de movimiento."
-        >
-          <PieChart
-            items={data.expenseByMovementType}
-            unitFormatter={(value) => formatCurrencyFromCents(value)}
-          />
+        <ChartShell title="Egresos por tipo de movimiento" description="Distribucion anual de egresos segun el tipo de movimiento.">
+          <PieChart items={data.expenseByMovementType} unitFormatter={(value) => formatCurrencyFromCents(value)} />
         </ChartShell>
       </div>
     </div>
   );
 }
 
-function DentistPerformanceChart({
-  items,
-}: {
-  items: AdminDashboardDto["dentistPerformanceByMonth"];
-}) {
+function DentistPerformanceChart({ items }: { items: AdminDashboardDto["dentistPerformanceByMonth"] }) {
   const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
   const maxValue = Math.max(...items.map((item) => item.total), 0);
 
@@ -892,9 +717,7 @@ function DentistPerformanceChart({
           <div key={item.userId} className="grid gap-2">
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="truncate font-medium">{item.nombreCompleto}</span>
-              <span className="whitespace-nowrap text-muted-foreground">
-                {item.total} codigos
-              </span>
+              <span className="whitespace-nowrap text-muted-foreground">{item.total} codigos</span>
             </div>
             <div className="flex h-5 overflow-hidden rounded-full bg-muted/60">
               {item.statuses
@@ -917,11 +740,7 @@ function DentistPerformanceChart({
                       setTooltip({
                         x: event.clientX - bounds.left,
                         y: event.clientY - bounds.top,
-                        lines: [
-                          item.nombreCompleto,
-                          `${statusItem.label}: ${statusItem.total} codigos`,
-                          `Total del mes: ${item.total} codigos`,
-                        ],
+                        lines: [item.nombreCompleto, `${statusItem.label}: ${statusItem.total} codigos`, `Total del mes: ${item.total} codigos`],
                       });
                     }}
                   />

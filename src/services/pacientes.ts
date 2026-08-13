@@ -8,6 +8,10 @@ import { ObraSocialModel } from "@/models/obra-social";
 import { PacienteModel } from "@/models/paciente";
 import { PacienteDto, QueryParams, SessionUser } from "@/types/domain";
 
+function normalizePacienteName(value: string) {
+  return normalizeName(value).toLocaleLowerCase("es-AR");
+}
+
 function extractObraSocialId(value: unknown) {
   if (!value) {
     return null;
@@ -166,8 +170,8 @@ export async function createPaciente(input: {
   }
 
   const paciente = await PacienteModel.create({
-    nombre: normalizeName(input.nombre),
-    apellido: normalizeName(input.apellido),
+    nombre: normalizePacienteName(input.nombre),
+    apellido: normalizePacienteName(input.apellido),
     dni,
     obraSocialId,
     activo: true,
@@ -235,8 +239,8 @@ export async function updatePaciente(
     obraSocialId = new Types.ObjectId(input.obraSocialId);
   }
 
-  paciente.nombre = normalizeName(input.nombre);
-  paciente.apellido = normalizeName(input.apellido);
+  paciente.nombre = normalizePacienteName(input.nombre);
+  paciente.apellido = normalizePacienteName(input.apellido);
   paciente.dni = dni;
   paciente.obraSocialId = obraSocialId;
   await paciente.save();

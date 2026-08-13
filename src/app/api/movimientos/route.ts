@@ -7,6 +7,7 @@ import {
 import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { movementCreateSchema } from "@/lib/validations/schemas";
+import { runMercadoPagoAutomaticMaintenanceIfDue } from "@/services/mercadopago-sync";
 import { createManualMovement, listMovements } from "@/services/movimientos";
 import {
   MovementDirection,
@@ -33,6 +34,8 @@ export async function GET(request: Request) {
     if (!can(user, "movimientos", "read")) {
       throw new AppError("FORBIDDEN", "No tenes permisos para acceder", 403);
     }
+
+    await runMercadoPagoAutomaticMaintenanceIfDue();
 
     const { searchParams } = new URL(request.url);
     const page = parsePositiveInteger(searchParams.get("page"), 1);

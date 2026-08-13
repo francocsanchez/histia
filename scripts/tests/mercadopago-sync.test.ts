@@ -153,6 +153,24 @@ test("no crea componentes sin impacto economico", () => {
   assert.equal(components.length, 0);
 });
 
+test("usa REAL_AMOUNT como respaldo para egresos sin transaction, fee ni tax", () => {
+  const components = buildMovementComponents(
+    buildBaseRow({
+      transactionAmountCentavos: 0,
+      taxesAmountCentavos: 0,
+      feeAmountCentavos: 0,
+      realAmountCentavos: -10_060_000,
+      reconciliationExpectedCentavos: 0,
+      reconciliationDifferenceCentavos: 10_060_000,
+    }),
+  );
+
+  assert.equal(components.length, 1);
+  assert.equal(components[0]?.externalComponent, "TRANSACTION");
+  assert.equal(components[0]?.direccion, "egreso");
+  assert.equal(components[0]?.montoCentavos, 10_060_000);
+});
+
 test("la clave conceptual SOURCE_ID + COMPONENTE es estable entre reintentos", () => {
   const first = buildMovementComponents(
     buildBaseRow({
