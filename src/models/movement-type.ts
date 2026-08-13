@@ -32,7 +32,7 @@ const movementTypeSchema = new Schema<MovementTypeDocument>(
   },
 );
 
-movementTypeSchema.index({ nombreNormalizado: 1 }, { unique: true });
+movementTypeSchema.index({ nombreNormalizado: 1, direccion: 1 }, { unique: true });
 
 export const MovementTypeModel =
   (models.MovementType as Model<MovementTypeDocument>) ||

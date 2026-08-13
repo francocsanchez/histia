@@ -62,6 +62,8 @@ const defaultMovementTypes = [
   },
 ];
 
+let movementTypeIndexesPromise: Promise<void> | null = null;
+
 function toDto(document: MovementTypeDocument): MovementTypeDto {
   return {
     id: document._id.toString(),
@@ -76,6 +78,7 @@ function toDto(document: MovementTypeDocument): MovementTypeDto {
 
 export async function ensureDefaultMovementTypes() {
   await connectToDatabase();
+  await ensureMovementTypeIndexes();
 
   await Promise.all(
     defaultMovementTypes.map(async (item) => {
@@ -97,6 +100,14 @@ export async function ensureDefaultMovementTypes() {
       );
     }),
   );
+}
+
+async function ensureMovementTypeIndexes() {
+  if (!movementTypeIndexesPromise) {
+    movementTypeIndexesPromise = MovementTypeModel.syncIndexes().then(() => undefined);
+  }
+
+  await movementTypeIndexesPromise;
 }
 
 function buildFilter(
@@ -168,14 +179,17 @@ export async function createMovementType(input: MovementTypeCreateDto) {
 
   const nombre = normalizeName(input.nombre);
   const nombreNormalizado = normalizeTextKey(nombre);
-  const duplicate = await MovementTypeModel.findOne({ nombreNormalizado }).lean();
+  const duplicate = await MovementTypeModel.findOne({
+    nombreNormalizado,
+    direccion: input.direccion,
+  }).lean();
 
   if (duplicate) {
     throw new AppError(
       "DUPLICATE_RECORD",
-      "Ya existe un tipo de movimiento con ese nombre",
+      "Ya existe un tipo de movimiento con ese nombre para la misma direccion",
       409,
-      { nombre: "Ya existe un tipo de movimiento con ese nombre" },
+      { nombre: "Ya existe un tipo de movimiento con ese nombre para la misma direccion" },
     );
   }
 
@@ -212,15 +226,16 @@ export async function updateMovementType(id: string, input: MovementTypeCreateDt
   const nombreNormalizado = normalizeTextKey(nombre);
   const duplicate = await MovementTypeModel.findOne({
     nombreNormalizado,
+    direccion: input.direccion,
     _id: { $ne: movementType._id },
   }).lean();
 
   if (duplicate) {
     throw new AppError(
       "DUPLICATE_RECORD",
-      "Ya existe un tipo de movimiento con ese nombre",
+      "Ya existe un tipo de movimiento con ese nombre para la misma direccion",
       409,
-      { nombre: "Ya existe un tipo de movimiento con ese nombre" },
+      { nombre: "Ya existe un tipo de movimiento con ese nombre para la misma direccion" },
     );
   }
 

@@ -32,7 +32,9 @@ type MercadoPagoApiReport = {
 };
 
 type MercadoPagoCsvRow = {
+  EXTERNAL_REFERENCE?: string;
   SOURCE_ID?: string;
+  PAYMENT_METHOD?: string;
   PAYMENT_METHOD_TYPE?: string;
   TRANSACTION_TYPE?: string;
   TRANSACTION_AMOUNT?: string;
@@ -41,6 +43,7 @@ type MercadoPagoCsvRow = {
   SETTLEMENT_DATE?: string;
   REAL_AMOUNT?: string;
   TAXES_AMOUNT?: string;
+  DESCRIPTION?: string;
   BUSINESS_UNIT?: string;
   SUB_UNIT?: string;
   MONEY_RELEASE_DATE?: string;
@@ -330,6 +333,8 @@ function getComponentAmount(valueCentavos: number) {
 export function buildMovementComponents(row: {
   sourceId: string;
   reportId: number;
+  externalReference: string | null;
+  paymentMethod: string | null;
   paymentMethodType: string | null;
   transactionType: string | null;
   transactionAmountCentavos: number;
@@ -339,6 +344,9 @@ export function buildMovementComponents(row: {
   realAmountCentavos: number;
   taxesAmountCentavos: number;
   moneyReleaseDate: Date | null;
+  description: string | null;
+  businessUnit: string | null;
+  subUnit: string | null;
   reconciliationDifferenceCentavos: number;
   reconciliationExpectedCentavos: number;
   createdByUserId: string;
@@ -351,10 +359,14 @@ export function buildMovementComponents(row: {
   }> = [];
 
   if (row.transactionAmountCentavos !== 0) {
+    const direccion = getComponentDirection(row.transactionAmountCentavos);
     components.push({
       externalComponent: "TRANSACTION",
-      descripcion: getMercadoPagoMovementDescription("TRANSACTION"),
-      direccion: getComponentDirection(row.transactionAmountCentavos),
+      descripcion: getMercadoPagoMovementDescription("TRANSACTION", {
+        transactionType: row.transactionType,
+        direction: direccion,
+      }),
+      direccion,
       montoCentavos: getComponentAmount(row.transactionAmountCentavos),
     });
   }
@@ -382,6 +394,8 @@ export function buildMovementComponents(row: {
     reportId: row.reportId,
     sourceId: row.sourceId,
     fecha: row.transactionDate,
+    externalReference: row.externalReference,
+    paymentMethod: row.paymentMethod,
     paymentMethodType: row.paymentMethodType,
     transactionType: row.transactionType,
     transactionAmountCentavos: row.transactionAmountCentavos,
@@ -391,6 +405,9 @@ export function buildMovementComponents(row: {
     realAmountCentavos: row.realAmountCentavos,
     taxesAmountCentavos: row.taxesAmountCentavos,
     moneyReleaseDate: row.moneyReleaseDate,
+    description: row.description,
+    businessUnit: row.businessUnit,
+    subUnit: row.subUnit,
     reconciliationDifferenceCentavos: row.reconciliationDifferenceCentavos,
     reconciliationExpectedCentavos: row.reconciliationExpectedCentavos,
     createdByUserId: row.createdByUserId,
@@ -520,6 +537,8 @@ async function processMercadoPagoSyncDocument(
       const components = buildMovementComponents({
         sourceId,
         reportId,
+        externalReference: rawRow.EXTERNAL_REFERENCE?.trim() || null,
+        paymentMethod: rawRow.PAYMENT_METHOD?.trim() || null,
         paymentMethodType: rawRow.PAYMENT_METHOD_TYPE?.trim() || null,
         transactionType: rawRow.TRANSACTION_TYPE?.trim() || null,
         transactionAmountCentavos,
@@ -529,6 +548,9 @@ async function processMercadoPagoSyncDocument(
         realAmountCentavos,
         taxesAmountCentavos,
         moneyReleaseDate,
+        description: rawRow.DESCRIPTION?.trim() || null,
+        businessUnit: rawRow.BUSINESS_UNIT?.trim() || null,
+        subUnit: rawRow.SUB_UNIT?.trim() || null,
         reconciliationDifferenceCentavos,
         reconciliationExpectedCentavos,
         createdByUserId: String(sync.createdByUserId),

@@ -33,7 +33,6 @@ const mercadoPagoSettlementSyncSchema =
       reportId: {
         type: Number,
         default: null,
-        index: true,
       },
       fileName: {
         type: String,

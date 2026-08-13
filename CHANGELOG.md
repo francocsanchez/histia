@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-13
+
+### Changed
+
+- La sincronizacion de Mercado Pago ahora consulta una ventana principal de 24 horas en las corridas horarias y manuales, manteniendo la recovery diaria de 48 horas.
+- La importacion de Mercado Pago ahora conserva metadata adicional del reporte de cuenta, incluyendo descripcion original, referencia externa, medio de pago y segmentacion para auditoria.
+- Los tipos de movimientos ahora permiten repetir nombre entre `ingreso` y `egreso`, manteniendo la unicidad solo dentro de la misma direccion.
+
+### Fixed
+
+- La persistencia de `Tipos de movimientos` ahora sincroniza el indice compuesto `nombreNormalizado + direccion`, evitando conflictos con nombres iguales en direcciones distintas.
+- La importacion automatica de Mercado Pago ahora etiqueta mejor las salidas de dinero reales como egresos de tipo `Salida de dinero Mercado Pago`.
+- El modelo de sincronizaciones de Mercado Pago dejo de declarar dos veces el indice de `reportId`, eliminando el warning de Mongoose en runtime.
+
 ## 2026-08-10
 
 ### Added

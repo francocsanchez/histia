@@ -6,6 +6,7 @@ import {
   parseMercadoPagoAmountToCents,
   parseMercadoPagoCsv,
 } from "@/services/mercadopago-sync";
+import { MovementTypeModel } from "@/models/movement-type";
 
 function buildBaseRow(overrides?: Partial<Parameters<typeof buildMovementComponents>[0]>) {
   return {
@@ -97,6 +98,47 @@ test("genera ingreso, impuesto y comision cuando los tres componentes impactan",
   );
 });
 
+test("describe egresos reales de Mercado Pago cuando la transaccion es withdrawal", () => {
+  const components = buildMovementComponents(
+    buildBaseRow({
+      transactionType: "WITHDRAWAL",
+      transactionAmountCentavos: -997_074_86,
+      taxesAmountCentavos: 0,
+      feeAmountCentavos: 0,
+      realAmountCentavos: -997_074_86,
+      reconciliationExpectedCentavos: -997_074_86,
+    }),
+  );
+
+  assert.equal(components.length, 1);
+  assert.deepEqual(components[0], {
+    sourceId: "173045260750",
+    reportId: 102748383,
+    externalComponent: "TRANSACTION",
+    descripcion: "Salida de dinero Mercado Pago",
+    direccion: "egreso",
+    montoCentavos: 997_074_86,
+    fecha: new Date("2026-08-10T12:44:45.000-03:00"),
+    externalReference: undefined,
+    paymentMethod: undefined,
+    paymentMethodType: "bank_transfer",
+    transactionType: "WITHDRAWAL",
+    transactionAmountCentavos: -997_074_86,
+    transactionDate: new Date("2026-08-10T12:44:45.000-03:00"),
+    feeAmountCentavos: 0,
+    settlementDate: new Date("2026-08-10T12:44:46.000-03:00"),
+    realAmountCentavos: -997_074_86,
+    taxesAmountCentavos: 0,
+    moneyReleaseDate: new Date("2026-08-10T12:44:46.000-03:00"),
+    description: undefined,
+    businessUnit: undefined,
+    subUnit: undefined,
+    reconciliationDifferenceCentavos: 0,
+    reconciliationExpectedCentavos: -997_074_86,
+    createdByUserId: "admin-id",
+  });
+});
+
 test("no crea componentes sin impacto economico", () => {
   const components = buildMovementComponents(
     buildBaseRow({
@@ -139,13 +181,15 @@ test("la clave conceptual SOURCE_ID + COMPONENTE es estable entre reintentos", (
 });
 
 test("parsea CSV con ; y soporta columnas vacias", () => {
-  const rows = parseMercadoPagoCsv(`SOURCE_ID;PAYMENT_METHOD_TYPE;TRANSACTION_TYPE;TRANSACTION_AMOUNT;TRANSACTION_DATE;FEE_AMOUNT;SETTLEMENT_DATE;REAL_AMOUNT;TAXES_AMOUNT;BUSINESS_UNIT;SUB_UNIT;MONEY_RELEASE_DATE
-1748085839645;;SETTLEMENT;4609.23;2026-08-10T04:25:20.000-03:00;0.00;2026-08-10T04:25:20.000-03:00;4609.23;0.00;;;2026-08-10T04:25:20.000-03:00`);
+  const rows = parseMercadoPagoCsv(`EXTERNAL_REFERENCE;SOURCE_ID;PAYMENT_METHOD;PAYMENT_METHOD_TYPE;TRANSACTION_TYPE;TRANSACTION_AMOUNT;TRANSACTION_DATE;FEE_AMOUNT;SETTLEMENT_DATE;REAL_AMOUNT;TAXES_AMOUNT;DESCRIPTION;BUSINESS_UNIT;SUB_UNIT;MONEY_RELEASE_DATE
+;1748085839645;account_money;;SETTLEMENT;4609.23;2026-08-10T04:25:20.000-03:00;0.00;2026-08-10T04:25:20.000-03:00;4609.23;0.00;INSTALLMENT;;;2026-08-10T04:25:20.000-03:00`);
 
   assert.equal(rows.length, 1);
   assert.equal(rows[0]?.SOURCE_ID, "1748085839645");
+  assert.equal(rows[0]?.PAYMENT_METHOD, "account_money");
   assert.equal(rows[0]?.PAYMENT_METHOD_TYPE, "");
   assert.equal(rows[0]?.TRANSACTION_AMOUNT, "4609.23");
+  assert.equal(rows[0]?.DESCRIPTION, "INSTALLMENT");
 });
 
 test("CSV vacio no falla y devuelve cero filas", () => {
@@ -158,4 +202,23 @@ test("importes invalidos se rechazan explicitamente", () => {
     () => parseMercadoPagoAmountToCents("abc", "TRANSACTION_AMOUNT"),
     /TRANSACTION_AMOUNT/,
   );
+});
+
+test("el schema de tipos permite el mismo nombre en direcciones distintas", () => {
+  const indexes = MovementTypeModel.schema.indexes();
+  const compoundUniqueIndex = indexes.find(
+    ([definition, options]) =>
+      definition.nombreNormalizado === 1 &&
+      definition.direccion === 1 &&
+      options?.unique === true,
+  );
+  const legacyUniqueIndex = indexes.find(
+    ([definition, options]) =>
+      definition.nombreNormalizado === 1 &&
+      !("direccion" in definition) &&
+      options?.unique === true,
+  );
+
+  assert.ok(compoundUniqueIndex);
+  assert.equal(legacyUniqueIndex, undefined);
 });

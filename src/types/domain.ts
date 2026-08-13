@@ -373,6 +373,8 @@ export interface MovementMercadoPagoMetadataDto {
   kind: "mercadopago";
   reportId: number;
   sourceId: string;
+  externalReference: string | null;
+  paymentMethod: string | null;
   paymentMethodType: string | null;
   transactionType: string | null;
   transactionAmountCentavos: number;
@@ -382,6 +384,9 @@ export interface MovementMercadoPagoMetadataDto {
   realAmountCentavos: number;
   taxesAmountCentavos: number;
   moneyReleaseDate: string | null;
+  description: string | null;
+  businessUnit: string | null;
+  subUnit: string | null;
   externalComponent: MercadoPagoExternalComponent;
   reconciliationExpectedCentavos: number;
   reconciliationDifferenceCentavos: number;

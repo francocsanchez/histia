@@ -81,6 +81,8 @@ type MercadoPagoMovementInput = {
   descripcion: string;
   direccion: MovementDirection;
   montoCentavos: number;
+  externalReference: string | null;
+  paymentMethod: string | null;
   paymentMethodType: string | null;
   transactionType: string | null;
   transactionAmountCentavos: number;
@@ -90,6 +92,9 @@ type MercadoPagoMovementInput = {
   realAmountCentavos: number;
   taxesAmountCentavos: number;
   moneyReleaseDate: Date | null;
+  description: string | null;
+  businessUnit: string | null;
+  subUnit: string | null;
   reconciliationDifferenceCentavos: number;
   reconciliationExpectedCentavos: number;
   createdByUserId: string;
@@ -346,6 +351,8 @@ export async function createMercadoPagoMovement(input: MercadoPagoMovementInput)
     kind: "mercadopago",
     reportId: input.reportId,
     sourceId: input.sourceId,
+    externalReference: input.externalReference,
+    paymentMethod: input.paymentMethod,
     paymentMethodType: input.paymentMethodType,
     transactionType: input.transactionType,
     transactionAmountCentavos: input.transactionAmountCentavos,
@@ -355,6 +362,9 @@ export async function createMercadoPagoMovement(input: MercadoPagoMovementInput)
     realAmountCentavos: input.realAmountCentavos,
     taxesAmountCentavos: input.taxesAmountCentavos,
     moneyReleaseDate: input.moneyReleaseDate?.toISOString() ?? null,
+    description: input.description,
+    businessUnit: input.businessUnit,
+    subUnit: input.subUnit,
     externalComponent: input.externalComponent,
     reconciliationExpectedCentavos: input.reconciliationExpectedCentavos,
     reconciliationDifferenceCentavos: input.reconciliationDifferenceCentavos,
