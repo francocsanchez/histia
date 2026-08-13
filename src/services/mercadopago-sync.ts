@@ -145,8 +145,8 @@ function extractMercadoPagoErrorDetails(error: unknown) {
   if (error instanceof AppError) {
     return {
       code: error.code,
-      statusCode: error.statusCode,
-      details: error.details ?? null,
+      status: error.status,
+      fields: error.fields ?? null,
       stack: error.stack ?? null,
     };
   }
