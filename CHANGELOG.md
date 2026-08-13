@@ -7,6 +7,7 @@
 - La sincronizacion de Mercado Pago ahora consulta una ventana principal de 24 horas en las corridas horarias y manuales, manteniendo la recovery diaria de 48 horas.
 - La importacion de Mercado Pago ahora conserva metadata adicional del reporte de cuenta, incluyendo descripcion original, referencia externa, medio de pago y segmentacion para auditoria.
 - Los tipos de movimientos ahora permiten repetir nombre entre `ingreso` y `egreso`, manteniendo la unicidad solo dentro de la misma direccion.
+- La barra de filtros de `Movimientos` ahora muestra la fecha y hora de la ultima sincronizacion de Mercado Pago junto con un indicador visual de estado.
 
 ### Fixed
 

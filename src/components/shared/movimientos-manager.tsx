@@ -18,6 +18,7 @@ import {
 } from "@/lib/movement";
 import {
   formatCurrencyFromCents,
+  formatDate,
   formatDateOnly,
   formatMoneyInputFromCents,
   formatMoneyMaskedInput,
@@ -28,6 +29,7 @@ import {
   MovementCreateDto,
   MovementDirection,
   MovementDto,
+  MercadoPagoSyncDto,
   MovementTypeDto,
   movementDirectionValues,
   movementOriginTypeValues,
@@ -69,6 +71,13 @@ type MercadoPagoSyncTriggerPayload = {
   data?: {
     created: boolean;
   };
+  error?: { message?: string };
+};
+
+type MercadoPagoSyncsPayload = {
+  success: boolean;
+  data: MercadoPagoSyncDto[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
   error?: { message?: string };
 };
 
@@ -135,6 +144,9 @@ export function MovimientosManager() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
   const [editFields, setEditFields] = useState<Record<string, string>>({});
+  const [latestMercadoPagoSync, setLatestMercadoPagoSync] = useState<MercadoPagoSyncDto | null>(
+    null,
+  );
 
   const activeMovementTypes = useMemo(
     () => movementTypes.filter((item) => item.activo),
@@ -183,6 +195,24 @@ export function MovimientosManager() {
     }
   };
 
+  const loadLatestMercadoPagoSync = async () => {
+    const response = await fetch("/api/mercadopago/syncs?limit=5", {
+      cache: "no-store",
+    });
+    const payload = (await response.json()) as MercadoPagoSyncsPayload;
+
+    if (!response.ok || !payload.success) {
+      throw new Error(
+        payload.error?.message || "No se pudo cargar el estado de sincronizacion",
+      );
+    }
+
+    const latestRelevantSync =
+      payload.data.find((item) => item.status === "PROCESSED") ?? payload.data[0] ?? null;
+
+    setLatestMercadoPagoSync(latestRelevantSync);
+  };
+
   const load = async () => {
     setLoading(true);
     setError("");
@@ -219,8 +249,7 @@ export function MovimientosManager() {
   };
 
   const loadFromEffect = useEffectEvent(async () => {
-    await loadMovementTypes();
-    await load();
+    await Promise.all([loadMovementTypes(), load(), loadLatestMercadoPagoSync()]);
   });
 
   useEffect(() => {
@@ -366,13 +395,33 @@ export function MovimientosManager() {
           ? "Se inicio la sincronizacion manual de Mercado Pago."
           : "Ya existe una sincronizacion reciente de Mercado Pago en curso.",
       );
-      await load();
+      await Promise.all([load(), loadLatestMercadoPagoSync()]);
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : "Error inesperado");
     } finally {
       setSyncSubmitting(false);
     }
   };
+
+  const latestSyncLabel = latestMercadoPagoSync
+    ? formatDate(latestMercadoPagoSync.processedAt ?? latestMercadoPagoSync.updatedAt)
+    : "Sin sincronizaciones";
+  const latestSyncStatusLabel =
+    latestMercadoPagoSync?.status === "PROCESSED"
+      ? "Correcta"
+      : latestMercadoPagoSync?.status === "FAILED"
+        ? "Con error"
+        : latestMercadoPagoSync
+          ? "En proceso"
+          : "Sin datos";
+  const latestSyncDotClass =
+    latestMercadoPagoSync?.status === "PROCESSED"
+      ? "bg-emerald-500"
+      : latestMercadoPagoSync?.status === "FAILED"
+        ? "bg-rose-500"
+        : latestMercadoPagoSync
+          ? "bg-amber-500"
+          : "bg-muted-foreground/30";
 
   return (
     <div className="space-y-4">
@@ -424,7 +473,7 @@ export function MovimientosManager() {
         </Card>
       </div>
 
-      <Card className="grid gap-2 p-3 xl:grid-cols-[150px_150px_180px_220px_180px]">
+      <Card className="grid items-center gap-2 p-3 xl:grid-cols-[150px_150px_180px_220px_180px_minmax(240px,1fr)]">
         <Input
           className="h-10"
           type="date"
@@ -489,6 +538,15 @@ export function MovimientosManager() {
             </option>
           ))}
         </Select>
+        <div className="flex min-h-10 items-center justify-start rounded-md border border-border px-3 xl:justify-end">
+          <div className="flex items-center gap-3 whitespace-nowrap text-sm">
+            <span className={`h-2.5 w-2.5 rounded-full ${latestSyncDotClass}`} />
+            <p className="text-left text-sm text-foreground xl:text-right">
+              <span className="font-medium">Ultima sync Mercado Pago:</span> {latestSyncLabel}
+              <span className="ml-2 text-muted-foreground">• {latestSyncStatusLabel}</span>
+            </p>
+          </div>
+        </div>
       </Card>
 
       {successMessage ? (
