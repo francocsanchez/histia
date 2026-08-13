@@ -34,6 +34,7 @@ type MercadoPagoApiReport = {
 type MercadoPagoCsvRow = {
   EXTERNAL_REFERENCE?: string;
   SOURCE_ID?: string;
+  PAYER_NAME?: string;
   PAYMENT_METHOD?: string;
   PAYMENT_METHOD_TYPE?: string;
   TRANSACTION_TYPE?: string;
@@ -138,6 +139,32 @@ function logMercadoPagoWarning(message: string, details?: Record<string, unknown
 
 function logMercadoPagoError(message: string, details?: Record<string, unknown>) {
   console.error("[mercadopago-sync]", message, details ?? {});
+}
+
+function extractMercadoPagoErrorDetails(error: unknown) {
+  if (error instanceof AppError) {
+    return {
+      code: error.code,
+      statusCode: error.statusCode,
+      details: error.details ?? null,
+      stack: error.stack ?? null,
+    };
+  }
+
+  if (error instanceof Error) {
+    const errorWithCause = error as Error & { cause?: unknown };
+
+    return {
+      name: error.name,
+      message: error.message,
+      cause: errorWithCause.cause ?? null,
+      stack: error.stack ?? null,
+    };
+  }
+
+  return {
+    raw: error ?? null,
+  };
 }
 
 function isMercadoPagoRateLimitMessage(message: string | null | undefined) {
@@ -377,6 +404,7 @@ function getComponentAmount(valueCentavos: number) {
 export function buildMovementComponents(row: {
   sourceId: string;
   reportId: number;
+  payerName: string | null;
   externalReference: string | null;
   paymentMethod: string | null;
   paymentMethodType: string | null;
@@ -404,12 +432,16 @@ export function buildMovementComponents(row: {
 
   if (row.transactionAmountCentavos !== 0) {
     const direccion = getComponentDirection(row.transactionAmountCentavos);
+    const descripcionBase = getMercadoPagoMovementDescription("TRANSACTION", {
+      transactionType: row.transactionType,
+      direction: direccion,
+    });
     components.push({
       externalComponent: "TRANSACTION",
-      descripcion: getMercadoPagoMovementDescription("TRANSACTION", {
-        transactionType: row.transactionType,
-        direction: direccion,
-      }),
+      descripcion:
+        descripcionBase === "Mercado Pago" && row.payerName
+          ? `Mercado Pago - ${row.payerName}`
+          : descripcionBase,
       direccion,
       montoCentavos: getComponentAmount(row.transactionAmountCentavos),
     });
@@ -444,7 +476,7 @@ export function buildMovementComponents(row: {
   ) {
     components.push({
       externalComponent: "TRANSACTION",
-      descripcion: getMercadoPagoMovementDescription("TRANSACTION"),
+      descripcion: row.payerName ? `Mercado Pago - ${row.payerName}` : "Mercado Pago",
       direccion: getComponentDirection(row.realAmountCentavos),
       montoCentavos: getComponentAmount(row.realAmountCentavos),
     });
@@ -455,6 +487,7 @@ export function buildMovementComponents(row: {
     reportId: row.reportId,
     sourceId: row.sourceId,
     fecha: row.transactionDate,
+    payerName: row.payerName,
     externalReference: row.externalReference,
     paymentMethod: row.paymentMethod,
     paymentMethodType: row.paymentMethodType,
@@ -506,6 +539,7 @@ async function finalizeSyncFailure(syncId: Types.ObjectId | string, error: unkno
   logMercadoPagoError("Fallo una sincronizacion de Mercado Pago", {
     syncId: String(syncId),
     error: message,
+    details: extractMercadoPagoErrorDetails(error),
   });
 
   return message;
@@ -600,6 +634,7 @@ async function processMercadoPagoSyncDocument(
       const components = buildMovementComponents({
         sourceId,
         reportId,
+        payerName: rawRow.PAYER_NAME?.trim() || null,
         externalReference: rawRow.EXTERNAL_REFERENCE?.trim() || null,
         paymentMethod: rawRow.PAYMENT_METHOD?.trim() || null,
         paymentMethodType: rawRow.PAYMENT_METHOD_TYPE?.trim() || null,
@@ -970,6 +1005,12 @@ export async function checkPendingMercadoPagoSyncs(): Promise<PendingCheckResult
           processingStartedAt: null,
           lastCheckedAt: new Date(),
         },
+      });
+      logMercadoPagoError("Mercado Pago marco un reporte como fallido", {
+        syncId: String(sync._id),
+        reportId: sync.reportId,
+        remoteStatus: remoteReport?.status ?? "failed",
+        fileName,
       });
       continue;
     }

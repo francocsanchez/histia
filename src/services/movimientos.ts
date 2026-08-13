@@ -81,6 +81,7 @@ type MercadoPagoMovementInput = {
   descripcion: string;
   direccion: MovementDirection;
   montoCentavos: number;
+  payerName: string | null;
   externalReference: string | null;
   paymentMethod: string | null;
   paymentMethodType: string | null;
@@ -351,6 +352,7 @@ export async function createMercadoPagoMovement(input: MercadoPagoMovementInput)
     kind: "mercadopago",
     reportId: input.reportId,
     sourceId: input.sourceId,
+    payerName: input.payerName,
     externalReference: input.externalReference,
     paymentMethod: input.paymentMethod,
     paymentMethodType: input.paymentMethodType,

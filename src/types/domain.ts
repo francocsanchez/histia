@@ -373,6 +373,7 @@ export interface MovementMercadoPagoMetadataDto {
   kind: "mercadopago";
   reportId: number;
   sourceId: string;
+  payerName: string | null;
   externalReference: string | null;
   paymentMethod: string | null;
   paymentMethodType: string | null;

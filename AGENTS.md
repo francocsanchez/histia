@@ -2,7 +2,7 @@
 
 # Sugerencia commit
 
-Siempre debes actualizar el CHANGELOG.md de este proyecto y una vez de hacer eso debes sugerir el commit mostrando el mensaje en pantalla para que el usuario tenga una opcion para crear el commit.
+Siempre debes actualizar el CHANGELOG.md de este proyecto y una vez de hacer eso debes sugerir el commit mostrando el mensaje en pantalla para que el usuario tenga una opcion para crear el commit. Y tambien deberas actualizar este archivo (AGENTS.md) para tener contexto.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

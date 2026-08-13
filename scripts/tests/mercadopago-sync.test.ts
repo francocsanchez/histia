@@ -12,6 +12,7 @@ function buildBaseRow(overrides?: Partial<Parameters<typeof buildMovementCompone
   return {
     sourceId: "173045260750",
     reportId: 102748383,
+    payerName: null,
     externalReference: null,
     paymentMethod: null,
     paymentMethodType: "bank_transfer",
@@ -59,6 +60,17 @@ test("descompone TRANSACTION positivo e impuestos negativos", () => {
       },
     ],
   );
+});
+
+test("usa PAYER_NAME en la descripcion visible del ingreso principal", () => {
+  const components = buildMovementComponents(
+    buildBaseRow({
+      payerName: "Vero",
+    }),
+  );
+
+  assert.equal(components[0]?.descripcion, "Mercado Pago - Vero");
+  assert.equal(components[1]?.descripcion, "Impuestos Mercado Pago");
 });
 
 test("genera solo el ingreso cuando impuestos y comision son cero", () => {
@@ -124,6 +136,7 @@ test("describe egresos reales de Mercado Pago cuando la transaccion es withdrawa
     direccion: "egreso",
     montoCentavos: 997_074_86,
     fecha: new Date("2026-08-10T12:44:45.000-03:00"),
+    payerName: null,
     externalReference: null,
     paymentMethod: null,
     paymentMethodType: "bank_transfer",
@@ -213,6 +226,15 @@ test("parsea CSV con ; y soporta columnas vacias", () => {
   assert.equal(rows[0]?.PAYMENT_METHOD_TYPE, "");
   assert.equal(rows[0]?.TRANSACTION_AMOUNT, "4609.23");
   assert.equal(rows[0]?.DESCRIPTION, "INSTALLMENT");
+});
+
+test("parsea CSV nuevo con columna PAYER_NAME", () => {
+  const rows = parseMercadoPagoCsv(`TRANSACTION_DATE;SETTLEMENT_DATE;MONEY_RELEASE_DATE;SOURCE_ID;PAYMENT_METHOD_TYPE;TRANSACTION_TYPE;TRANSACTION_AMOUNT;FEE_AMOUNT;REAL_AMOUNT;TAXES_AMOUNT;BUSINESS_UNIT;SUB_UNIT;OPERATION_TAGS;SALE_DETAIL;ISSUER_NAME;FRANCHISE;STORE_NAME;PAYER_NAME
+2026-08-13T13:02:32.000-03:00;2026-08-13T13:02:33.000-03:00;2026-08-13T13:02:33.000-03:00;173645799676;available_money;SETTLEMENT;10000.00;0.00;9940.00;-60.00;;;;\"\"\"Varios\"\"\";;;;Vero`);
+
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]?.SOURCE_ID, "173645799676");
+  assert.equal(rows[0]?.PAYER_NAME, "Vero");
 });
 
 test("CSV vacio no falla y devuelve cero filas", () => {
