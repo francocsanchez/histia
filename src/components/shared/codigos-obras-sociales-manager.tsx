@@ -14,13 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import {
-  formatCurrencyFromCents,
-  formatDate,
-  formatMoneyInputFromCents,
-  formatMoneyMaskedInput,
-  parseMoneyInputToCents,
-} from "@/lib/utils";
+import { formatCurrencyFromCents, formatDate, formatMoneyInputFromCents, formatMoneyMaskedInput, parseMoneyInputToCents } from "@/lib/utils";
 import { codigoObraSocialSchema } from "@/lib/validations/schemas";
 import { CodigoObraSocialDto, ObraSocialDto } from "@/types/domain";
 
@@ -79,10 +73,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
       if (search) params.set("search", search);
       if (obraSocialId) params.set("obraSocialId", obraSocialId);
 
-      const response = await fetch(
-        `/api/codigos-obras-sociales?${params.toString()}`,
-        { cache: "no-store" },
-      );
+      const response = await fetch(`/api/codigos-obras-sociales?${params.toString()}`, { cache: "no-store" });
       const payload = (await response.json()) as ListPayload;
 
       if (!response.ok || !payload.success) {
@@ -142,16 +133,11 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
   };
 
   const submit = form.handleSubmit(async (values) => {
-    const response = await fetch(
-      selected
-        ? `/api/codigos-obras-sociales/${selected.id}`
-        : "/api/codigos-obras-sociales",
-      {
-        method: selected ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      },
-    );
+    const response = await fetch(selected ? `/api/codigos-obras-sociales/${selected.id}` : "/api/codigos-obras-sociales", {
+      method: selected ? "PATCH" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values),
+    });
     const payload = await response.json();
 
     if (!response.ok || !payload.success) {
@@ -235,9 +221,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
 
       {loading ? <LoadingState /> : null}
       {!loading && error ? <ErrorState label={error} retry={load} /> : null}
-      {!loading && !error && items.length === 0 ? (
-        <EmptyState label="No hay codigos para mostrar." />
-      ) : null}
+      {!loading && !error && items.length === 0 ? <EmptyState label="No hay codigos para mostrar." /> : null}
 
       {!loading && !error && items.length > 0 ? (
         <Card className="overflow-hidden">
@@ -262,24 +246,16 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
                     <td className="px-4 py-3">{item.obraSocialNombre}</td>
                     <td className="px-4 py-3">{formatCurrencyFromCents(item.valorCentavos)}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={item.activo ? "success" : "muted"}>
-                        {item.activo ? "Activo" : "Inactivo"}
-                      </Badge>
+                      <Badge variant={item.activo ? "success" : "muted"}>{item.activo ? "Activo" : "Inactivo"}</Badge>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {formatDate(item.updatedAt)}
-                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{formatDate(item.updatedAt)}</td>
                     {canManage ? (
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
                           <Button variant="secondary" size="sm" onClick={() => openEdit(item)}>
                             Editar
                           </Button>
-                          <Button
-                            variant={item.activo ? "destructive" : "secondary"}
-                            size="sm"
-                            onClick={() => setStatusDialogItem(item)}
-                          >
+                          <Button variant={item.activo ? "destructive" : "secondary"} size="sm" onClick={() => setStatusDialogItem(item)}>
                             {item.activo ? "Desactivar" : "Activar"}
                           </Button>
                         </div>
@@ -298,12 +274,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
               <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
                 Anterior
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((value) => value + 1)}
-              >
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>
                 Siguiente
               </Button>
             </div>
@@ -311,11 +282,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
         </Card>
       ) : null}
 
-      <Dialog
-        open={dialogOpen}
-        onClose={() => setDialogOpen(false)}
-        title={selected ? "Editar codigo" : "Nuevo codigo"}
-      >
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} title={selected ? "Editar codigo" : "Nuevo codigo"}>
         <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
           <div className="md:col-span-2">
             <label className="mb-2 block text-sm font-medium">Nombre</label>
@@ -334,16 +301,9 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
               onChange={(event) => {
                 const formattedValue = formatMoneyMaskedInput(event.target.value);
                 setValorInput(formattedValue);
-                form.setValue(
-                  "valorCentavos",
-                  parseMoneyInputToCents(formattedValue) ?? 0,
-                  { shouldDirty: true, shouldValidate: true },
-                );
+                form.setValue("valorCentavos", parseMoneyInputToCents(formattedValue) ?? 0, { shouldDirty: true, shouldValidate: true });
               }}
             />
-            <p className="mt-2 text-xs text-muted-foreground">
-              Ingresa el importe en pesos. El sistema lo guarda internamente en centavos.
-            </p>
           </div>
           <div className="md:col-span-2">
             <label className="mb-2 block text-sm font-medium">Obra social</label>
@@ -357,11 +317,7 @@ export function CodigosObrasSocialesManager({ canManage }: { canManage: boolean 
             </Select>
           </div>
 
-          {form.formState.errors.root ? (
-            <p className="md:col-span-2 text-sm text-destructive">
-              {form.formState.errors.root.message}
-            </p>
-          ) : null}
+          {form.formState.errors.root ? <p className="md:col-span-2 text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
 
           <div className="md:col-span-2 flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>

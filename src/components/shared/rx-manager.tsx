@@ -14,13 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import {
-  formatCurrencyFromCents,
-  formatDate,
-  formatMoneyInputFromCents,
-  formatMoneyMaskedInput,
-  parseMoneyInputToCents,
-} from "@/lib/utils";
+import { formatCurrencyFromCents, formatDate, formatMoneyInputFromCents, formatMoneyMaskedInput, parseMoneyInputToCents } from "@/lib/utils";
 import { rxAttentionSchema } from "@/lib/validations/schemas";
 import { RxAttentionDto } from "@/types/domain";
 
@@ -81,12 +75,8 @@ export function RxManager() {
   const [totalPages, setTotalPages] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selected, setSelected] = useState<RxAttentionDto | null>(null);
-  const [odontologos, setOdontologos] = useState<Array<{ id: string; label: string }>>(
-    [],
-  );
-  const [obrasSociales, setObrasSociales] = useState<Array<{ id: string; nombre: string }>>(
-    [],
-  );
+  const [odontologos, setOdontologos] = useState<Array<{ id: string; label: string }>>([]);
+  const [obrasSociales, setObrasSociales] = useState<Array<{ id: string; nombre: string }>>([]);
   const [patientLookupDni, setPatientLookupDni] = useState("");
   const [patientLookupLoading, setPatientLookupLoading] = useState(false);
   const [patientLookupError, setPatientLookupError] = useState("");
@@ -185,8 +175,7 @@ export function RxManager() {
       pacienteId: item.pacienteId,
       derivanteTipo: item.derivanteTipo,
       derivanteUserId: item.derivanteUserId ?? "",
-      derivanteExternoNombre:
-        item.derivanteTipo === "externo" ? item.derivanteNombre : "",
+      derivanteExternoNombre: item.derivanteTipo === "externo" ? item.derivanteNombre : "",
       tipoRx: item.tipoRx,
       valorCentavos: item.valorCentavos,
       observaciones: item.observaciones ?? "",
@@ -201,9 +190,7 @@ export function RxManager() {
       obraSocialNombre: item.pacienteObraSocialNombre,
     });
     setPatientLookupError("");
-    setValorInput(
-      item.valorCentavos !== null ? formatMoneyInputFromCents(item.valorCentavos) : "",
-    );
+    setValorInput(item.valorCentavos !== null ? formatMoneyInputFromCents(item.valorCentavos) : "");
     setDialogOpen(true);
   };
 
@@ -240,9 +227,7 @@ export function RxManager() {
         form.setValue("paciente.dni", dni);
       }
     } catch (lookupError) {
-      setPatientLookupError(
-        lookupError instanceof Error ? lookupError.message : "No se pudo buscar el paciente",
-      );
+      setPatientLookupError(lookupError instanceof Error ? lookupError.message : "No se pudo buscar el paciente");
     } finally {
       setPatientLookupLoading(false);
     }
@@ -278,12 +263,7 @@ export function RxManager() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="RX"
-        description="Registra y administra radiografias realizadas a pacientes."
-        actionLabel="Nueva RX"
-        onAction={openCreate}
-      />
+      <PageHeader title="RX" description="Registra y administra radiografias realizadas a pacientes." actionLabel="Nueva RX" onAction={openCreate} />
 
       <Card className="grid gap-3 p-4 md:grid-cols-[1fr_180px_180px_180px]">
         <Input
@@ -325,9 +305,7 @@ export function RxManager() {
 
       {loading ? <LoadingState /> : null}
       {!loading && error ? <ErrorState label={error} retry={load} /> : null}
-      {!loading && !error && items.length === 0 ? (
-        <EmptyState label="No hay atenciones RX para mostrar." />
-      ) : null}
+      {!loading && !error && items.length === 0 ? <EmptyState label="No hay atenciones RX para mostrar." /> : null}
 
       {!loading && !error && items.length > 0 ? (
         <Card className="overflow-hidden">
@@ -370,11 +348,7 @@ export function RxManager() {
                       </div>
                     </td>
                     <td className="px-4 py-3">{rxTypeLabels[item.tipoRx]}</td>
-                    <td className="px-4 py-3">
-                      {item.valorCentavos !== null
-                        ? formatCurrencyFromCents(item.valorCentavos)
-                        : "-"}
-                    </td>
+                    <td className="px-4 py-3">{item.valorCentavos !== null ? formatCurrencyFromCents(item.valorCentavos) : "-"}</td>
                     <td className="px-4 py-3">{item.pacienteObraSocialNombre ?? "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
@@ -393,20 +367,10 @@ export function RxManager() {
               Pagina {page} de {totalPages}
             </p>
             <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((value) => value - 1)}
-              >
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>
                 Anterior
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= totalPages}
-                onClick={() => setPage((value) => value + 1)}
-              >
+              <Button variant="secondary" size="sm" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}>
                 Siguiente
               </Button>
             </div>
@@ -426,27 +390,16 @@ export function RxManager() {
             <div className="grid gap-4 md:grid-cols-[1fr_auto]">
               <div>
                 <label className="mb-2 block text-sm font-medium">DNI del paciente</label>
-                <Input
-                  value={patientLookupDni}
-                  onChange={(event) => setPatientLookupDni(event.target.value)}
-                  placeholder="Ingresa el DNI y busca"
-                />
+                <Input value={patientLookupDni} onChange={(event) => setPatientLookupDni(event.target.value)} placeholder="Ingresa el DNI y busca" />
               </div>
               <div className="flex items-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={searchPatientByDni}
-                  disabled={patientLookupLoading}
-                >
+                <Button type="button" variant="secondary" onClick={searchPatientByDni} disabled={patientLookupLoading}>
                   {patientLookupLoading ? "Buscando..." : "Buscar paciente"}
                 </Button>
               </div>
             </div>
 
-            {patientLookupError ? (
-              <p className="mt-2 text-sm text-destructive">{patientLookupError}</p>
-            ) : null}
+            {patientLookupError ? <p className="mt-2 text-sm text-destructive">{patientLookupError}</p> : null}
 
             {matchedPatient ? (
               <div className="mt-4 border border-border bg-muted/40 p-3 text-sm">
@@ -455,9 +408,7 @@ export function RxManager() {
                 </p>
                 <p className="text-muted-foreground">
                   DNI: {matchedPatient.dni}
-                  {matchedPatient.obraSocialNombre
-                    ? ` · Obra social: ${matchedPatient.obraSocialNombre}`
-                    : ""}
+                  {matchedPatient.obraSocialNombre ? ` · Obra social: ${matchedPatient.obraSocialNombre}` : ""}
                 </p>
               </div>
             ) : (
@@ -502,9 +453,7 @@ export function RxManager() {
               </Select>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium">
-                Profesional derivante
-              </label>
+              <label className="mb-2 block text-sm font-medium">Profesional derivante</label>
               <Select {...form.register("derivanteTipo")}>
                 <option value="interno">Interno</option>
                 <option value="externo">Externo</option>
@@ -539,16 +488,9 @@ export function RxManager() {
                 onChange={(event) => {
                   const formattedValue = formatMoneyMaskedInput(event.target.value);
                   setValorInput(formattedValue);
-                  form.setValue(
-                    "valorCentavos",
-                    parseMoneyInputToCents(formattedValue),
-                    { shouldDirty: true, shouldValidate: true },
-                  );
+                  form.setValue("valorCentavos", parseMoneyInputToCents(formattedValue), { shouldDirty: true, shouldValidate: true });
                 }}
               />
-              <p className="mt-2 text-xs text-muted-foreground">
-                Ingresa el importe en pesos. El sistema lo guarda internamente en centavos.
-              </p>
             </div>
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium">Observaciones</label>
@@ -559,11 +501,7 @@ export function RxManager() {
             </div>
           </div>
 
-          {form.formState.errors.root ? (
-            <p className="text-sm text-destructive">
-              {form.formState.errors.root.message}
-            </p>
-          ) : null}
+          {form.formState.errors.root ? <p className="text-sm text-destructive">{form.formState.errors.root.message}</p> : null}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={() => setDialogOpen(false)}>
