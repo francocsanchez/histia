@@ -4,6 +4,7 @@ import type { z } from "zod";
 import { useEffect, useEffectEvent, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Building2, ExternalLink } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { PageHeader } from "@/components/shared/page-header";
@@ -13,7 +14,13 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { formatCurrencyFromCents, formatDate } from "@/lib/utils";
+import {
+  formatCurrencyFromCents,
+  formatDate,
+  formatMoneyInputFromCents,
+  formatMoneyMaskedInput,
+  parseMoneyInputToCents,
+} from "@/lib/utils";
 import { rxAttentionSchema } from "@/lib/validations/schemas";
 import { RxAttentionDto } from "@/types/domain";
 
@@ -53,12 +60,6 @@ function emptyFormValues(): FormValues {
   return {
     fecha: new Date().toISOString().slice(0, 10),
     pacienteId: "",
-    paciente: {
-      nombre: "",
-      apellido: "",
-      dni: "",
-      obraSocialId: "",
-    },
     derivanteTipo: "interno",
     derivanteUserId: "",
     derivanteExternoNombre: "",
@@ -68,11 +69,7 @@ function emptyFormValues(): FormValues {
   };
 }
 
-export function RxManager({
-  currentUserLabel,
-}: {
-  currentUserLabel: string;
-}) {
+export function RxManager() {
   const [items, setItems] = useState<RxAttentionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -94,6 +91,7 @@ export function RxManager({
   const [patientLookupLoading, setPatientLookupLoading] = useState(false);
   const [patientLookupError, setPatientLookupError] = useState("");
   const [matchedPatient, setMatchedPatient] = useState<LookupPayload["data"]["paciente"]>(null);
+  const [valorInput, setValorInput] = useState("");
   const form = useForm<FormValues, unknown, SubmitValues>({
     resolver: zodResolver(rxAttentionSchema),
     defaultValues: emptyFormValues(),
@@ -176,6 +174,7 @@ export function RxManager({
     setPatientLookupDni("");
     setMatchedPatient(null);
     setPatientLookupError("");
+    setValorInput("");
     setDialogOpen(true);
   };
 
@@ -184,12 +183,6 @@ export function RxManager({
     form.reset({
       fecha: item.fecha.slice(0, 10),
       pacienteId: item.pacienteId,
-      paciente: {
-        nombre: "",
-        apellido: "",
-        dni: item.pacienteDni,
-        obraSocialId: "",
-      },
       derivanteTipo: item.derivanteTipo,
       derivanteUserId: item.derivanteUserId ?? "",
       derivanteExternoNombre:
@@ -205,9 +198,12 @@ export function RxManager({
       apellido: item.pacienteNombreCompleto.split(", ")[0] ?? "",
       dni: item.pacienteDni,
       obraSocialId: null,
-      obraSocialNombre: null,
+      obraSocialNombre: item.pacienteObraSocialNombre,
     });
     setPatientLookupError("");
+    setValorInput(
+      item.valorCentavos !== null ? formatMoneyInputFromCents(item.valorCentavos) : "",
+    );
     setDialogOpen(true);
   };
 
@@ -228,12 +224,19 @@ export function RxManager({
 
       if (data.paciente) {
         form.setValue("pacienteId", data.paciente.id);
+        form.setValue("paciente", undefined);
         form.setValue("paciente.dni", data.paciente.dni);
         form.setValue("paciente.nombre", data.paciente.nombre);
         form.setValue("paciente.apellido", data.paciente.apellido);
         form.setValue("paciente.obraSocialId", data.paciente.obraSocialId ?? "");
       } else {
         form.setValue("pacienteId", "");
+        form.setValue("paciente", {
+          nombre: "",
+          apellido: "",
+          dni,
+          obraSocialId: "",
+        });
         form.setValue("paciente.dni", dni);
       }
     } catch (lookupError) {
@@ -248,10 +251,7 @@ export function RxManager({
   const submit = form.handleSubmit(async (values) => {
     const body: SubmitValues = {
       ...values,
-      valorCentavos:
-        values.valorCentavos === null || values.valorCentavos === undefined || Number.isNaN(values.valorCentavos)
-          ? null
-          : Number(values.valorCentavos),
+      valorCentavos: values.valorCentavos ?? null,
     };
 
     if (body.pacienteId) {
@@ -338,10 +338,10 @@ export function RxManager({
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Paciente</th>
                   <th className="px-4 py-3">DNI</th>
-                  <th className="px-4 py-3">Derivante</th>
+                  <th className="min-w-[260px] px-4 py-3">Derivante</th>
                   <th className="px-4 py-3">Tipo</th>
                   <th className="px-4 py-3">Valor</th>
-                  <th className="px-4 py-3">Generada por</th>
+                  <th className="px-4 py-3">Obra social</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -351,11 +351,21 @@ export function RxManager({
                     <td className="px-4 py-3">{formatDate(item.fecha)}</td>
                     <td className="px-4 py-3 font-medium">{item.pacienteNombreCompleto}</td>
                     <td className="px-4 py-3">{item.pacienteDni}</td>
-                    <td className="px-4 py-3">
-                      <div className="space-y-1">
-                        <p>{item.derivanteNombre}</p>
-                        <Badge variant="muted">
-                          {item.derivanteTipo === "interno" ? "Interno" : "Externo"}
+                    <td className="min-w-[260px] px-4 py-3">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="truncate font-medium">{item.derivanteNombre}</span>
+                        <Badge variant="muted" className="gap-1 whitespace-nowrap">
+                          {item.derivanteTipo === "interno" ? (
+                            <>
+                              <Building2 className="h-3 w-3" />
+                              Interno
+                            </>
+                          ) : (
+                            <>
+                              <ExternalLink className="h-3 w-3" />
+                              Externo
+                            </>
+                          )}
                         </Badge>
                       </div>
                     </td>
@@ -365,7 +375,7 @@ export function RxManager({
                         ? formatCurrencyFromCents(item.valorCentavos)
                         : "-"}
                     </td>
-                    <td className="px-4 py-3">{item.usuarioGeneradorNombre}</td>
+                    <td className="px-4 py-3">{item.pacienteObraSocialNombre ?? "-"}</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
                         <Button variant="secondary" size="sm" onClick={() => openEdit(item)}>
@@ -521,18 +531,24 @@ export function RxManager({
               )}
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium">Valor (centavos)</label>
+              <label className="mb-2 block text-sm font-medium">Valor</label>
               <Input
-                type="number"
-                min={0}
-                {...form.register("valorCentavos", {
-                  setValueAs: (value) => (value === "" ? null : Number(value)),
-                })}
+                inputMode="numeric"
+                placeholder="0,00"
+                value={valorInput}
+                onChange={(event) => {
+                  const formattedValue = formatMoneyMaskedInput(event.target.value);
+                  setValorInput(formattedValue);
+                  form.setValue(
+                    "valorCentavos",
+                    parseMoneyInputToCents(formattedValue),
+                    { shouldDirty: true, shouldValidate: true },
+                  );
+                }}
               />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium">Usuario generador</label>
-              <Input value={currentUserLabel} readOnly />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ingresa el importe en pesos. El sistema lo guarda internamente en centavos.
+              </p>
             </div>
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium">Observaciones</label>

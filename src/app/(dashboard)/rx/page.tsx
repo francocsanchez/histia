@@ -11,7 +11,5 @@ export default async function RxPage() {
     redirect("/inicio");
   }
 
-  return (
-    <RxManager currentUserLabel={`${user.apellido}, ${user.nombre}`} />
-  );
+  return <RxManager />;
 }

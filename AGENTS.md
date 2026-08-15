@@ -5,6 +5,12 @@
 Siempre debes actualizar el CHANGELOG.md de este proyecto y una vez de hacer eso debes sugerir el commit mostrando el mensaje en pantalla para que el usuario tenga una opcion para crear el commit. Y tambien deberas actualizar este archivo (AGENTS.md) para tener contexto.
 Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va a subir a github para contruir la imagen en github action
 
+## Contexto reciente
+
+- En `RX`, los importes visibles para carga y edicion se ingresan en pesos con mascara monetaria, aunque la persistencia interna siga siendo en centavos.
+- En el listado de `RX`, la columna operativa visible debe priorizar la obra social del paciente y no mostrar `Generada por`.
+- En el formulario de `RX`, no se muestra `Usuario generador`; el origen del derivante debe verse compacto en una sola linea cuando sea posible.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know

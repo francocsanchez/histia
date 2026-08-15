@@ -33,7 +33,13 @@ function toRxDto(document: {
   observaciones: string | null;
   createdAt: Date;
   updatedAt: Date;
-  paciente?: { nombre: string; apellido: string; dni: string } | null;
+  paciente?: {
+    nombre: string;
+    apellido: string;
+    dni: string;
+    obraSocialId?: unknown;
+  } | null;
+  obraSocial?: { nombre: string } | null;
   derivanteInterno?: { name: string; apellido?: string | null } | null;
   usuarioGenerador?: { name: string; apellido?: string | null } | null;
 }): RxAttentionDto {
@@ -60,6 +66,7 @@ function toRxDto(document: {
     pacienteId: String(document.pacienteId),
     pacienteNombreCompleto: pacienteNombre,
     pacienteDni: document.paciente?.dni ?? "",
+    pacienteObraSocialNombre: document.obraSocial?.nombre ?? null,
     derivanteTipo: document.derivanteTipo,
     derivanteUserId: document.derivanteUserId ? String(document.derivanteUserId) : null,
     derivanteNombre,
@@ -113,6 +120,20 @@ export async function listRxAttentions(query: QueryParams) {
       },
     },
     { $unwind: "$paciente" },
+    {
+      $lookup: {
+        from: "obras_sociales",
+        localField: "paciente.obraSocialId",
+        foreignField: "_id",
+        as: "obraSocial",
+      },
+    },
+    {
+      $unwind: {
+        path: "$obraSocial",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
     {
       $lookup: {
         from: "users",
@@ -441,6 +462,20 @@ export async function getRxAttentionById(id: string) {
       },
     },
     { $unwind: "$paciente" },
+    {
+      $lookup: {
+        from: "obras_sociales",
+        localField: "paciente.obraSocialId",
+        foreignField: "_id",
+        as: "obraSocial",
+      },
+    },
+    {
+      $unwind: {
+        path: "$obraSocial",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
     {
       $lookup: {
         from: "users",

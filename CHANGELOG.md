@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-08-15
+
+### Changed
+
+- El formulario de `RX` ahora captura el valor en pesos con mascara monetaria y lo convierte internamente a centavos sin exponer esa aclaracion en la UI.
+- La tabla de `RX` ahora muestra la obra social del paciente en lugar de la columna `Generada por`, y el modal deja de mostrar el campo `Usuario generador`.
+- La columna `Derivante` en `RX` ahora prioriza una sola linea con mas ancho disponible y un indicador visual de origen interno o externo.
+
+### Fixed
+
+- La edicion de `RX` ahora vuelve a mostrar correctamente el importe guardado en formato pesos y persiste los cambios de valor al guardar.
+
 ## 2026-08-13
 
 ### Changed

@@ -209,6 +209,7 @@ export interface RxAttentionDto {
   pacienteId: string;
   pacienteNombreCompleto: string;
   pacienteDni: string;
+  pacienteObraSocialNombre: string | null;
   derivanteTipo: ReferrerType;
   derivanteUserId: string | null;
   derivanteNombre: string;
