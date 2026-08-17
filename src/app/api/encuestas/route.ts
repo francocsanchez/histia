@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const status = searchParams.get("status") ?? undefined;
     const result = await listSurveyDashboard({ page, limit, search, status });
 
-    return okWithPagination(result.campaigns, result.pagination, {
+    return okWithPagination(result.surveys, result.pagination, {
       headers: {
         "x-surveys-totals": JSON.stringify(result.totalsToday),
       },

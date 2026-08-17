@@ -70,6 +70,10 @@ function extractDocumentId(value: unknown) {
 function toSurveyDto(document: {
   _id: unknown;
   campaignId: unknown;
+  campaign?: {
+    fileName?: string;
+    status?: SurveyCampaignDto["status"];
+  } | null;
   patientNameSnapshot: string;
   doctorNameSnapshot: string;
   phoneE164: string;
@@ -88,6 +92,8 @@ function toSurveyDto(document: {
   return {
     id: String(document._id),
     campaignId: extractDocumentId(document.campaignId),
+    campaignFileName: document.campaign?.fileName ?? null,
+    campaignStatus: document.campaign?.status ?? null,
     patientNameSnapshot: document.patientNameSnapshot,
     doctorNameSnapshot: document.doctorNameSnapshot,
     phoneMasked: maskPhoneNumber(document.phoneE164),
@@ -464,80 +470,65 @@ export async function listSurveyDashboard(input: {
   search?: string;
 }): Promise<SurveyDashboardDto> {
   await connectToDatabase();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const campaignFilter: Record<string, unknown> = {};
+  const skip = (input.page - 1) * input.limit;
+  const surveyFilter: Record<string, unknown> = {};
 
   if (input.status) {
-    campaignFilter.status = input.status;
+    surveyFilter.status =
+      input.status === "waiting"
+        ? { $in: SURVEY_WAITING_STATUSES }
+        : input.status;
   }
 
   if (input.search) {
-    campaignFilter.fileName = { $regex: input.search, $options: "i" };
+    const regex = { $regex: input.search, $options: "i" };
+    const matchingCampaignIds = (
+      await SurveyCampaignModel.find({ fileName: regex }).select("_id").lean()
+    ).map((campaign) => campaign._id);
+
+    surveyFilter.$or = [
+      { patientNameSnapshot: regex },
+      { doctorNameSnapshot: regex },
+      { phoneE164: regex },
+      { phoneRaw: regex },
+      ...(matchingCampaignIds.length > 0 ? [{ campaignId: { $in: matchingCampaignIds } }] : []),
+    ];
   }
 
-  const skip = (input.page - 1) * input.limit;
-
-  const [campaigns, total, todaySurveys] = await Promise.all([
-    SurveyCampaignModel.find(campaignFilter)
-      .populate("importedByUserId", "name apellido")
-      .sort({ createdAt: -1 })
+  const [surveyRows, total, allSurveyStatuses] = await Promise.all([
+    SurveyModel.find(surveyFilter)
+      .populate("campaignId", "fileName status")
+      .sort({ createdAt: -1, attendanceAt: -1 })
       .skip(skip)
       .limit(input.limit)
       .lean(),
-    SurveyCampaignModel.countDocuments(campaignFilter),
-    SurveyModel.find({
-      createdAt: {
-        $gte: today,
-      },
-    })
+    SurveyModel.countDocuments(surveyFilter),
+    SurveyModel.find({})
       .select("status")
       .lean(),
   ]);
 
-  const campaignIds = campaigns.map((campaign) => campaign._id);
-  const surveys = campaignIds.length
-    ? await SurveyModel.find({ campaignId: { $in: campaignIds } }).select("campaignId status").lean()
-    : [];
-
-  const groupedCounters = new Map<string, ReturnType<typeof buildSurveyCounters>>();
-
-  for (const campaign of campaigns) {
-    const campaignSurveys = surveys.filter(
-      (survey) => String(survey.campaignId) === String(campaign._id),
-    );
-    groupedCounters.set(
-      String(campaign._id),
-      buildSurveyCounters(campaignSurveys.map((survey) => ({ status: survey.status }))),
-    );
-  }
-
-  const waiting = todaySurveys.filter((survey) =>
+  const waiting = allSurveyStatuses.filter((survey) =>
     SURVEY_WAITING_STATUSES.includes(survey.status),
   ).length;
 
   return {
     totalsToday: {
-      queued: todaySurveys.filter((survey) => survey.status === "queued").length,
+      queued: allSurveyStatuses.filter((survey) => survey.status === "queued").length,
       waiting,
-      completed: todaySurveys.filter((survey) => survey.status === "completed").length,
-      noResponse: todaySurveys.filter((survey) => survey.status === "no_response").length,
-      sendFailed: todaySurveys.filter((survey) => survey.status === "send_failed").length,
-      deliveryUnknown: todaySurveys.filter((survey) => survey.status === "delivery_unknown").length,
+      completed: allSurveyStatuses.filter((survey) => survey.status === "completed").length,
+      noResponse: allSurveyStatuses.filter((survey) => survey.status === "no_response").length,
+      sendFailed: allSurveyStatuses.filter((survey) => survey.status === "send_failed").length,
+      deliveryUnknown: allSurveyStatuses.filter((survey) => survey.status === "delivery_unknown").length,
     },
-    campaigns: campaigns.map((campaign) =>
-      toSurveyCampaignDto(
-        {
-          ...campaign,
-          importedByUser: campaign.importedByUserId as unknown as {
-            name?: string;
-            apellido?: string;
-          },
+    surveys: surveyRows.map((survey) =>
+      toSurveyDto({
+        ...survey,
+        campaign: survey.campaignId as unknown as {
+          fileName?: string;
+          status?: SurveyCampaignDto["status"];
         },
-        groupedCounters.get(String(campaign._id)) ??
-          buildSurveyCounters([]),
-      ),
+      }),
     ),
     pagination: {
       page: input.page,
@@ -574,7 +565,15 @@ export async function getSurveyCampaignDetail(campaignId: string) {
       },
       buildSurveyCounters(surveys.map((survey) => ({ status: survey.status }))),
     ),
-    surveys: surveys.map(toSurveyDto),
+    surveys: surveys.map((survey) =>
+      toSurveyDto({
+        ...survey,
+        campaign: {
+          fileName: campaign.fileName,
+          status: campaign.status,
+        },
+      }),
+    ),
   };
 }
 

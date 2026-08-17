@@ -119,6 +119,8 @@ export type SurveyStatus = (typeof surveyStatusValues)[number];
 export interface SurveyDto {
   id: string;
   campaignId: string;
+  campaignFileName: string | null;
+  campaignStatus: SurveyCampaignStatus | null;
   patientNameSnapshot: string;
   doctorNameSnapshot: string;
   phoneMasked: string;
@@ -171,7 +173,7 @@ export interface SurveyDashboardTotalsDto {
 
 export interface SurveyDashboardDto {
   totalsToday: SurveyDashboardTotalsDto;
-  campaigns: SurveyCampaignDto[];
+  surveys: SurveyDto[];
   pagination: PaginationResult;
 }
 

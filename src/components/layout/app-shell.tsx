@@ -46,6 +46,11 @@ const settingsLinks = [
     label: "Tipos de movimientos",
     resource: "tipos-movimientos" as const,
   },
+  {
+    href: "/mensajes-encuestas",
+    label: "Mensajes encuestas",
+    resource: "encuestas" as const,
+  },
   { href: "/usuarios", label: "Usuarios", resource: "usuarios" as const },
 ];
 

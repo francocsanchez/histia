@@ -12,6 +12,7 @@
 ### Changed
 
 - La navegacion principal ahora incluye la entrada `Encuestas`, visible solo para administradores.
+- La configuracion operativa de `Encuestas` salio de `/encuestas` y ahora vive bajo `Configuracion > Mensajes encuestas`, con una pantalla dedicada para editar textos y parametros del modulo.
 - La configuracion de entorno y los ejemplos de produccion ahora contemplan `WHATSAPP_WORKER_PORT`.
 - El flujo de despliegue `histia-update` y `compose.yaml` ahora levantan y validan tanto `histia-app` como `histia-whatsapp-worker`.
 - La tarjeta de WhatsApp en `Encuestas` ahora incluye un boton `Vincular numero` que abre una pestaña dedicada con el estado y el QR de vinculacion.
@@ -26,6 +27,11 @@
 - El worker de WhatsApp ahora tolera en desarrollo que el puerto `3010` ya este ocupado por un proceso previo, evitando que `npm run dev` se caiga entero solo por el healthcheck local.
 - El worker de WhatsApp ahora resuelve el telefono de respuestas entrantes tambien desde JIDs alternativos de Baileys, evitando que encuestas validas queden trabadas en `waiting_rating` cuando el paciente ya respondio.
 - La recreacion de campañas ahora permite volver a importar la misma atencion si la encuesta previa habia sido cancelada, limpiando ese registro cancelado para habilitar un nuevo test o reenvio controlado.
+- `/encuestas` ahora muestra los resultados de cada campaña con una columna de comentarios que abre un dialog solo cuando el paciente dejo texto adicional.
+- El script `scripts/patch-baileys.js` ahora declara explicitamente su uso de CommonJS para que el lint de CI no falle por `require()` durante el pipeline de build.
+- `/encuestas` fue redisenada para operacion diaria: ahora muestra una tabla full-width de encuestas individuales, cards clickeables que filtran por estado, importacion de Excel en modal y un indicador compacto de vinculacion WhatsApp en lugar de la card detallada.
+- La tabla principal de `/encuestas` ahora es mas compacta: se quitaron las columnas `Archivo` y `Accion`, el `Estado` paso al final y se representa con iconos en lugar de texto.
+- La fila de resultados de `/encuestas` ahora alinea verticalmente texto, boton de comentarios e icono de estado para que toda la tabla se vea centrada y pareja.
 
 ## 2026-08-15
 

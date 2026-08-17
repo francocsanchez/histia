@@ -24,6 +24,12 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - En desarrollo, si el puerto `3010` ya quedo tomado por un worker previo, el health server de `Encuestas` no debe tirar abajo `npm run dev`; tiene que avisar y continuar.
 - Las respuestas entrantes de `Encuestas` no deben depender solo de `remoteJid @s.whatsapp.net`; con Baileys actual pueden venir por `@lid` con telefono en campos alternativos y hay que resolverlos para no dejar la encuesta clavada en `waiting_rating`.
 - Si una encuesta de `Encuestas` fue cancelada por admin, se debe permitir recrear la misma atencion en una nueva campaña; para eso hay que limpiar el registro cancelado previo antes de insertar el nuevo, manteniendo el bloqueo solo para duplicados no cancelados.
+- La configuracion operativa de `Encuestas` ya no vive dentro de `/encuestas`: ahora se administra desde `Configuracion > Mensajes encuestas` en una pantalla separada.
+- La pantalla `/encuestas` debe priorizar la operacion diaria con campañas, conexion WhatsApp y resultados; los comentarios del paciente se consultan desde un boton `Comentarios` por fila solo cuando existe texto guardado.
+- El script `scripts/patch-baileys.js` sigue ejecutandose en CommonJS desde `postinstall`; si CI vuelve a lintarlo, debe mantener la excepcion explicita para `require()` o migrarse completo a un formato compatible sin romper Node.
+- `/encuestas` ya no debe organizar el trabajo alrededor del historial de campañas visible: la vista principal ahora usa una tabla plana de encuestas individuales, cards filtrables por estado, importacion via modal y un indicador minimo de vinculacion WhatsApp con punto rojo/verde.
+- La tabla operativa de `/encuestas` debe mantenerse compacta: sin columnas de archivo ni acciones administrativas en la grilla principal, con `Estado` al final y preferentemente representado con iconos para lectura rapida.
+- La grilla principal de `/encuestas` debe mantener tambien el alineado vertical centrado entre texto, botones e iconos para evitar filas visualmente desparejas.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
@@ -144,6 +150,7 @@ Admin-only collapsible sections:
   - `Obras sociales`
   - `Codigos`
   - `Tipos de movimientos`
+  - `Mensajes encuestas`
   - `Usuarios`
 - `Finanzas`
   - `Liquidaciones`
