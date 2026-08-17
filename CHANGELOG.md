@@ -33,6 +33,7 @@
 - La tabla principal de `/encuestas` ahora es mas compacta: se quitaron las columnas `Archivo` y `Accion`, el `Estado` paso al final y se representa con iconos en lugar de texto.
 - La fila de resultados de `/encuestas` ahora alinea verticalmente texto, boton de comentarios e icono de estado para que toda la tabla se vea centrada y pareja.
 - El `Dockerfile` ahora copia `scripts/patch-baileys.js` antes de cada `npm ci`, evitando que el `postinstall` falle durante la construccion de imagenes por faltar ese script dentro del contexto de cada stage.
+- El worker de WhatsApp ahora invalida eventos de sockets viejos y serializa mejor los reintentos de reconexion, reduciendo los loops internos que podian terminar en `conflict replaced` aun con una sola instancia viva.
 
 ## 2026-08-15
 

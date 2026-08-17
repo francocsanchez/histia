@@ -12,6 +12,8 @@ let workerActive = true;
 let socketBooting = false;
 let socketConnected = false;
 let workerOwnsLease = false;
+let socketGeneration = 0;
+let reconnectTimer = null;
 let currentSocket = null;
 const workerInstanceId = `${(0, node_os_1.hostname)()}:${process.pid}`;
 const WORKER_LEASE_TTL_MS = 30_000;
@@ -22,6 +24,22 @@ const logger = {
     warn: (...args) => console.warn("[whatsapp-worker][warn]", ...args),
     error: (...args) => console.error("[whatsapp-worker][error]", ...args),
 };
+function clearReconnectTimer() {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
+}
+function scheduleReconnect(delayMs) {
+    if (!workerActive || !workerOwnsLease) {
+        return;
+    }
+    clearReconnectTimer();
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void bootSocket();
+    }, delayMs);
+}
 async function createMongoAuthState(baileys) {
     const records = await (0, surveys_1.getStoredWhatsAppAuthRecords)();
     const recordMap = new Map(records.map((record) => [record.key, record.value]));
@@ -76,6 +94,7 @@ async function createMongoAuthState(baileys) {
     };
 }
 async function disconnectSocket() {
+    clearReconnectTimer();
     if (!currentSocket) {
         await (0, surveys_1.clearWhatsAppAuthState)();
         return;
@@ -97,6 +116,8 @@ async function bootSocket() {
         return;
     }
     socketBooting = true;
+    clearReconnectTimer();
+    const generation = ++socketGeneration;
     try {
         const baileys = (await import("@whiskeysockets/baileys"));
         const { state, saveCreds } = await createMongoAuthState(baileys);
@@ -119,10 +140,16 @@ async function bootSocket() {
         });
         currentSocket = sock;
         sock.ev.on("creds.update", () => {
+            if (generation !== socketGeneration) {
+                return;
+            }
             void saveCreds();
         });
         sock.ev.on("connection.update", (...args) => {
             void (async () => {
+                if (generation !== socketGeneration) {
+                    return;
+                }
                 const update = (args[0] ?? {});
                 const qr = typeof update.qr === "string" ? update.qr : null;
                 const connection = typeof update.connection === "string" ? update.connection : null;
@@ -137,6 +164,7 @@ async function bootSocket() {
                     });
                 }
                 if (connection === "open") {
+                    clearReconnectTimer();
                     socketConnected = true;
                     const phoneNumber = sock.user?.id?.split(":")[0] ?? sock.user?.id?.split("@")[0] ?? null;
                     await (0, surveys_1.updateWhatsAppConnectionState)({
@@ -149,6 +177,9 @@ async function bootSocket() {
                     });
                 }
                 if (connection === "close") {
+                    if (generation !== socketGeneration) {
+                        return;
+                    }
                     socketConnected = false;
                     currentSocket = null;
                     if (statusCode === baileys.DisconnectReason.loggedOut) {
@@ -170,9 +201,7 @@ async function bootSocket() {
                             lastError: "WhatsApp cerro la sesion porque otra instancia intento usar el mismo numero. Deja solo un worker activo y prepara un nuevo QR si hace falta.",
                             disconnected: true,
                         });
-                        setTimeout(() => {
-                            void bootSocket();
-                        }, 10_000);
+                        scheduleReconnect(15_000);
                         return;
                     }
                     await (0, surveys_1.updateWhatsAppConnectionState)({
@@ -180,14 +209,15 @@ async function bootSocket() {
                         lastError: `WhatsApp se desconecto (codigo ${statusCode || "desconocido"})`,
                         disconnected: true,
                     });
-                    setTimeout(() => {
-                        void bootSocket();
-                    }, 5_000);
+                    scheduleReconnect(5_000);
                 }
             })();
         });
         sock.ev.on("messages.upsert", (...args) => {
             void (async () => {
+                if (generation !== socketGeneration) {
+                    return;
+                }
                 const event = (args[0] ?? {});
                 const messages = Array.isArray(event.messages) ? event.messages : [];
                 for (const item of messages) {
@@ -217,18 +247,21 @@ async function bootSocket() {
         });
     }
     catch (error) {
+        if (generation !== socketGeneration) {
+            return;
+        }
         socketConnected = false;
         currentSocket = null;
         await (0, surveys_1.updateWhatsAppConnectionState)({
             status: "error",
             lastError: error instanceof Error ? error.message : String(error),
         });
-        setTimeout(() => {
-            void bootSocket();
-        }, 10_000);
+        scheduleReconnect(10_000);
     }
     finally {
-        socketBooting = false;
+        if (generation === socketGeneration) {
+            socketBooting = false;
+        }
     }
 }
 async function sendPendingSurveyIfPossible() {
@@ -264,6 +297,8 @@ async function workerLoop() {
                 ttlMs: WORKER_LEASE_TTL_MS,
             });
             if (!workerOwnsLease) {
+                clearReconnectTimer();
+                socketGeneration += 1;
                 socketBooting = false;
                 socketConnected = false;
                 currentSocket = null;
@@ -324,6 +359,8 @@ async function main() {
 }
 function shutdown(signal) {
     workerActive = false;
+    clearReconnectTimer();
+    socketGeneration += 1;
     void (0, surveys_1.releaseWhatsAppWorkerLease)(workerInstanceId);
     console.log(`[whatsapp-worker] cerrando por ${signal}`);
 }

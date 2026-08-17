@@ -64,6 +64,8 @@ let workerActive = true;
 let socketBooting = false;
 let socketConnected = false;
 let workerOwnsLease = false;
+let socketGeneration = 0;
+let reconnectTimer: NodeJS.Timeout | null = null;
 let currentSocket:
   | {
       sendMessage: (
@@ -83,6 +85,25 @@ const logger = {
   warn: (...args: unknown[]) => console.warn("[whatsapp-worker][warn]", ...args),
   error: (...args: unknown[]) => console.error("[whatsapp-worker][error]", ...args),
 };
+
+function clearReconnectTimer() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function scheduleReconnect(delayMs: number) {
+  if (!workerActive || !workerOwnsLease) {
+    return;
+  }
+
+  clearReconnectTimer();
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void bootSocket();
+  }, delayMs);
+}
 
 async function createMongoAuthState(baileys: AuthStateModule) {
   const records = await getStoredWhatsAppAuthRecords();
@@ -147,6 +168,8 @@ async function createMongoAuthState(baileys: AuthStateModule) {
 }
 
 async function disconnectSocket() {
+  clearReconnectTimer();
+
   if (!currentSocket) {
     await clearWhatsAppAuthState();
     return;
@@ -170,6 +193,8 @@ async function bootSocket() {
   }
 
   socketBooting = true;
+  clearReconnectTimer();
+  const generation = ++socketGeneration;
 
   try {
     const baileys = (await import("@whiskeysockets/baileys")) as unknown as AuthStateModule;
@@ -199,11 +224,19 @@ async function bootSocket() {
     currentSocket = sock;
 
     sock.ev.on("creds.update", () => {
+      if (generation !== socketGeneration) {
+        return;
+      }
+
       void saveCreds();
     });
 
     sock.ev.on("connection.update", (...args: unknown[]) => {
       void (async () => {
+        if (generation !== socketGeneration) {
+          return;
+        }
+
         const update = (args[0] ?? {}) as Record<string, unknown>;
         const qr = typeof update.qr === "string" ? update.qr : null;
         const connection = typeof update.connection === "string" ? update.connection : null;
@@ -222,6 +255,7 @@ async function bootSocket() {
         }
 
         if (connection === "open") {
+          clearReconnectTimer();
           socketConnected = true;
           const phoneNumber = sock.user?.id?.split(":")[0] ?? sock.user?.id?.split("@")[0] ?? null;
 
@@ -236,6 +270,10 @@ async function bootSocket() {
         }
 
         if (connection === "close") {
+          if (generation !== socketGeneration) {
+            return;
+          }
+
           socketConnected = false;
           currentSocket = null;
 
@@ -261,9 +299,7 @@ async function bootSocket() {
               disconnected: true,
             });
 
-            setTimeout(() => {
-              void bootSocket();
-            }, 10_000);
+            scheduleReconnect(15_000);
             return;
           }
 
@@ -273,15 +309,17 @@ async function bootSocket() {
             disconnected: true,
           });
 
-          setTimeout(() => {
-            void bootSocket();
-          }, 5_000);
+          scheduleReconnect(5_000);
         }
       })();
     });
 
     sock.ev.on("messages.upsert", (...args: unknown[]) => {
       void (async () => {
+        if (generation !== socketGeneration) {
+          return;
+        }
+
         const event = (args[0] ?? {}) as Record<string, unknown>;
         const messages = Array.isArray(event.messages) ? event.messages : [];
 
@@ -325,6 +363,10 @@ async function bootSocket() {
       })();
     });
   } catch (error) {
+    if (generation !== socketGeneration) {
+      return;
+    }
+
     socketConnected = false;
     currentSocket = null;
 
@@ -333,11 +375,11 @@ async function bootSocket() {
       lastError: error instanceof Error ? error.message : String(error),
     });
 
-    setTimeout(() => {
-      void bootSocket();
-    }, 10_000);
+    scheduleReconnect(10_000);
   } finally {
-    socketBooting = false;
+    if (generation === socketGeneration) {
+      socketBooting = false;
+    }
   }
 }
 
@@ -380,6 +422,8 @@ async function workerLoop() {
       });
 
       if (!workerOwnsLease) {
+        clearReconnectTimer();
+        socketGeneration += 1;
         socketBooting = false;
         socketConnected = false;
         currentSocket = null;
@@ -453,6 +497,8 @@ async function main() {
 
 function shutdown(signal: string) {
   workerActive = false;
+  clearReconnectTimer();
+  socketGeneration += 1;
   void releaseWhatsAppWorkerLease(workerInstanceId);
   console.log(`[whatsapp-worker] cerrando por ${signal}`);
 }
