@@ -1,5 +1,8 @@
 # Histia Agent Guide
 
+# npm cli
+Siempre correr el npm ci localmente para evitar inconvenientes en el build de la imagen en github
+
 # Sugerencia commit
 
 Siempre debes actualizar el CHANGELOG.md de este proyecto y una vez de hacer eso debes sugerir el commit mostrando el mensaje en pantalla para que el usuario tenga una opcion para crear el commit. Y tambien deberas actualizar este archivo (AGENTS.md) para tener contexto.
@@ -30,6 +33,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - `/encuestas` ya no debe organizar el trabajo alrededor del historial de campañas visible: la vista principal ahora usa una tabla plana de encuestas individuales, cards filtrables por estado, importacion via modal y un indicador minimo de vinculacion WhatsApp con punto rojo/verde.
 - La tabla operativa de `/encuestas` debe mantenerse compacta: sin columnas de archivo ni acciones administrativas en la grilla principal, con `Estado` al final y preferentemente representado con iconos para lectura rapida.
 - La grilla principal de `/encuestas` debe mantener tambien el alineado vertical centrado entre texto, botones e iconos para evitar filas visualmente desparejas.
+- Como `postinstall` ejecuta `scripts/patch-baileys.js`, cualquier stage de Docker que haga `npm ci` debe copiar ese archivo antes de instalar dependencias; si no, la imagen falla incluso con `package.json` y `package-lock.json` correctos.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
