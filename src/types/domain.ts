@@ -89,6 +89,130 @@ export interface DashboardStatsDto {
   usuariosActivos: number;
 }
 
+export const surveyCampaignStatusValues = [
+  "draft",
+  "ready",
+  "running",
+  "paused",
+  "completed",
+  "cancelled",
+  "error",
+] as const;
+
+export type SurveyCampaignStatus = (typeof surveyCampaignStatusValues)[number];
+
+export const surveyStatusValues = [
+  "queued",
+  "leased_for_send",
+  "waiting_rating",
+  "waiting_comment_opt_in",
+  "waiting_comment_text",
+  "completed",
+  "no_response",
+  "cancelled",
+  "send_failed",
+  "delivery_unknown",
+] as const;
+
+export type SurveyStatus = (typeof surveyStatusValues)[number];
+
+export interface SurveyDto {
+  id: string;
+  campaignId: string;
+  patientNameSnapshot: string;
+  doctorNameSnapshot: string;
+  phoneMasked: string;
+  attendanceAt: string;
+  status: SurveyStatus;
+  rating: number | null;
+  comment: string | null;
+  sendAttemptCount: number;
+  invalidReplyCount: number;
+  sentAt: string | null;
+  completedAt: string | null;
+  technicalError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SurveyCampaignDto {
+  id: string;
+  fileName: string;
+  importedByUserId: string;
+  importedByUserName: string;
+  status: SurveyCampaignStatus;
+  totalRows: number;
+  validRows: number;
+  duplicateRows: number;
+  invalidRows: number;
+  queuedCount: number;
+  waitingCount: number;
+  completedCount: number;
+  noResponseCount: number;
+  cancelledCount: number;
+  sendFailedCount: number;
+  deliveryUnknownCount: number;
+  startedAt: string | null;
+  pausedAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SurveyDashboardTotalsDto {
+  queued: number;
+  waiting: number;
+  completed: number;
+  noResponse: number;
+  sendFailed: number;
+  deliveryUnknown: number;
+}
+
+export interface SurveyDashboardDto {
+  totalsToday: SurveyDashboardTotalsDto;
+  campaigns: SurveyCampaignDto[];
+  pagination: PaginationResult;
+}
+
+export interface SurveySettingsDto {
+  surveysEnabled: boolean;
+  globalPause: boolean;
+  phoneForAppointments: string;
+  sendIntervalSeconds: number;
+  sendWindowStart: string;
+  sendWindowEnd: string;
+  noResponseTimeoutHours: number;
+  technicalRetryLimit: number;
+  surveyIntroTemplate: string;
+  commentOptInTemplate: string;
+  commentRequestTemplate: string;
+  thankYouTemplate: string;
+  invalidRatingTemplate: string;
+  invalidCommentOptInTemplate: string;
+  unsupportedCommentTemplate: string;
+  spontaneousMessageTemplate: string;
+  updatedAt: string;
+}
+
+export interface WhatsAppConnectionDto {
+  status:
+    | "disconnected"
+    | "connecting"
+    | "qr_required"
+    | "connected"
+    | "disconnecting"
+    | "error";
+  phoneNumber: string | null;
+  qrDataUrl: string | null;
+  qrExpiresAt: string | null;
+  lastConnectedAt: string | null;
+  lastDisconnectedAt: string | null;
+  lastError: string | null;
+  disconnectRequestedAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface DashboardUserOptionDto {
   id: string;
   label: string;

@@ -15,6 +15,21 @@ services:
       start_period: 30s
     networks:
       - histia_network
+  histia-whatsapp-worker:
+    container_name: histia-whatsapp-worker
+    image: ghcr.io/francocsanchez/histia:latest
+    env_file:
+      - .env.production
+    command: ["node", "dist/scripts/whatsapp-worker.js"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3010 >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - histia_network
 
 networks:
   histia_network:

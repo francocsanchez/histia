@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-08-17
+
+### Added
+
+- Nuevo modulo administrativo `Encuestas` con importacion manual de Excel `.xlsx/.xls`, preview validado, creacion de campanas y panel de control integrado en HISTIA.
+- Nuevas APIs de encuestas para preview, campañas, cancelacion individual, configuracion operativa y estado de conexion WhatsApp.
+- Worker dedicado `histia-whatsapp-worker` con healthcheck propio para mantener la sesion de WhatsApp, procesar respuestas y enviar encuestas de forma gradual sin depender del navegador.
+- Persistencia nueva en MongoDB para campañas, encuestas, configuracion de encuestas, sesion de WhatsApp y control de mensajes espontaneos.
+
+### Changed
+
+- La navegacion principal ahora incluye la entrada `Encuestas`, visible solo para administradores.
+- La configuracion de entorno y los ejemplos de produccion ahora contemplan `WHATSAPP_WORKER_PORT`.
+- El flujo de despliegue `histia-update` y `compose.yaml` ahora levantan y validan tanto `histia-app` como `histia-whatsapp-worker`.
+- La tarjeta de WhatsApp en `Encuestas` ahora incluye un boton `Vincular numero` que abre una pestaña dedicada con el estado y el QR de vinculacion.
+- El flujo de vinculacion de WhatsApp ahora permite `Preparar QR`/`Preparar QR nuevo` y corrige el caso en que el estado quedaba trabado en `disconnecting` sin volver a generar QR.
+- El entorno local ahora levanta `next dev` y el worker de WhatsApp juntos desde `npm run dev`, evitando que la UI quede sin QR por falta de proceso `histia-whatsapp-worker`.
+- La importacion de encuestas ahora normaliza encabezados del Excel sin depender de mayusculas/minusculas, por lo que columnas como `Paciente` y `Doctor` se procesan correctamente.
+- La normalizacion telefonica de encuestas ahora persiste celulares argentinos en formato WhatsApp `549...` de manera consistente.
+- El worker de WhatsApp ahora usa un lease en MongoDB para evitar que dos instancias tomen la misma sesion y disparen desconexiones `440` por reemplazo de conexion.
+- El boton `Vincular numero` ahora abre la pantalla dedicada con una URL absoluta y fallback a la misma pestaña, evitando errores genericos del navegador embebido al intentar abrir una nueva pestaña.
+- La instalacion ahora aplica un `postinstall` que parchea `Baileys` para tolerar ACKs antes del login y refrescar el QR cuando WhatsApp envia `companion_reg_refresh`, evitando fallos de vinculacion despues del escaneo.
+- El lease del worker de WhatsApp ahora reutiliza el documento singleton existente y evita choques por `duplicate key` durante reinicios o reemplazos breves del proceso.
+- El worker de WhatsApp ahora tolera en desarrollo que el puerto `3010` ya este ocupado por un proceso previo, evitando que `npm run dev` se caiga entero solo por el healthcheck local.
+- El worker de WhatsApp ahora resuelve el telefono de respuestas entrantes tambien desde JIDs alternativos de Baileys, evitando que encuestas validas queden trabadas en `waiting_rating` cuando el paciente ya respondio.
+- La recreacion de campañas ahora permite volver a importar la misma atencion si la encuesta previa habia sido cancelada, limpiando ese registro cancelado para habilitar un nuevo test o reenvio controlado.
+
 ## 2026-08-15
 
 ### Changed

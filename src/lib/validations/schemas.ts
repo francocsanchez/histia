@@ -6,6 +6,7 @@ import {
   paymentStatusValues,
   referrerTypeValues,
   rxTypeValues,
+  surveyCampaignStatusValues,
   userRoleValues,
 } from "@/types/domain";
 
@@ -258,4 +259,55 @@ export const movementUpdateSchema = z.object({
 export const movementTypeSchema = z.object({
   nombre: z.string().min(1, "El nombre es obligatorio"),
   direccion: z.enum(movementDirectionValues),
+});
+
+export const surveyPreviewRowSchema = z.object({
+  previewId: z.string().min(1),
+  rowNumber: z.coerce.number().int().min(2),
+  patientNameSnapshot: z.string().min(1),
+  doctorNameSnapshot: z.string().min(1),
+  phoneRaw: z.string().min(1),
+  phoneE164: z.string().min(1),
+  attendanceAt: z.string().datetime(),
+  selected: z.boolean(),
+  valid: z.boolean(),
+  duplicate: z.boolean(),
+  errors: z.array(z.string()),
+});
+
+export const surveyCampaignCreateSchema = z.object({
+  fileName: z.string().min(1, "El nombre del archivo es obligatorio"),
+  rows: z.array(surveyPreviewRowSchema).min(1, "Debes enviar el preview"),
+});
+
+export const surveyCampaignActionSchema = z.object({
+  action: z.enum(["start", "pause", "resume", "cancel"]),
+});
+
+export const surveyDashboardFilterSchema = z.object({
+  status: z.enum(surveyCampaignStatusValues).optional(),
+  search: z.string().optional(),
+});
+
+export const surveyCancelSchema = z.object({
+  surveyId: z.string().min(1, "La encuesta es obligatoria"),
+});
+
+export const surveySettingsSchema = z.object({
+  surveysEnabled: z.boolean(),
+  globalPause: z.boolean(),
+  phoneForAppointments: z.string().min(1, "El numero de turnos es obligatorio"),
+  sendIntervalSeconds: z.coerce.number().int().min(15).max(3600),
+  sendWindowStart: z.string().regex(/^\d{2}:\d{2}$/),
+  sendWindowEnd: z.string().regex(/^\d{2}:\d{2}$/),
+  noResponseTimeoutHours: z.coerce.number().int().min(1).max(168),
+  technicalRetryLimit: z.coerce.number().int().min(0).max(10),
+  surveyIntroTemplate: z.string().min(1),
+  commentOptInTemplate: z.string().min(1),
+  commentRequestTemplate: z.string().min(1),
+  thankYouTemplate: z.string().min(1),
+  invalidRatingTemplate: z.string().min(1),
+  invalidCommentOptInTemplate: z.string().min(1),
+  unsupportedCommentTemplate: z.string().min(1),
+  spontaneousMessageTemplate: z.string().min(1),
 });

@@ -10,6 +10,20 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - En `RX`, los importes visibles para carga y edicion se ingresan en pesos con mascara monetaria, aunque la persistencia interna siga siendo en centavos.
 - En el listado de `RX`, la columna operativa visible debe priorizar la obra social del paciente y no mostrar `Generada por`.
 - En el formulario de `RX`, no se muestra `Usuario generador`; el origen del derivante debe verse compacto en una sola linea cuando sea posible.
+- Existe un nuevo modulo admin-only `Encuestas` con importacion manual de Excel, campañas de WhatsApp y worker dedicado `histia-whatsapp-worker` separado de `histia-app`.
+- La sesion de WhatsApp para `Encuestas` se persiste en MongoDB; el numero se usa solo para encuestas y no se almacena historial completo de conversacion, solo estados y respuestas.
+- `Encuestas` ahora tiene una pantalla dedicada `/encuestas/vincular` para operar la vinculacion del numero y mostrar el QR en una pestaña separada.
+- Si la vinculacion de `Encuestas` queda en `disconnecting`, el flujo correcto ahora es `Preparar QR`, que limpia el estado y deja al worker regenerar un QR nuevo.
+- En desarrollo local, `npm run dev` ahora debe levantar tanto la app como el worker de WhatsApp para que `Encuestas` pueda mostrar QR y estado real sin pasos manuales extra.
+- La importacion de `Encuestas` debe normalizar los encabezados del Excel antes de mapear filas, porque los archivos reales pueden traer `Paciente` y `Doctor` con mayusculas iniciales.
+- Los telefonos de `Encuestas` deben persistirse en formato WhatsApp argentino `549...`; no alcanza con un numero argentino valido si queda como linea fija `54...`.
+- El worker de `Encuestas` debe tomar un lease en MongoDB antes de abrir Baileys para evitar sesiones pisadas y errores `440` cuando aparezcan multiples instancias por error.
+- El acceso a `/encuestas/vincular` desde la card principal debe abrirse con un enlace absoluto y fallback en la misma pestaña, porque `window.open` solo puede fallar dentro del navegador embebido con mensajes genericos de conexion.
+- La vinculacion QR de `Encuestas` depende hoy de un `postinstall` que parchea `@whiskeysockets/baileys` para cubrir el ACK pre-login y el `companion_reg_refresh`; sin ese parche el telefono puede escanear el QR y aun asi mostrar error de conexion.
+- Al reiniciar el worker de `Encuestas`, el lease de Mongo no debe crear otro singleton: hay que reutilizar el documento `whatsappConnection` existente para evitar `E11000 duplicate key` durante reemplazos cortos del proceso.
+- En desarrollo, si el puerto `3010` ya quedo tomado por un worker previo, el health server de `Encuestas` no debe tirar abajo `npm run dev`; tiene que avisar y continuar.
+- Las respuestas entrantes de `Encuestas` no deben depender solo de `remoteJid @s.whatsapp.net`; con Baileys actual pueden venir por `@lid` con telefono en campos alternativos y hay que resolverlos para no dejar la encuesta clavada en `waiting_rating`.
+- Si una encuesta de `Encuestas` fue cancelada por admin, se debe permitir recrear la misma atencion en una nueva campaña; para eso hay que limpiar el registro cancelado previo antes de insertar el nuevo, manteniendo el bloqueo solo para duplicados no cancelados.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
@@ -38,6 +52,7 @@ Current implemented scope as of August 10, 2026:
 - Tipos de movimientos catalog
 - Dashboard operativo mensual en `Inicio`
 - Dashboard administrativo de indicadores
+- Encuestas de satisfaccion por WhatsApp
 
 Out of scope:
 

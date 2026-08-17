@@ -3,6 +3,7 @@ import { SessionUser, UserRole } from "@/types/domain";
 export type ResourceKey =
   | "dashboard"
   | "admin-dashboard"
+  | "encuestas"
   | "rx"
   | "atenciones"
   | "liquidaciones"
@@ -44,6 +45,7 @@ export function can(
   }
 
   if (
+    resource === "encuestas" ||
     resource === "admin-dashboard" ||
     resource === "liquidaciones" ||
     resource === "pagos" ||
