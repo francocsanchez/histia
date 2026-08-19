@@ -17,6 +17,7 @@
 - La vinculacion de WhatsApp ahora registra eventos recientes en MongoDB y los expone en la pantalla `/encuestas/vincular`, permitiendo rastrear resets, cierres, QR tardios ignorados, perdidas de lease y errores del worker sin depender solo de `docker logs`.
 - El log visual de `/encuestas/vincular` ahora suma resumen operativo, detalles JSON por evento y un boton `Copiar log`, pensado para poder diagnosticar fallos tambien desde produccion sin entrar al servidor.
 - El worker de WhatsApp ahora serializa las escrituras de credenciales en MongoDB, registra el ultimo envio intentado en los eventos de cierre y, ante un `401/logged_out`, activa `globalPause` y pausa las campañas `running` para evitar que la operacion siga como si la sesion siguiera valida.
+- La vista principal de `/encuestas` ahora expone un boton rapido de `Pausar envios` / `Reanudar envios`, para poder volver a vincular WhatsApp sin disparar mensajes automaticamente mientras la cuenta sigue restringida o bajo revision.
 
 ## 2026-08-17
 

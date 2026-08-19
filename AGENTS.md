@@ -41,6 +41,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - `Desvincular` en `Encuestas` debe entenderse como reset total de la sesion: limpia el numero visible enseguida, deja la integracion en `stopped` y obliga a generar un QR nuevo para volver a vincular.
 - La pantalla `/encuestas/vincular` debe ofrecer tambien un log visible y copiable desde la propia UI, incluyendo `details` de cada evento, para poder diagnosticar problemas en produccion sin depender de `docker logs` o Mongo manual.
 - Si WhatsApp devuelve un corte terminal `logged_out`, el worker ahora debe dejar trazado el ultimo envio intentado y activar una pausa operativa (`globalPause` + campañas `running` a `paused`) para que el equipo revise la sesion antes de retomar envios.
+- La pantalla principal `/encuestas` debe ofrecer ademas un control rapido de pausa global de envios, visible junto a `Vincular numero`, para poder escanear un QR nuevo sin que arranque un envio automatico apenas vuelva la sesion.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

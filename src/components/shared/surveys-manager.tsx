@@ -18,7 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/utils";
-import { SurveyDto, WhatsAppConnectionDto } from "@/types/domain";
+import { SurveyDto, SurveySettingsDto, WhatsAppConnectionDto } from "@/types/domain";
 
 type PreviewRow = {
   previewId: string;
@@ -60,6 +60,12 @@ type SurveyListPayload = {
 type WhatsAppPayload = {
   success: boolean;
   data: WhatsAppConnectionDto;
+  error?: { message?: string };
+};
+
+type SettingsPayload = {
+  success: boolean;
+  data: SurveySettingsDto;
   error?: { message?: string };
 };
 
@@ -170,6 +176,9 @@ export function SurveysManager() {
   const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [whatsApp, setWhatsApp] = useState<WhatsAppConnectionDto | null>(null);
   const [whatsAppLoading, setWhatsAppLoading] = useState(true);
+  const [settings, setSettings] = useState<SurveySettingsDto | null>(null);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsSaving, setSettingsSaving] = useState(false);
   const [commentDialogSurvey, setCommentDialogSurvey] = useState<SurveyDto | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
@@ -229,6 +238,25 @@ export function SurveysManager() {
     }
   };
 
+  const loadSettings = async () => {
+    setSettingsLoading(true);
+
+    try {
+      const response = await fetch("/api/encuestas/settings", { cache: "no-store" });
+      const payload = (await response.json()) as SettingsPayload;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "No se pudo cargar la configuracion");
+      }
+
+      setSettings(payload.data);
+    } catch (error) {
+      setSurveysError(error instanceof Error ? error.message : "Error inesperado");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
   const loadSurveysFromEffect = useEffectEvent(async () => {
     await loadSurveys();
   });
@@ -237,10 +265,15 @@ export function SurveysManager() {
     await loadWhatsApp();
   });
 
+  const loadSettingsFromEffect = useEffectEvent(async () => {
+    await loadSettings();
+  });
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void loadSurveysFromEffect();
       void loadWhatsAppFromEffect();
+      void loadSettingsFromEffect();
     }, 0);
 
     return () => window.clearTimeout(timeout);
@@ -379,7 +412,41 @@ export function SurveysManager() {
     setCreatingCampaign(false);
   };
 
+  const toggleGlobalPause = async () => {
+    if (!settings) {
+      return;
+    }
+
+    setSettingsSaving(true);
+    setSurveysError("");
+
+    try {
+      const response = await fetch("/api/encuestas/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...settings,
+          globalPause: !settings.globalPause,
+        }),
+      });
+      const payload = (await response.json()) as SettingsPayload;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "No se pudo actualizar la pausa de envios");
+      }
+
+      setSettings(payload.data);
+      await loadSurveys();
+    } catch (error) {
+      setSurveysError(error instanceof Error ? error.message : "Error inesperado");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
   const whatsappConnected = whatsApp?.status === "connected";
+  const sendingPaused = settings?.globalPause ?? false;
+  const controlsBusy = settingsLoading || settingsSaving;
 
   return (
     <div className="space-y-6">
@@ -409,12 +476,42 @@ export function SurveysManager() {
             <Button type="button" variant="secondary" onClick={openWhatsAppLinkTab}>
               Vincular numero
             </Button>
+            <Button
+              type="button"
+              variant={sendingPaused ? "primary" : "secondary"}
+              onClick={() => void toggleGlobalPause()}
+              disabled={controlsBusy}
+            >
+              {controlsBusy
+                ? "Actualizando..."
+                : sendingPaused
+                  ? "Reanudar envios"
+                  : "Pausar envios"}
+            </Button>
             <Button type="button" onClick={() => setImportDialogOpen(true)}>
               Importar archivo
             </Button>
           </>
         }
       />
+
+      <Card className={`p-4 ${sendingPaused ? "border-amber-300 bg-amber-50" : "bg-card"}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">
+              {sendingPaused ? "Envios pausados" : "Envios activos"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {sendingPaused
+                ? "No se enviaran mensajes nuevos aunque vuelvas a vincular WhatsApp, hasta que reanudes manualmente."
+                : "Las encuestas listas pueden enviarse automaticamente dentro del horario operativo."}
+            </p>
+          </div>
+          <Badge variant={sendingPaused ? "default" : "success"}>
+            {sendingPaused ? "Pausa global activa" : "Operacion habilitada"}
+          </Badge>
+        </div>
+      </Card>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         {filterCards.map((card) => {
