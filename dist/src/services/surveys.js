@@ -37,6 +37,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getWhatsAppConnectionControlState = getWhatsAppConnectionControlState;
+exports.appendWhatsAppConnectionEvent = appendWhatsAppConnectionEvent;
+exports.listRecentWhatsAppConnectionEvents = listRecentWhatsAppConnectionEvents;
 exports.acquireWhatsAppWorkerLease = acquireWhatsAppWorkerLease;
 exports.releaseWhatsAppWorkerLease = releaseWhatsAppWorkerLease;
 exports.previewSurveyWorkbook = previewSurveyWorkbook;
@@ -80,6 +82,7 @@ const survey_1 = require("@/models/survey");
 const user_1 = require("@/models/user");
 const whatsapp_auth_1 = require("@/models/whatsapp-auth");
 const whatsapp_connection_1 = require("@/models/whatsapp-connection");
+const whatsapp_connection_event_1 = require("@/models/whatsapp-connection-event");
 const whatsapp_contact_1 = require("@/models/whatsapp-contact");
 function extractDocumentId(value) {
     if (!value) {
@@ -165,6 +168,21 @@ function toSurveySettingsDto(document) {
         updatedAt: document.updatedAt.toISOString(),
     };
 }
+function toWhatsAppConnectionEventDto(document) {
+    return {
+        id: String(document._id),
+        source: document.source,
+        eventType: document.eventType,
+        message: document.message,
+        status: document.status,
+        desiredState: document.desiredState,
+        phoneNumber: document.phoneNumber,
+        resetNonce: document.resetNonce,
+        generation: document.generation,
+        details: document.details,
+        createdAt: document.createdAt.toISOString(),
+    };
+}
 async function ensureSurveySettingsDocument() {
     const defaults = (0, surveys_1.getDefaultSurveyTemplates)();
     return survey_settings_1.SurveySettingsModel.findOneAndUpdate({}, {
@@ -207,6 +225,42 @@ async function getWhatsAppConnectionControlState() {
         lastDisconnectCode: connection.lastDisconnectCode,
         lastDisconnectReason: connection.lastDisconnectReason,
     };
+}
+async function appendWhatsAppConnectionEvent(input) {
+    await (0, mongoose_2.connectToDatabase)();
+    await whatsapp_connection_event_1.WhatsAppConnectionEventModel.create({
+        source: input.source,
+        eventType: input.eventType,
+        message: input.message,
+        status: input.status ?? null,
+        desiredState: input.desiredState ?? null,
+        phoneNumber: input.phoneNumber ?? null,
+        resetNonce: input.resetNonce ?? null,
+        generation: input.generation ?? null,
+        details: input.details ?? null,
+    });
+    const keepCount = 200;
+    const total = await whatsapp_connection_event_1.WhatsAppConnectionEventModel.countDocuments();
+    if (total > keepCount) {
+        const removable = await whatsapp_connection_event_1.WhatsAppConnectionEventModel.find({})
+            .sort({ createdAt: -1 })
+            .skip(keepCount)
+            .select("_id")
+            .lean();
+        if (removable.length > 0) {
+            await whatsapp_connection_event_1.WhatsAppConnectionEventModel.deleteMany({
+                _id: { $in: removable.map((item) => item._id) },
+            });
+        }
+    }
+}
+async function listRecentWhatsAppConnectionEvents(limit = 20) {
+    await (0, mongoose_2.connectToDatabase)();
+    const events = await whatsapp_connection_event_1.WhatsAppConnectionEventModel.find({})
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .lean();
+    return events.map((event) => toWhatsAppConnectionEventDto(event));
 }
 async function acquireWhatsAppWorkerLease(input) {
     await (0, mongoose_2.connectToDatabase)();
@@ -525,7 +579,10 @@ async function updateSurveySettings(input) {
 }
 async function getWhatsAppConnectionStatus() {
     await (0, mongoose_2.connectToDatabase)();
-    const connection = await ensureWhatsAppConnectionDocument();
+    const [connection, recentEvents] = await Promise.all([
+        ensureWhatsAppConnectionDocument(),
+        listRecentWhatsAppConnectionEvents(20),
+    ]);
     const qrDataUrl = connection.qr
         ? await qrcode_1.default.toDataURL(connection.qr, { margin: 1, width: 320 })
         : null;
@@ -542,10 +599,13 @@ async function getWhatsAppConnectionStatus() {
         lastDisconnectReason: connection.lastDisconnectReason,
         disconnectRequestedAt: connection.disconnectRequestedAt?.toISOString() ?? null,
         updatedAt: connection.updatedAt?.toISOString() ?? null,
+        recentEvents,
     };
 }
 async function requestWhatsAppDisconnect() {
     await (0, mongoose_2.connectToDatabase)();
+    const connection = await ensureWhatsAppConnectionDocument();
+    const nextResetNonce = connection.resetNonce + 1;
     await whatsapp_connection_1.WhatsAppConnectionModel.findOneAndUpdate({ singletonKey: "main" }, {
         $set: {
             desiredState: "stopped",
@@ -566,10 +626,21 @@ async function requestWhatsAppDisconnect() {
     }, {
         upsert: true,
     });
+    await appendWhatsAppConnectionEvent({
+        source: "api",
+        eventType: "disconnect_requested",
+        message: "Se solicito la desvinculacion de WhatsApp desde la UI.",
+        status: "disconnecting",
+        desiredState: "stopped",
+        phoneNumber: connection.phoneNumber,
+        resetNonce: nextResetNonce,
+    });
     return getWhatsAppConnectionStatus();
 }
 async function prepareWhatsAppQrLinking() {
     await (0, mongoose_2.connectToDatabase)();
+    const connection = await ensureWhatsAppConnectionDocument();
+    const nextResetNonce = connection.resetNonce + 1;
     await whatsapp_connection_1.WhatsAppConnectionModel.findOneAndUpdate({ singletonKey: "main" }, {
         $set: {
             desiredState: "running",
@@ -590,6 +661,15 @@ async function prepareWhatsAppQrLinking() {
         },
     }, {
         upsert: true,
+    });
+    await appendWhatsAppConnectionEvent({
+        source: "api",
+        eventType: "prepare_qr_requested",
+        message: "Se solicito preparar un QR nuevo desde la UI.",
+        status: "disconnecting",
+        desiredState: "running",
+        phoneNumber: connection.phoneNumber,
+        resetNonce: nextResetNonce,
     });
     return getWhatsAppConnectionStatus();
 }

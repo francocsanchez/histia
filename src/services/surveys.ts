@@ -27,6 +27,7 @@ import { SurveyModel } from "@/models/survey";
 import { UserModel } from "@/models/user";
 import { WhatsAppAuthModel } from "@/models/whatsapp-auth";
 import { WhatsAppConnectionModel } from "@/models/whatsapp-connection";
+import { WhatsAppConnectionEventModel } from "@/models/whatsapp-connection-event";
 import { WhatsAppContactModel } from "@/models/whatsapp-contact";
 import { WhatsAppProvider } from "@/services/whatsapp-provider";
 import {
@@ -37,6 +38,7 @@ import {
   SurveyStatus,
   SessionUser,
   WhatsAppConnectionDto,
+  WhatsAppConnectionEventDto,
 } from "@/types/domain";
 
 function extractDocumentId(value: unknown) {
@@ -191,6 +193,34 @@ function toSurveySettingsDto(document: {
   };
 }
 
+function toWhatsAppConnectionEventDto(document: {
+  _id: unknown;
+  source: "worker" | "api" | "system";
+  eventType: string;
+  message: string;
+  status: WhatsAppConnectionDto["status"] | null;
+  desiredState: WhatsAppConnectionDto["desiredState"] | null;
+  phoneNumber: string | null;
+  resetNonce: number | null;
+  generation: number | null;
+  details: Record<string, unknown> | null;
+  createdAt: Date;
+}): WhatsAppConnectionEventDto {
+  return {
+    id: String(document._id),
+    source: document.source,
+    eventType: document.eventType,
+    message: document.message,
+    status: document.status,
+    desiredState: document.desiredState,
+    phoneNumber: document.phoneNumber,
+    resetNonce: document.resetNonce,
+    generation: document.generation,
+    details: document.details,
+    createdAt: document.createdAt.toISOString(),
+  };
+}
+
 async function ensureSurveySettingsDocument() {
   const defaults = getDefaultSurveyTemplates();
 
@@ -245,6 +275,60 @@ export async function getWhatsAppConnectionControlState() {
     lastDisconnectCode: connection.lastDisconnectCode,
     lastDisconnectReason: connection.lastDisconnectReason,
   };
+}
+
+export async function appendWhatsAppConnectionEvent(input: {
+  source: "worker" | "api" | "system";
+  eventType: string;
+  message: string;
+  status?: WhatsAppConnectionDto["status"] | null;
+  desiredState?: WhatsAppConnectionDto["desiredState"] | null;
+  phoneNumber?: string | null;
+  resetNonce?: number | null;
+  generation?: number | null;
+  details?: Record<string, unknown> | null;
+}) {
+  await connectToDatabase();
+
+  await WhatsAppConnectionEventModel.create({
+    source: input.source,
+    eventType: input.eventType,
+    message: input.message,
+    status: input.status ?? null,
+    desiredState: input.desiredState ?? null,
+    phoneNumber: input.phoneNumber ?? null,
+    resetNonce: input.resetNonce ?? null,
+    generation: input.generation ?? null,
+    details: input.details ?? null,
+  });
+
+  const keepCount = 200;
+  const total = await WhatsAppConnectionEventModel.countDocuments();
+
+  if (total > keepCount) {
+    const removable = await WhatsAppConnectionEventModel.find({})
+      .sort({ createdAt: -1 })
+      .skip(keepCount)
+      .select("_id")
+      .lean();
+
+    if (removable.length > 0) {
+      await WhatsAppConnectionEventModel.deleteMany({
+        _id: { $in: removable.map((item) => item._id) },
+      });
+    }
+  }
+}
+
+export async function listRecentWhatsAppConnectionEvents(limit = 20) {
+  await connectToDatabase();
+
+  const events = await WhatsAppConnectionEventModel.find({})
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  return events.map((event) => toWhatsAppConnectionEventDto(event));
 }
 
 export async function acquireWhatsAppWorkerLease(input: {
@@ -705,7 +789,10 @@ export async function updateSurveySettings(input: Partial<SurveySettingsDto>) {
 export async function getWhatsAppConnectionStatus() {
   await connectToDatabase();
 
-  const connection = await ensureWhatsAppConnectionDocument();
+  const [connection, recentEvents] = await Promise.all([
+    ensureWhatsAppConnectionDocument(),
+    listRecentWhatsAppConnectionEvents(20),
+  ]);
   const qrDataUrl = connection.qr
     ? await QRCode.toDataURL(connection.qr, { margin: 1, width: 320 })
     : null;
@@ -723,11 +810,15 @@ export async function getWhatsAppConnectionStatus() {
     lastDisconnectReason: connection.lastDisconnectReason,
     disconnectRequestedAt: connection.disconnectRequestedAt?.toISOString() ?? null,
     updatedAt: connection.updatedAt?.toISOString() ?? null,
+    recentEvents,
   } satisfies WhatsAppConnectionDto;
 }
 
 export async function requestWhatsAppDisconnect() {
   await connectToDatabase();
+
+  const connection = await ensureWhatsAppConnectionDocument();
+  const nextResetNonce = connection.resetNonce + 1;
 
   await WhatsAppConnectionModel.findOneAndUpdate(
     { singletonKey: "main" },
@@ -754,11 +845,24 @@ export async function requestWhatsAppDisconnect() {
     },
   );
 
+  await appendWhatsAppConnectionEvent({
+    source: "api",
+    eventType: "disconnect_requested",
+    message: "Se solicito la desvinculacion de WhatsApp desde la UI.",
+    status: "disconnecting",
+    desiredState: "stopped",
+    phoneNumber: connection.phoneNumber,
+    resetNonce: nextResetNonce,
+  });
+
   return getWhatsAppConnectionStatus();
 }
 
 export async function prepareWhatsAppQrLinking() {
   await connectToDatabase();
+  const connection = await ensureWhatsAppConnectionDocument();
+  const nextResetNonce = connection.resetNonce + 1;
+
   await WhatsAppConnectionModel.findOneAndUpdate(
     { singletonKey: "main" },
     {
@@ -784,6 +888,16 @@ export async function prepareWhatsAppQrLinking() {
       upsert: true,
     },
   );
+
+  await appendWhatsAppConnectionEvent({
+    source: "api",
+    eventType: "prepare_qr_requested",
+    message: "Se solicito preparar un QR nuevo desde la UI.",
+    status: "disconnecting",
+    desiredState: "running",
+    phoneNumber: connection.phoneNumber,
+    resetNonce: nextResetNonce,
+  });
 
   return getWhatsAppConnectionStatus();
 }

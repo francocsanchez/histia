@@ -216,6 +216,21 @@ export interface WhatsAppConnectionDto {
   lastDisconnectReason: string | null;
   disconnectRequestedAt: string | null;
   updatedAt: string | null;
+  recentEvents: WhatsAppConnectionEventDto[];
+}
+
+export interface WhatsAppConnectionEventDto {
+  id: string;
+  source: "worker" | "api" | "system";
+  eventType: string;
+  message: string;
+  status: WhatsAppConnectionDto["status"] | null;
+  desiredState: WhatsAppConnectionDto["desiredState"] | null;
+  phoneNumber: string | null;
+  resetNonce: number | null;
+  generation: number | null;
+  details: Record<string, unknown> | null;
+  createdAt: string;
 }
 
 export interface DashboardUserOptionDto {

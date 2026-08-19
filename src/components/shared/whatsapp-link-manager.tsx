@@ -241,6 +241,47 @@ export function WhatsAppLinkManager() {
           </Card>
         </div>
       ) : null}
+
+      {!loading && !error && data ? (
+        <Card className="space-y-4 p-6">
+          <div>
+            <h2 className="text-xl font-semibold">Log de vinculacion</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Eventos recientes del worker y de la UI para rastrear la sesion de WhatsApp.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            {data.recentEvents.length === 0 ? (
+              <Card className="p-4 text-sm text-muted-foreground">
+                Todavia no hay eventos registrados para esta sesion.
+              </Card>
+            ) : (
+              data.recentEvents.map((event) => (
+                <Card key={event.id} className="space-y-2 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <Badge variant="muted">{event.source}</Badge>
+                      <Badge variant="default">{event.eventType}</Badge>
+                      {event.status ? <Badge variant="default">{event.status}</Badge> : null}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{formatDate(event.createdAt)}</p>
+                  </div>
+
+                  <p className="text-sm">{event.message}</p>
+
+                  <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                    <span>desiredState: {event.desiredState ?? "-"}</span>
+                    <span>resetNonce: {event.resetNonce ?? "-"}</span>
+                    <span>generation: {event.generation ?? "-"}</span>
+                    <span>numero: {event.phoneNumber ?? "-"}</span>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

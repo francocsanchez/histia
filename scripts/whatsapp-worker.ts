@@ -5,6 +5,7 @@ import { loadEnvConfig } from "@next/env";
 
 import {
   acquireWhatsAppWorkerLease,
+  appendWhatsAppConnectionEvent,
   buildSurveyIntroMessage,
   clearWhatsAppAuthState,
   ensureSurveySettingsForWorker,
@@ -93,6 +94,55 @@ const logger = {
   warn: (...args: unknown[]) => console.warn("[whatsapp-worker][warn]", ...args),
   error: (...args: unknown[]) => console.error("[whatsapp-worker][error]", ...args),
 };
+
+function sanitizeDetails(details: Record<string, unknown> | null | undefined) {
+  if (!details) {
+    return null;
+  }
+
+  return JSON.parse(
+    JSON.stringify(details, (_, value) => {
+      if (value instanceof Error) {
+        return {
+          name: value.name,
+          message: value.message,
+          stack: value.stack,
+        };
+      }
+
+      return value;
+    }),
+  ) as Record<string, unknown>;
+}
+
+async function traceEvent(input: {
+  eventType: string;
+  message: string;
+  status?: "disconnected" | "connecting" | "qr_required" | "connected" | "disconnecting" | "error";
+  desiredState?: "running" | "stopped";
+  phoneNumber?: string | null;
+  resetNonce?: number | null;
+  generation?: number | null;
+  details?: Record<string, unknown> | null;
+}) {
+  logger.info(input.message, input.details ?? {});
+
+  try {
+    await appendWhatsAppConnectionEvent({
+      source: "worker",
+      eventType: input.eventType,
+      message: input.message,
+      status: input.status,
+      desiredState: input.desiredState ?? currentDesiredState,
+      phoneNumber: input.phoneNumber ?? null,
+      resetNonce: input.resetNonce ?? appliedResetNonce,
+      generation: input.generation ?? socketGeneration,
+      details: sanitizeDetails(input.details),
+    });
+  } catch (error) {
+    logger.warn("no se pudo persistir el evento de WhatsApp", error);
+  }
+}
 
 function clearReconnectTimer() {
   if (reconnectTimer) {
@@ -237,6 +287,17 @@ async function applyTerminalDisconnect(input: {
   currentDesiredState = "stopped";
   resetReconnectBackoff();
   await clearWhatsAppAuthState();
+  await traceEvent({
+    eventType: "terminal_disconnect",
+    message: input.lastError,
+    status: "error",
+    desiredState: "stopped",
+    phoneNumber: null,
+    details: {
+      lastDisconnectCode: input.lastDisconnectCode,
+      lastDisconnectReason: input.lastDisconnectReason,
+    },
+  });
   await updateWhatsAppConnectionState({
     desiredState: "stopped",
     status: "error",
@@ -258,6 +319,13 @@ async function applyRequestedReset(input: {
   resetInProgress = true;
   currentDesiredState = input.desiredState;
   resetReconnectBackoff();
+  await traceEvent({
+    eventType: "reset_started",
+    message: `Se inicia reset de sesion hacia desiredState=${input.desiredState}.`,
+    status: "disconnecting",
+    desiredState: input.desiredState,
+    resetNonce: input.resetNonce,
+  });
 
   try {
     await closeSessionAndClearAuth();
@@ -276,6 +344,13 @@ async function applyRequestedReset(input: {
     });
 
     appliedResetNonce = input.resetNonce;
+    await traceEvent({
+      eventType: "reset_completed",
+      message: `Reset de sesion completado. Estado listo para ${input.desiredState}.`,
+      status: "disconnected",
+      desiredState: input.desiredState,
+      resetNonce: input.resetNonce,
+    });
   } finally {
     resetInProgress = false;
   }
@@ -297,6 +372,13 @@ async function bootSocket() {
   const generation = ++socketGeneration;
 
   try {
+    await traceEvent({
+      eventType: "boot_started",
+      message: "Se inicia el boot del socket de WhatsApp.",
+      status: "connecting",
+      desiredState: "running",
+      generation,
+    });
     const baileys = (await import("@whiskeysockets/baileys")) as unknown as AuthStateModule;
     const { state, saveCreds } = await createMongoAuthState(baileys);
     const latest = await (
@@ -349,6 +431,32 @@ async function bootSocket() {
         );
 
         if (qr) {
+          if (socketConnected) {
+            await traceEvent({
+              eventType: "qr_ignored_after_connected",
+              message: "Se ignora un QR tardio porque la sesion ya estaba conectada.",
+              status: "connected",
+              desiredState: "running",
+              generation,
+              details: {
+                qrLength: qr.length,
+                connection,
+              },
+            });
+            return;
+          }
+
+          await traceEvent({
+            eventType: "qr_received",
+            message: "WhatsApp emitio un QR para vinculacion.",
+            status: "qr_required",
+            desiredState: "running",
+            generation,
+            details: {
+              qrLength: qr.length,
+              connection,
+            },
+          });
           await updateWhatsAppConnectionState({
             desiredState: "running",
             status: "qr_required",
@@ -365,6 +473,14 @@ async function bootSocket() {
           resetReconnectBackoff();
           socketConnected = true;
           const phoneNumber = sock.user?.id?.split(":")[0] ?? sock.user?.id?.split("@")[0] ?? null;
+          await traceEvent({
+            eventType: "connection_open",
+            message: "La sesion de WhatsApp quedo conectada.",
+            status: "connected",
+            desiredState: "running",
+            phoneNumber,
+            generation,
+          });
 
           await updateWhatsAppConnectionState({
             desiredState: "running",
@@ -387,6 +503,17 @@ async function bootSocket() {
 
           socketConnected = false;
           currentSocket = null;
+          await traceEvent({
+            eventType: "connection_closed",
+            message: `La sesion de WhatsApp cerro la conexion con codigo ${statusCode || "desconocido"}.`,
+            status: "error",
+            desiredState: currentDesiredState,
+            generation,
+            details: {
+              statusCode,
+              connection,
+            },
+          });
 
           if (statusCode === baileys.DisconnectReason.loggedOut) {
             await applyTerminalDisconnect({
@@ -484,6 +611,16 @@ async function bootSocket() {
       lastDisconnectCode: null,
       lastDisconnectReason: "boot_error",
     });
+    await traceEvent({
+      eventType: "boot_failed",
+      message: "Fallo el arranque del socket de WhatsApp.",
+      status: "error",
+      desiredState: currentDesiredState,
+      generation,
+      details: {
+        error,
+      },
+    });
 
     scheduleReconnect();
   } finally {
@@ -534,6 +671,11 @@ async function workerLoop() {
       if (!workerOwnsLease) {
         clearReconnectTimer();
         resetReconnectBackoff();
+        await traceEvent({
+          eventType: "lease_lost",
+          message: "El worker perdio el lease de WhatsApp y libera el socket.",
+          desiredState: currentDesiredState,
+        });
         discardSocket("worker lease perdida");
         await new Promise((resolve) => setTimeout(resolve, 5_000));
         continue;
@@ -545,6 +687,19 @@ async function workerLoop() {
       if (appliedResetNonce === null) {
         appliedResetNonce =
           connectionControl.status === "disconnecting" ? connectionControl.resetNonce - 1 : connectionControl.resetNonce;
+        await traceEvent({
+          eventType: "control_state_loaded",
+          message: "El worker cargo el estado inicial de control de WhatsApp.",
+          status: connectionControl.status,
+          desiredState: connectionControl.desiredState,
+          phoneNumber: connectionControl.phoneNumber,
+          resetNonce: appliedResetNonce,
+          details: {
+            lastError: connectionControl.lastError,
+            lastDisconnectCode: connectionControl.lastDisconnectCode,
+            lastDisconnectReason: connectionControl.lastDisconnectReason,
+          },
+        });
       }
 
       if (connectionControl.resetNonce !== appliedResetNonce) {
@@ -569,6 +724,14 @@ async function workerLoop() {
       await sendPendingSurveyIfPossible();
     } catch (error) {
       logger.error("fallo el loop del worker", error);
+      await traceEvent({
+        eventType: "worker_loop_error",
+        message: "Fallo el loop principal del worker de WhatsApp.",
+        desiredState: currentDesiredState,
+        details: {
+          error,
+        },
+      });
     }
 
     await new Promise((resolve) => setTimeout(resolve, 5_000));

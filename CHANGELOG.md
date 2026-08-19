@@ -13,6 +13,7 @@
 - El worker de `Encuestas` ahora ejecuta resets ordenados, invalida generaciones viejas, corta la sesion anterior antes de abrir una nueva y solo reintenta automaticamente desconexiones transitorias con backoff controlado.
 - Los cortes terminales de WhatsApp como `loggedOut` o `connectionReplaced` ahora dejan la integracion detenida y requieren `Preparar QR nuevo`, en lugar de entrar en loops de reconexion.
 - La pantalla `/encuestas/vincular` ahora acelera el polling mientras la sesion esta conectando o esperando QR, oculta el numero fuera del estado `connected`, bloquea acciones durante resets y muestra mensajes mas claros segun el estado real.
+- La vinculacion de WhatsApp ahora registra eventos recientes en MongoDB y los expone en la pantalla `/encuestas/vincular`, permitiendo rastrear resets, cierres, QR tardios ignorados, perdidas de lease y errores del worker sin depender solo de `docker logs`.
 
 ## 2026-08-17
 

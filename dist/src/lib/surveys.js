@@ -41,6 +41,9 @@ exports.maskPhoneNumber = maskPhoneNumber;
 exports.parseSurveyAttendanceValue = parseSurveyAttendanceValue;
 exports.mapSheetRowsToPreviewRows = mapSheetRowsToPreviewRows;
 exports.buildSurveyCounters = buildSurveyCounters;
+exports.getWhatsAppReconnectDelayMs = getWhatsAppReconnectDelayMs;
+exports.getWhatsAppStatusPollingIntervalMs = getWhatsAppStatusPollingIntervalMs;
+exports.getVisibleWhatsAppPhoneNumber = getVisibleWhatsAppPhoneNumber;
 exports.isWithinSurveySendWindow = isWithinSurveySendWindow;
 exports.getWhatsappJid = getWhatsappJid;
 exports.extractPhoneE164FromWhatsAppKey = extractPhoneE164FromWhatsAppKey;
@@ -247,6 +250,22 @@ function buildSurveyCounters(surveys) {
         sendFailedCount: surveys.filter((survey) => survey.status === "send_failed").length,
         deliveryUnknownCount: surveys.filter((survey) => survey.status === "delivery_unknown").length,
     };
+}
+const WHATSAPP_RECONNECT_DELAYS_MS = [5_000, 10_000, 20_000, 30_000];
+function getWhatsAppReconnectDelayMs(attempt) {
+    return (WHATSAPP_RECONNECT_DELAYS_MS[Math.min(Math.max(attempt, 0), WHATSAPP_RECONNECT_DELAYS_MS.length - 1)] ?? WHATSAPP_RECONNECT_DELAYS_MS[WHATSAPP_RECONNECT_DELAYS_MS.length - 1]);
+}
+function getWhatsAppStatusPollingIntervalMs(status) {
+    if (status === "connected") {
+        return 10_000;
+    }
+    if (status === "qr_required" || status === "connecting" || status === "disconnecting") {
+        return 2_500;
+    }
+    return 5_000;
+}
+function getVisibleWhatsAppPhoneNumber(status, phoneNumber) {
+    return status === "connected" ? (phoneNumber ?? null) : null;
 }
 function isWithinSurveySendWindow(date = new Date(), start = "09:00", end = "18:00") {
     const formatter = new Intl.DateTimeFormat("en-CA", {
