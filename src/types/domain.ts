@@ -198,6 +198,7 @@ export interface SurveySettingsDto {
 }
 
 export interface WhatsAppConnectionDto {
+  desiredState: "running" | "stopped";
   status:
     | "disconnected"
     | "connecting"
@@ -211,6 +212,8 @@ export interface WhatsAppConnectionDto {
   lastConnectedAt: string | null;
   lastDisconnectedAt: string | null;
   lastError: string | null;
+  lastDisconnectCode: number | null;
+  lastDisconnectReason: string | null;
   disconnectRequestedAt: string | null;
   updatedAt: string | null;
 }

@@ -36,6 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getWhatsAppConnectionControlState = getWhatsAppConnectionControlState;
 exports.acquireWhatsAppWorkerLease = acquireWhatsAppWorkerLease;
 exports.releaseWhatsAppWorkerLease = releaseWhatsAppWorkerLease;
 exports.previewSurveyWorkbook = previewSurveyWorkbook;
@@ -188,9 +189,24 @@ async function ensureWhatsAppConnectionDocument() {
     return whatsapp_connection_1.WhatsAppConnectionModel.findOneAndUpdate({ singletonKey: "main" }, {
         $setOnInsert: {
             singletonKey: "main",
+            desiredState: "running",
+            resetNonce: 0,
             status: "disconnected",
         },
     }, { new: true, upsert: true, setDefaultsOnInsert: true });
+}
+async function getWhatsAppConnectionControlState() {
+    await (0, mongoose_2.connectToDatabase)();
+    const connection = await ensureWhatsAppConnectionDocument();
+    return {
+        desiredState: connection.desiredState,
+        resetNonce: connection.resetNonce,
+        status: connection.status,
+        phoneNumber: connection.phoneNumber,
+        lastError: connection.lastError,
+        lastDisconnectCode: connection.lastDisconnectCode,
+        lastDisconnectReason: connection.lastDisconnectReason,
+    };
 }
 async function acquireWhatsAppWorkerLease(input) {
     await (0, mongoose_2.connectToDatabase)();
@@ -514,6 +530,7 @@ async function getWhatsAppConnectionStatus() {
         ? await qrcode_1.default.toDataURL(connection.qr, { margin: 1, width: 320 })
         : null;
     return {
+        desiredState: connection.desiredState,
         status: connection.status,
         phoneNumber: connection.phoneNumber,
         qrDataUrl,
@@ -521,6 +538,8 @@ async function getWhatsAppConnectionStatus() {
         lastConnectedAt: connection.lastConnectedAt?.toISOString() ?? null,
         lastDisconnectedAt: connection.lastDisconnectedAt?.toISOString() ?? null,
         lastError: connection.lastError,
+        lastDisconnectCode: connection.lastDisconnectCode ?? null,
+        lastDisconnectReason: connection.lastDisconnectReason,
         disconnectRequestedAt: connection.disconnectRequestedAt?.toISOString() ?? null,
         updatedAt: connection.updatedAt?.toISOString() ?? null,
     };
@@ -529,8 +548,17 @@ async function requestWhatsAppDisconnect() {
     await (0, mongoose_2.connectToDatabase)();
     await whatsapp_connection_1.WhatsAppConnectionModel.findOneAndUpdate({ singletonKey: "main" }, {
         $set: {
+            desiredState: "stopped",
             status: "disconnecting",
             disconnectRequestedAt: new Date(),
+            qr: null,
+            qrExpiresAt: null,
+            lastError: null,
+            lastDisconnectCode: null,
+            lastDisconnectReason: null,
+        },
+        $inc: {
+            resetNonce: 1,
         },
         $setOnInsert: {
             singletonKey: "main",
@@ -541,15 +569,21 @@ async function requestWhatsAppDisconnect() {
     return getWhatsAppConnectionStatus();
 }
 async function prepareWhatsAppQrLinking() {
-    await clearWhatsAppAuthState();
+    await (0, mongoose_2.connectToDatabase)();
     await whatsapp_connection_1.WhatsAppConnectionModel.findOneAndUpdate({ singletonKey: "main" }, {
         $set: {
-            status: "disconnected",
+            desiredState: "running",
+            status: "disconnecting",
             phoneNumber: null,
             qr: null,
             qrExpiresAt: null,
             lastError: null,
+            lastDisconnectCode: null,
+            lastDisconnectReason: null,
             disconnectRequestedAt: null,
+        },
+        $inc: {
+            resetNonce: 1,
         },
         $setOnInsert: {
             singletonKey: "main",
@@ -570,6 +604,9 @@ async function updateWhatsAppConnectionState(input) {
         status: input.status,
         updatedAt: now,
     };
+    if ("desiredState" in input) {
+        update.desiredState = input.desiredState;
+    }
     if ("phoneNumber" in input) {
         update.phoneNumber = input.phoneNumber ?? null;
     }
@@ -581,6 +618,12 @@ async function updateWhatsAppConnectionState(input) {
     }
     if ("lastError" in input) {
         update.lastError = input.lastError ?? null;
+    }
+    if ("lastDisconnectCode" in input) {
+        update.lastDisconnectCode = input.lastDisconnectCode ?? null;
+    }
+    if ("lastDisconnectReason" in input) {
+        update.lastDisconnectReason = input.lastDisconnectReason ?? null;
     }
     if (input.connected) {
         update.lastConnectedAt = now;
@@ -615,6 +658,8 @@ async function clearWhatsAppAuthState() {
                 qr: null,
                 qrExpiresAt: null,
                 disconnectRequestedAt: null,
+                lastDisconnectCode: null,
+                lastDisconnectReason: null,
             },
         }, { upsert: true }),
     ]);
@@ -854,6 +899,7 @@ async function getWorkerHealthSnapshot() {
         ensureSurveySettingsDocument(),
     ]);
     return {
+        desiredState: connection.desiredState,
         status: connection.status,
         globalPause: settings.globalPause,
         surveysEnabled: settings.surveysEnabled,

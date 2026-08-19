@@ -35,6 +35,8 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - La grilla principal de `/encuestas` debe mantener tambien el alineado vertical centrado entre texto, botones e iconos para evitar filas visualmente desparejas.
 - Como `postinstall` ejecuta `scripts/patch-baileys.js`, cualquier stage de Docker que haga `npm ci` debe copiar ese archivo antes de instalar dependencias; si no, la imagen falla incluso con `package.json` y `package-lock.json` correctos.
 - El worker de `Encuestas` necesita invalidar eventos de sockets viejos al reconectar; si no, un unico proceso puede entrar en loops de `connected/logging in/conflict replaced` y parecer una colision entre instancias cuando en realidad se esta auto-pisando.
+- La sesion de WhatsApp de `Encuestas` ahora debe obedecer una intencion persistida `desiredState` (`running` o `stopped`) y un `resetNonce` en `whatsappConnection`, para que `Desvincular` detenga de verdad la integracion y `Preparar QR nuevo` fuerce un reset limpio sin que la API borre auth por su cuenta.
+- La pantalla `/encuestas/vincular` ya no debe mostrar el telefono como vinculado fuera de `connected`; durante `disconnecting`, errores o sesion detenida solo se refleja el estado real del worker y se acelera el polling para seguir la transicion de QR.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

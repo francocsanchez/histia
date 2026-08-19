@@ -8,6 +8,10 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  getVisibleWhatsAppPhoneNumber,
+  getWhatsAppStatusPollingIntervalMs,
+} from "@/lib/whatsapp-connection";
 import { formatDate } from "@/lib/utils";
 import { WhatsAppConnectionDto } from "@/types/domain";
 
@@ -59,10 +63,19 @@ export function WhatsAppLinkManager() {
   useEffect(() => {
     const interval = window.setInterval(() => {
       void load();
-    }, 10_000);
+    }, getWhatsAppStatusPollingIntervalMs(data?.status));
 
     return () => window.clearInterval(interval);
-  }, []);
+  }, [data?.status]);
+
+  const actionsLocked =
+    busy ||
+    data?.status === "disconnecting" ||
+    (data?.desiredState === "stopped" && data?.status === "connecting");
+
+  const visiblePhoneNumber = getVisibleWhatsAppPhoneNumber(data?.status, data?.phoneNumber);
+  const canDisconnect = data?.desiredState !== "stopped";
+  const canPrepareQr = data?.status !== "connecting" && data?.status !== "qr_required";
 
   const disconnectWhatsApp = async () => {
     setBusy(true);
@@ -123,7 +136,11 @@ export function WhatsAppLinkManager() {
         description="Usa esta pantalla dedicada para vincular o revisar el numero que se utilizara para las encuestas."
         actions={
           <div className="flex gap-2">
-            <Button type="button" onClick={() => void prepareQr()} disabled={busy}>
+            <Button
+              type="button"
+              onClick={() => void prepareQr()}
+              disabled={actionsLocked || !canPrepareQr}
+            >
               Preparar QR nuevo
             </Button>
             <Button type="button" variant="secondary" onClick={() => void load()}>
@@ -133,7 +150,7 @@ export function WhatsAppLinkManager() {
               type="button"
               variant="destructive"
               onClick={() => void disconnectWhatsApp()}
-              disabled={busy}
+              disabled={actionsLocked || !canDisconnect}
             >
               {busy ? "Solicitando..." : "Desvincular"}
             </Button>
@@ -162,7 +179,9 @@ export function WhatsAppLinkManager() {
             <div className="grid gap-3 md:grid-cols-2">
               <Card className="p-4">
                 <p className="text-sm text-muted-foreground">Numero vinculado</p>
-                <p className="mt-2 text-lg font-semibold">{data.phoneNumber ?? "Sin vincular"}</p>
+                <p className="mt-2 text-lg font-semibold">
+                  {visiblePhoneNumber ?? "Sin vincular"}
+                </p>
               </Card>
               <Card className="p-4">
                 <p className="text-sm text-muted-foreground">Ultima conexion</p>
@@ -184,7 +203,7 @@ export function WhatsAppLinkManager() {
               </Card>
             </div>
 
-            {data.lastError ? (
+            {data.status === "error" && data.lastError ? (
               <Card className="border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
                 {data.lastError}
               </Card>
@@ -199,7 +218,7 @@ export function WhatsAppLinkManager() {
               </p>
             </div>
 
-            {data.qrDataUrl ? (
+            {data.status === "qr_required" && data.qrDataUrl ? (
               <Image
                 src={data.qrDataUrl}
                 alt="QR de vinculacion de WhatsApp"
@@ -210,8 +229,13 @@ export function WhatsAppLinkManager() {
               />
             ) : (
               <Card className="w-full max-w-[420px] p-8 text-center text-sm text-muted-foreground">
-                No hay QR disponible en este momento. Usa `Preparar QR nuevo` y espera unos
-                segundos para que el worker vuelva a iniciar la vinculacion.
+                {data.status === "connected"
+                  ? "El numero ya esta vinculado. Si necesitas cambiar la sesion, usa `Preparar QR nuevo`."
+                  : data.status === "disconnecting"
+                    ? "Se esta limpiando la sesion actual. Espera unos segundos hasta que el worker termine de reiniciar la vinculacion."
+                    : data.desiredState === "stopped"
+                      ? "La integracion esta detenida. Usa `Preparar QR nuevo` para iniciar una vinculacion limpia."
+                      : "No hay QR disponible en este momento. Usa `Preparar QR nuevo` y espera unos segundos para que el worker vuelva a iniciar la vinculacion."}
               </Card>
             )}
           </Card>

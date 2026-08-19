@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-19
+
+### Added
+
+- Helpers puros y pruebas nuevas para la sesion de WhatsApp, cubriendo backoff de reconexion, polling de la vista de vinculacion y visibilidad del numero solo cuando la sesion esta realmente conectada.
+
+### Changed
+
+- La sesion de WhatsApp de `Encuestas` ahora usa una maquina de estados persistida en MongoDB con `desiredState`, `resetNonce` y metadata de ultimo corte para separar la intencion operativa del estado transitorio del socket.
+- Las acciones `Desvincular` y `Preparar QR nuevo` ahora se registran como comandos para el worker en lugar de limpiar la auth desde la API, evitando carreras entre la UI y Baileys.
+- El worker de `Encuestas` ahora ejecuta resets ordenados, invalida generaciones viejas, corta la sesion anterior antes de abrir una nueva y solo reintenta automaticamente desconexiones transitorias con backoff controlado.
+- Los cortes terminales de WhatsApp como `loggedOut` o `connectionReplaced` ahora dejan la integracion detenida y requieren `Preparar QR nuevo`, en lugar de entrar en loops de reconexion.
+- La pantalla `/encuestas/vincular` ahora acelera el polling mientras la sesion esta conectando o esperando QR, oculta el numero fuera del estado `connected`, bloquea acciones durante resets y muestra mensajes mas claros segun el estado real.
+
 ## 2026-08-17
 
 ### Added

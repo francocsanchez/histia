@@ -6,6 +6,7 @@ const node_os_1 = require("node:os");
 const env_1 = require("@next/env");
 const surveys_1 = require("@/services/surveys");
 const env_2 = require("@/lib/env");
+const whatsapp_connection_1 = require("@/lib/whatsapp-connection");
 const surveys_2 = require("@/lib/surveys");
 (0, env_1.loadEnvConfig)(process.cwd());
 let workerActive = true;
@@ -13,7 +14,11 @@ let socketBooting = false;
 let socketConnected = false;
 let workerOwnsLease = false;
 let socketGeneration = 0;
+let resetInProgress = false;
+let currentDesiredState = "running";
+let appliedResetNonce = null;
 let reconnectTimer = null;
+let reconnectAttempt = 0;
 let currentSocket = null;
 const workerInstanceId = `${(0, node_os_1.hostname)()}:${process.pid}`;
 const WORKER_LEASE_TTL_MS = 30_000;
@@ -30,15 +35,28 @@ function clearReconnectTimer() {
         reconnectTimer = null;
     }
 }
-function scheduleReconnect(delayMs) {
-    if (!workerActive || !workerOwnsLease) {
+function getNextReconnectDelayMs() {
+    const delay = (0, whatsapp_connection_1.getWhatsAppReconnectDelayMs)(reconnectAttempt);
+    reconnectAttempt += 1;
+    return delay;
+}
+function resetReconnectBackoff() {
+    reconnectAttempt = 0;
+}
+function scheduleReconnect() {
+    if (!workerActive || !workerOwnsLease || currentDesiredState !== "running" || resetInProgress) {
         return;
     }
+    const delayMs = getNextReconnectDelayMs();
     clearReconnectTimer();
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         void bootSocket();
     }, delayMs);
+}
+function invalidateSocketGeneration() {
+    socketGeneration += 1;
+    socketBooting = false;
 }
 async function createMongoAuthState(baileys) {
     const records = await (0, surveys_1.getStoredWhatsAppAuthRecords)();
@@ -93,10 +111,26 @@ async function createMongoAuthState(baileys) {
         },
     };
 }
-async function disconnectSocket() {
+function discardSocket(reason) {
     clearReconnectTimer();
+    invalidateSocketGeneration();
+    if (currentSocket?.end) {
+        try {
+            currentSocket.end(new Error(reason));
+        }
+        catch (error) {
+            logger.warn("no se pudo cerrar el socket local", error);
+        }
+    }
+    currentSocket = null;
+    socketConnected = false;
+}
+async function closeSessionAndClearAuth() {
+    clearReconnectTimer();
+    invalidateSocketGeneration();
     if (!currentSocket) {
         await (0, surveys_1.clearWhatsAppAuthState)();
+        socketConnected = false;
         return;
     }
     try {
@@ -111,8 +145,53 @@ async function disconnectSocket() {
     }
     await (0, surveys_1.clearWhatsAppAuthState)();
 }
+async function applyTerminalDisconnect(input) {
+    currentDesiredState = "stopped";
+    resetReconnectBackoff();
+    await (0, surveys_1.clearWhatsAppAuthState)();
+    await (0, surveys_1.updateWhatsAppConnectionState)({
+        desiredState: "stopped",
+        status: "error",
+        phoneNumber: null,
+        qr: null,
+        qrExpiresAt: null,
+        lastError: input.lastError,
+        lastDisconnectCode: input.lastDisconnectCode,
+        lastDisconnectReason: input.lastDisconnectReason,
+        disconnected: true,
+        clearDisconnectRequest: true,
+    });
+}
+async function applyRequestedReset(input) {
+    resetInProgress = true;
+    currentDesiredState = input.desiredState;
+    resetReconnectBackoff();
+    try {
+        await closeSessionAndClearAuth();
+        await (0, surveys_1.updateWhatsAppConnectionState)({
+            desiredState: input.desiredState,
+            status: "disconnected",
+            phoneNumber: null,
+            qr: null,
+            qrExpiresAt: null,
+            lastError: null,
+            lastDisconnectCode: null,
+            lastDisconnectReason: null,
+            disconnected: true,
+            clearDisconnectRequest: true,
+        });
+        appliedResetNonce = input.resetNonce;
+    }
+    finally {
+        resetInProgress = false;
+    }
+}
 async function bootSocket() {
-    if (socketBooting || !workerActive || !workerOwnsLease) {
+    if (socketBooting ||
+        !workerActive ||
+        !workerOwnsLease ||
+        resetInProgress ||
+        currentDesiredState !== "running") {
         return;
     }
     socketBooting = true;
@@ -125,10 +204,13 @@ async function bootSocket() {
             version: [0, 0, 0],
         }));
         await (0, surveys_1.updateWhatsAppConnectionState)({
+            desiredState: "running",
             status: "connecting",
             qr: null,
             qrExpiresAt: null,
             lastError: null,
+            lastDisconnectCode: null,
+            lastDisconnectReason: null,
         });
         const sock = baileys.default({
             auth: state,
@@ -157,21 +239,29 @@ async function bootSocket() {
                     ?.error?.output?.statusCode ?? 0);
                 if (qr) {
                     await (0, surveys_1.updateWhatsAppConnectionState)({
+                        desiredState: "running",
                         status: "qr_required",
                         qr,
                         qrExpiresAt: new Date(Date.now() + 60_000),
                         lastError: null,
+                        lastDisconnectCode: null,
+                        lastDisconnectReason: null,
                     });
                 }
                 if (connection === "open") {
                     clearReconnectTimer();
+                    resetReconnectBackoff();
                     socketConnected = true;
                     const phoneNumber = sock.user?.id?.split(":")[0] ?? sock.user?.id?.split("@")[0] ?? null;
                     await (0, surveys_1.updateWhatsAppConnectionState)({
+                        desiredState: "running",
                         status: "connected",
                         phoneNumber,
                         qr: null,
                         qrExpiresAt: null,
+                        lastError: null,
+                        lastDisconnectCode: null,
+                        lastDisconnectReason: null,
                         connected: true,
                         clearDisconnectRequest: true,
                     });
@@ -183,33 +273,30 @@ async function bootSocket() {
                     socketConnected = false;
                     currentSocket = null;
                     if (statusCode === baileys.DisconnectReason.loggedOut) {
-                        await (0, surveys_1.clearWhatsAppAuthState)();
-                        await (0, surveys_1.updateWhatsAppConnectionState)({
-                            status: "disconnected",
-                            phoneNumber: null,
-                            qr: null,
-                            qrExpiresAt: null,
+                        await applyTerminalDisconnect({
                             lastError: "La sesion de WhatsApp se desvinculo y requiere un nuevo QR.",
-                            disconnected: true,
-                            clearDisconnectRequest: true,
+                            lastDisconnectCode: statusCode || null,
+                            lastDisconnectReason: "logged_out",
                         });
                         return;
                     }
                     if (statusCode === baileys.DisconnectReason.connectionReplaced) {
-                        await (0, surveys_1.updateWhatsAppConnectionState)({
-                            status: "error",
+                        await applyTerminalDisconnect({
                             lastError: "WhatsApp cerro la sesion porque otra instancia intento usar el mismo numero. Deja solo un worker activo y prepara un nuevo QR si hace falta.",
-                            disconnected: true,
+                            lastDisconnectCode: statusCode || null,
+                            lastDisconnectReason: "connection_replaced",
                         });
-                        scheduleReconnect(15_000);
                         return;
                     }
                     await (0, surveys_1.updateWhatsAppConnectionState)({
+                        desiredState: "running",
                         status: "error",
                         lastError: `WhatsApp se desconecto (codigo ${statusCode || "desconocido"})`,
+                        lastDisconnectCode: statusCode || null,
+                        lastDisconnectReason: statusCode ? `code_${statusCode}` : "unknown",
                         disconnected: true,
                     });
-                    scheduleReconnect(5_000);
+                    scheduleReconnect();
                 }
             })();
         });
@@ -253,10 +340,13 @@ async function bootSocket() {
         socketConnected = false;
         currentSocket = null;
         await (0, surveys_1.updateWhatsAppConnectionState)({
+            desiredState: currentDesiredState,
             status: "error",
             lastError: error instanceof Error ? error.message : String(error),
+            lastDisconnectCode: null,
+            lastDisconnectReason: "boot_error",
         });
-        scheduleReconnect(10_000);
+        scheduleReconnect();
     }
     finally {
         if (generation === socketGeneration) {
@@ -298,18 +388,31 @@ async function workerLoop() {
             });
             if (!workerOwnsLease) {
                 clearReconnectTimer();
-                socketGeneration += 1;
-                socketBooting = false;
-                socketConnected = false;
-                currentSocket = null;
+                resetReconnectBackoff();
+                discardSocket("worker lease perdida");
                 await new Promise((resolve) => setTimeout(resolve, 5_000));
                 continue;
             }
-            const disconnectRequestedAt = await (0, surveys_1.getWhatsappDisconnectRequestedAt)();
-            if (disconnectRequestedAt) {
-                await disconnectSocket();
+            const connectionControl = await (0, surveys_1.getWhatsAppConnectionControlState)();
+            currentDesiredState = connectionControl.desiredState;
+            if (appliedResetNonce === null) {
+                appliedResetNonce =
+                    connectionControl.status === "disconnecting" ? connectionControl.resetNonce - 1 : connectionControl.resetNonce;
             }
-            else if (!currentSocket && !socketBooting) {
+            if (connectionControl.resetNonce !== appliedResetNonce) {
+                await applyRequestedReset({
+                    desiredState: connectionControl.desiredState,
+                    resetNonce: connectionControl.resetNonce,
+                });
+            }
+            if (currentDesiredState === "stopped") {
+                clearReconnectTimer();
+                resetReconnectBackoff();
+                if (currentSocket || socketConnected || socketBooting) {
+                    discardSocket("worker detenido por desiredState=stopped");
+                }
+            }
+            else if (!currentSocket && !socketBooting && !resetInProgress) {
                 await bootSocket();
             }
             await (0, surveys_1.expireNoResponseSurveys)();
@@ -360,7 +463,8 @@ async function main() {
 function shutdown(signal) {
     workerActive = false;
     clearReconnectTimer();
-    socketGeneration += 1;
+    resetReconnectBackoff();
+    discardSocket(`shutdown ${signal}`);
     void (0, surveys_1.releaseWhatsAppWorkerLease)(workerInstanceId);
     console.log(`[whatsapp-worker] cerrando por ${signal}`);
 }

@@ -223,11 +223,28 @@ async function ensureWhatsAppConnectionDocument() {
     {
       $setOnInsert: {
         singletonKey: "main",
+        desiredState: "running",
+        resetNonce: 0,
         status: "disconnected",
       },
     },
     { new: true, upsert: true, setDefaultsOnInsert: true },
   );
+}
+
+export async function getWhatsAppConnectionControlState() {
+  await connectToDatabase();
+  const connection = await ensureWhatsAppConnectionDocument();
+
+  return {
+    desiredState: connection.desiredState,
+    resetNonce: connection.resetNonce,
+    status: connection.status,
+    phoneNumber: connection.phoneNumber,
+    lastError: connection.lastError,
+    lastDisconnectCode: connection.lastDisconnectCode,
+    lastDisconnectReason: connection.lastDisconnectReason,
+  };
 }
 
 export async function acquireWhatsAppWorkerLease(input: {
@@ -694,6 +711,7 @@ export async function getWhatsAppConnectionStatus() {
     : null;
 
   return {
+    desiredState: connection.desiredState,
     status: connection.status,
     phoneNumber: connection.phoneNumber,
     qrDataUrl,
@@ -701,6 +719,8 @@ export async function getWhatsAppConnectionStatus() {
     lastConnectedAt: connection.lastConnectedAt?.toISOString() ?? null,
     lastDisconnectedAt: connection.lastDisconnectedAt?.toISOString() ?? null,
     lastError: connection.lastError,
+    lastDisconnectCode: connection.lastDisconnectCode ?? null,
+    lastDisconnectReason: connection.lastDisconnectReason,
     disconnectRequestedAt: connection.disconnectRequestedAt?.toISOString() ?? null,
     updatedAt: connection.updatedAt?.toISOString() ?? null,
   } satisfies WhatsAppConnectionDto;
@@ -713,8 +733,17 @@ export async function requestWhatsAppDisconnect() {
     { singletonKey: "main" },
     {
       $set: {
+        desiredState: "stopped",
         status: "disconnecting",
         disconnectRequestedAt: new Date(),
+        qr: null,
+        qrExpiresAt: null,
+        lastError: null,
+        lastDisconnectCode: null,
+        lastDisconnectReason: null,
+      },
+      $inc: {
+        resetNonce: 1,
       },
       $setOnInsert: {
         singletonKey: "main",
@@ -729,18 +758,23 @@ export async function requestWhatsAppDisconnect() {
 }
 
 export async function prepareWhatsAppQrLinking() {
-  await clearWhatsAppAuthState();
-
+  await connectToDatabase();
   await WhatsAppConnectionModel.findOneAndUpdate(
     { singletonKey: "main" },
     {
       $set: {
-        status: "disconnected",
+        desiredState: "running",
+        status: "disconnecting",
         phoneNumber: null,
         qr: null,
         qrExpiresAt: null,
         lastError: null,
+        lastDisconnectCode: null,
+        lastDisconnectReason: null,
         disconnectRequestedAt: null,
+      },
+      $inc: {
+        resetNonce: 1,
       },
       $setOnInsert: {
         singletonKey: "main",
@@ -761,10 +795,13 @@ export async function ensureSurveySettingsForWorker() {
 
 export async function updateWhatsAppConnectionState(input: {
   status: WhatsAppConnectionDto["status"];
+  desiredState?: WhatsAppConnectionDto["desiredState"];
   phoneNumber?: string | null;
   qr?: string | null;
   qrExpiresAt?: Date | null;
   lastError?: string | null;
+  lastDisconnectCode?: number | null;
+  lastDisconnectReason?: string | null;
   connected?: boolean;
   disconnected?: boolean;
   clearDisconnectRequest?: boolean;
@@ -776,6 +813,10 @@ export async function updateWhatsAppConnectionState(input: {
     status: input.status,
     updatedAt: now,
   };
+
+  if ("desiredState" in input) {
+    update.desiredState = input.desiredState;
+  }
 
   if ("phoneNumber" in input) {
     update.phoneNumber = input.phoneNumber ?? null;
@@ -791,6 +832,14 @@ export async function updateWhatsAppConnectionState(input: {
 
   if ("lastError" in input) {
     update.lastError = input.lastError ?? null;
+  }
+
+  if ("lastDisconnectCode" in input) {
+    update.lastDisconnectCode = input.lastDisconnectCode ?? null;
+  }
+
+  if ("lastDisconnectReason" in input) {
+    update.lastDisconnectReason = input.lastDisconnectReason ?? null;
   }
 
   if (input.connected) {
@@ -837,6 +886,8 @@ export async function clearWhatsAppAuthState() {
           qr: null,
           qrExpiresAt: null,
           disconnectRequestedAt: null,
+          lastDisconnectCode: null,
+          lastDisconnectReason: null,
         },
       },
       { upsert: true },
@@ -1184,6 +1235,7 @@ export async function getWorkerHealthSnapshot() {
   ]);
 
   return {
+    desiredState: connection.desiredState,
     status: connection.status,
     globalPause: settings.globalPause,
     surveysEnabled: settings.surveysEnabled,

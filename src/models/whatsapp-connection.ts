@@ -3,6 +3,8 @@ import { Model, Schema, model, models } from "mongoose";
 export interface WhatsAppConnectionDocument {
   _id: string;
   singletonKey: string;
+  desiredState: "running" | "stopped";
+  resetNonce: number;
   status: "disconnected" | "connecting" | "qr_required" | "connected" | "disconnecting" | "error";
   phoneNumber: string | null;
   qr: string | null;
@@ -10,6 +12,8 @@ export interface WhatsAppConnectionDocument {
   lastConnectedAt: Date | null;
   lastDisconnectedAt: Date | null;
   lastError: string | null;
+  lastDisconnectCode: number | null;
+  lastDisconnectReason: string | null;
   disconnectRequestedAt: Date | null;
   workerLeaseOwner: string | null;
   workerLeaseUntil: Date | null;
@@ -21,6 +25,12 @@ export interface WhatsAppConnectionDocument {
 const whatsappConnectionSchema = new Schema<WhatsAppConnectionDocument>(
   {
     singletonKey: { type: String, required: true, unique: true, index: true, default: "main" },
+    desiredState: {
+      type: String,
+      enum: ["running", "stopped"],
+      default: "running",
+    },
+    resetNonce: { type: Number, default: 0 },
     status: {
       type: String,
       enum: ["disconnected", "connecting", "qr_required", "connected", "disconnecting", "error"],
@@ -33,6 +43,8 @@ const whatsappConnectionSchema = new Schema<WhatsAppConnectionDocument>(
     lastConnectedAt: { type: Date, default: null },
     lastDisconnectedAt: { type: Date, default: null },
     lastError: { type: String, default: null },
+    lastDisconnectCode: { type: Number, default: null },
+    lastDisconnectReason: { type: String, default: null },
     disconnectRequestedAt: { type: Date, default: null },
     workerLeaseOwner: { type: String, default: null },
     workerLeaseUntil: { type: Date, default: null },
