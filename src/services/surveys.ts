@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { Types } from "mongoose";
+import { Model, Schema, Types, model, models } from "mongoose";
 import * as XLSX from "xlsx";
 
 import { AppError } from "@/lib/api";
@@ -27,7 +27,6 @@ import { SurveyModel } from "@/models/survey";
 import { UserModel } from "@/models/user";
 import { WhatsAppAuthModel } from "@/models/whatsapp-auth";
 import { WhatsAppConnectionModel } from "@/models/whatsapp-connection";
-import { WhatsAppConnectionEventModel } from "@/models/whatsapp-connection-event";
 import { WhatsAppContactModel } from "@/models/whatsapp-contact";
 import { WhatsAppProvider } from "@/services/whatsapp-provider";
 import {
@@ -40,6 +39,61 @@ import {
   WhatsAppConnectionDto,
   WhatsAppConnectionEventDto,
 } from "@/types/domain";
+
+type WhatsAppConnectionEventDocument = {
+  _id: string;
+  source: "worker" | "api" | "system";
+  eventType: string;
+  message: string;
+  status: WhatsAppConnectionDto["status"] | null;
+  desiredState: WhatsAppConnectionDto["desiredState"] | null;
+  phoneNumber: string | null;
+  resetNonce: number | null;
+  generation: number | null;
+  details: Record<string, unknown> | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+const whatsappConnectionEventSchema = new Schema<WhatsAppConnectionEventDocument>(
+  {
+    source: {
+      type: String,
+      enum: ["worker", "api", "system"],
+      required: true,
+      index: true,
+    },
+    eventType: { type: String, required: true, index: true, trim: true },
+    message: { type: String, required: true, trim: true },
+    status: {
+      type: String,
+      enum: ["disconnected", "connecting", "qr_required", "connected", "disconnecting", "error"],
+      default: null,
+    },
+    desiredState: {
+      type: String,
+      enum: ["running", "stopped"],
+      default: null,
+    },
+    phoneNumber: { type: String, default: null },
+    resetNonce: { type: Number, default: null },
+    generation: { type: Number, default: null },
+    details: { type: Schema.Types.Mixed, default: null },
+  },
+  {
+    collection: "whatsappConnectionEvents",
+    timestamps: true,
+  },
+);
+
+whatsappConnectionEventSchema.index({ createdAt: -1 });
+
+const WhatsAppConnectionEventModel =
+  (models.WhatsAppConnectionEvent as Model<WhatsAppConnectionEventDocument>) ||
+  model<WhatsAppConnectionEventDocument>(
+    "WhatsAppConnectionEvent",
+    whatsappConnectionEventSchema,
+  );
 
 function extractDocumentId(value: unknown) {
   if (!value) {
@@ -314,7 +368,9 @@ export async function appendWhatsAppConnectionEvent(input: {
 
     if (removable.length > 0) {
       await WhatsAppConnectionEventModel.deleteMany({
-        _id: { $in: removable.map((item) => item._id) },
+        _id: {
+          $in: removable.map((item: { _id: unknown }) => String(item._id)),
+        },
       });
     }
   }
@@ -328,7 +384,9 @@ export async function listRecentWhatsAppConnectionEvents(limit = 20) {
     .limit(limit)
     .lean();
 
-  return events.map((event) => toWhatsAppConnectionEventDto(event));
+  return events.map((event: WhatsAppConnectionEventDocument) =>
+    toWhatsAppConnectionEventDto(event),
+  );
 }
 
 export async function acquireWhatsAppWorkerLease(input: {
