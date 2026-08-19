@@ -82,8 +82,37 @@ const survey_1 = require("@/models/survey");
 const user_1 = require("@/models/user");
 const whatsapp_auth_1 = require("@/models/whatsapp-auth");
 const whatsapp_connection_1 = require("@/models/whatsapp-connection");
-const whatsapp_connection_event_1 = require("@/models/whatsapp-connection-event");
 const whatsapp_contact_1 = require("@/models/whatsapp-contact");
+const whatsappConnectionEventSchema = new mongoose_1.Schema({
+    source: {
+        type: String,
+        enum: ["worker", "api", "system"],
+        required: true,
+        index: true,
+    },
+    eventType: { type: String, required: true, index: true, trim: true },
+    message: { type: String, required: true, trim: true },
+    status: {
+        type: String,
+        enum: ["disconnected", "connecting", "qr_required", "connected", "disconnecting", "error"],
+        default: null,
+    },
+    desiredState: {
+        type: String,
+        enum: ["running", "stopped"],
+        default: null,
+    },
+    phoneNumber: { type: String, default: null },
+    resetNonce: { type: Number, default: null },
+    generation: { type: Number, default: null },
+    details: { type: mongoose_1.Schema.Types.Mixed, default: null },
+}, {
+    collection: "whatsappConnectionEvents",
+    timestamps: true,
+});
+whatsappConnectionEventSchema.index({ createdAt: -1 });
+const WhatsAppConnectionEventModel = mongoose_1.models.WhatsAppConnectionEvent ||
+    (0, mongoose_1.model)("WhatsAppConnectionEvent", whatsappConnectionEventSchema);
 function extractDocumentId(value) {
     if (!value) {
         return "";
@@ -228,7 +257,7 @@ async function getWhatsAppConnectionControlState() {
 }
 async function appendWhatsAppConnectionEvent(input) {
     await (0, mongoose_2.connectToDatabase)();
-    await whatsapp_connection_event_1.WhatsAppConnectionEventModel.create({
+    await WhatsAppConnectionEventModel.create({
         source: input.source,
         eventType: input.eventType,
         message: input.message,
@@ -240,23 +269,25 @@ async function appendWhatsAppConnectionEvent(input) {
         details: input.details ?? null,
     });
     const keepCount = 200;
-    const total = await whatsapp_connection_event_1.WhatsAppConnectionEventModel.countDocuments();
+    const total = await WhatsAppConnectionEventModel.countDocuments();
     if (total > keepCount) {
-        const removable = await whatsapp_connection_event_1.WhatsAppConnectionEventModel.find({})
+        const removable = await WhatsAppConnectionEventModel.find({})
             .sort({ createdAt: -1 })
             .skip(keepCount)
             .select("_id")
             .lean();
         if (removable.length > 0) {
-            await whatsapp_connection_event_1.WhatsAppConnectionEventModel.deleteMany({
-                _id: { $in: removable.map((item) => item._id) },
+            await WhatsAppConnectionEventModel.deleteMany({
+                _id: {
+                    $in: removable.map((item) => String(item._id)),
+                },
             });
         }
     }
 }
 async function listRecentWhatsAppConnectionEvents(limit = 20) {
     await (0, mongoose_2.connectToDatabase)();
-    const events = await whatsapp_connection_event_1.WhatsAppConnectionEventModel.find({})
+    const events = await WhatsAppConnectionEventModel.find({})
         .sort({ createdAt: -1 })
         .limit(limit)
         .lean();
@@ -611,6 +642,7 @@ async function requestWhatsAppDisconnect() {
             desiredState: "stopped",
             status: "disconnecting",
             disconnectRequestedAt: new Date(),
+            phoneNumber: null,
             qr: null,
             qrExpiresAt: null,
             lastError: null,
@@ -629,11 +661,15 @@ async function requestWhatsAppDisconnect() {
     await appendWhatsAppConnectionEvent({
         source: "api",
         eventType: "disconnect_requested",
-        message: "Se solicito la desvinculacion de WhatsApp desde la UI.",
+        message: "Se solicito una desvinculacion total de WhatsApp desde la UI.",
         status: "disconnecting",
         desiredState: "stopped",
-        phoneNumber: connection.phoneNumber,
+        phoneNumber: null,
         resetNonce: nextResetNonce,
+        details: {
+            mode: "full_reset_and_stop",
+            previousPhoneNumber: connection.phoneNumber,
+        },
     });
     return getWhatsAppConnectionStatus();
 }
@@ -665,11 +701,15 @@ async function prepareWhatsAppQrLinking() {
     await appendWhatsAppConnectionEvent({
         source: "api",
         eventType: "prepare_qr_requested",
-        message: "Se solicito preparar un QR nuevo desde la UI.",
+        message: "Se solicito un reset total de la sesion para preparar un QR nuevo.",
         status: "disconnecting",
         desiredState: "running",
-        phoneNumber: connection.phoneNumber,
+        phoneNumber: null,
         resetNonce: nextResetNonce,
+        details: {
+            mode: "full_reset_and_restart",
+            previousPhoneNumber: connection.phoneNumber,
+        },
     });
     return getWhatsAppConnectionStatus();
 }

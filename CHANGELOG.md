@@ -12,8 +12,10 @@
 - Las acciones `Desvincular` y `Preparar QR nuevo` ahora se registran como comandos para el worker en lugar de limpiar la auth desde la API, evitando carreras entre la UI y Baileys.
 - El worker de `Encuestas` ahora ejecuta resets ordenados, invalida generaciones viejas, corta la sesion anterior antes de abrir una nueva y solo reintenta automaticamente desconexiones transitorias con backoff controlado.
 - Los cortes terminales de WhatsApp como `loggedOut` o `connectionReplaced` ahora dejan la integracion detenida y requieren `Preparar QR nuevo`, en lugar de entrar en loops de reconexion.
+- `Desvincular` ahora actua explicitamente como reset total + stop: limpia el numero visible de inmediato, ordena al worker borrar la auth activa y deja trazas mas claras para distinguir ese caso de un simple refresh del QR.
 - La pantalla `/encuestas/vincular` ahora acelera el polling mientras la sesion esta conectando o esperando QR, oculta el numero fuera del estado `connected`, bloquea acciones durante resets y muestra mensajes mas claros segun el estado real.
 - La vinculacion de WhatsApp ahora registra eventos recientes en MongoDB y los expone en la pantalla `/encuestas/vincular`, permitiendo rastrear resets, cierres, QR tardios ignorados, perdidas de lease y errores del worker sin depender solo de `docker logs`.
+- El log visual de `/encuestas/vincular` ahora suma resumen operativo, detalles JSON por evento y un boton `Copiar log`, pensado para poder diagnosticar fallos tambien desde produccion sin entrar al servidor.
 
 ## 2026-08-17
 

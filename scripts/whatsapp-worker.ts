@@ -319,9 +319,12 @@ async function applyRequestedReset(input: {
   resetInProgress = true;
   currentDesiredState = input.desiredState;
   resetReconnectBackoff();
+  const resettingToStopped = input.desiredState === "stopped";
   await traceEvent({
     eventType: "reset_started",
-    message: `Se inicia reset de sesion hacia desiredState=${input.desiredState}.`,
+    message: resettingToStopped
+      ? "Se inicia una desvinculacion total de la sesion de WhatsApp."
+      : "Se inicia un reset total de la sesion para preparar un QR nuevo.",
     status: "disconnecting",
     desiredState: input.desiredState,
     resetNonce: input.resetNonce,
@@ -346,7 +349,9 @@ async function applyRequestedReset(input: {
     appliedResetNonce = input.resetNonce;
     await traceEvent({
       eventType: "reset_completed",
-      message: `Reset de sesion completado. Estado listo para ${input.desiredState}.`,
+      message: resettingToStopped
+        ? "La sesion de WhatsApp se borro por completo y la integracion quedo detenida."
+        : "El reset total de WhatsApp termino y la integracion quedo lista para generar un QR nuevo.",
       status: "disconnected",
       desiredState: input.desiredState,
       resetNonce: input.resetNonce,

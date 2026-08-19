@@ -129,6 +129,49 @@ export function WhatsAppLinkManager() {
     }
   };
 
+  const copyUiLog = async () => {
+    if (!data) {
+      return;
+    }
+
+    const lines = [
+      "LOG WHATSAPP HISTIA",
+      `Estado: ${data.status}`,
+      `DesiredState: ${data.desiredState}`,
+      `Numero visible: ${visiblePhoneNumber ?? "Sin vincular"}`,
+      `Ultima conexion: ${data.lastConnectedAt ? formatDate(data.lastConnectedAt) : "-"}`,
+      `Ultima desconexion: ${data.lastDisconnectedAt ? formatDate(data.lastDisconnectedAt) : "-"}`,
+      `Ultimo error: ${data.lastError ?? "-"}`,
+      "",
+      "EVENTOS",
+      ...data.recentEvents.map((event) => {
+        const details =
+          event.details && Object.keys(event.details).length > 0
+            ? ` | details=${JSON.stringify(event.details)}`
+            : "";
+
+        return [
+          formatDate(event.createdAt),
+          `source=${event.source}`,
+          `type=${event.eventType}`,
+          `status=${event.status ?? "-"}`,
+          `desiredState=${event.desiredState ?? "-"}`,
+          `resetNonce=${event.resetNonce ?? "-"}`,
+          `generation=${event.generation ?? "-"}`,
+          `numero=${event.phoneNumber ?? "-"}`,
+          `message=${event.message}${details}`,
+        ].join(" | ");
+      }),
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(lines);
+      setError("");
+    } catch {
+      setError("No se pudo copiar el log al portapapeles");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -169,6 +212,9 @@ export function WhatsAppLinkManager() {
                 <h2 className="text-xl font-semibold">Estado de vinculacion</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   El worker mantiene esta sesion en segundo plano, sin depender del navegador.
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  `Desvincular` corta y borra la sesion actual. Para volver a conectar, despues vas a tener que escanear un QR nuevo.
                 </p>
               </div>
               <Badge variant={data.status === "connected" ? "success" : "default"}>
@@ -232,9 +278,9 @@ export function WhatsAppLinkManager() {
                 {data.status === "connected"
                   ? "El numero ya esta vinculado. Si necesitas cambiar la sesion, usa `Preparar QR nuevo`."
                   : data.status === "disconnecting"
-                    ? "Se esta limpiando la sesion actual. Espera unos segundos hasta que el worker termine de reiniciar la vinculacion."
+                    ? "Se esta cerrando y borrando la sesion actual. Espera unos segundos hasta que el worker termine el reset."
                     : data.desiredState === "stopped"
-                      ? "La integracion esta detenida. Usa `Preparar QR nuevo` para iniciar una vinculacion limpia."
+                      ? "La integracion esta detenida y sin credenciales activas. Usa `Preparar QR nuevo` para iniciar una vinculacion limpia."
                       : "No hay QR disponible en este momento. Usa `Preparar QR nuevo` y espera unos segundos para que el worker vuelva a iniciar la vinculacion."}
               </Card>
             )}
@@ -244,11 +290,33 @@ export function WhatsAppLinkManager() {
 
       {!loading && !error && data ? (
         <Card className="space-y-4 p-6">
-          <div>
-            <h2 className="text-xl font-semibold">Log de vinculacion</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Eventos recientes del worker y de la UI para rastrear la sesion de WhatsApp.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold">Log de vinculacion</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Eventos recientes del worker y de la UI para rastrear la sesion de WhatsApp tambien en produccion.
+              </p>
+            </div>
+            <Button type="button" variant="secondary" onClick={() => void copyUiLog()}>
+              Copiar log
+            </Button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Ultimo estado</p>
+              <p className="mt-2 text-base font-semibold">{data.status}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Intencion operativa</p>
+              <p className="mt-2 text-base font-semibold">{data.desiredState}</p>
+            </Card>
+            <Card className="p-4">
+              <p className="text-sm text-muted-foreground">Ultimo motivo</p>
+              <p className="mt-2 text-sm font-semibold">
+                {data.lastDisconnectReason ?? data.lastError ?? "-"}
+              </p>
+            </Card>
           </div>
 
           <div className="space-y-3">
@@ -276,6 +344,14 @@ export function WhatsAppLinkManager() {
                     <span>generation: {event.generation ?? "-"}</span>
                     <span>numero: {event.phoneNumber ?? "-"}</span>
                   </div>
+
+                  {event.details && Object.keys(event.details).length > 0 ? (
+                    <Card className="bg-muted/40 p-3 font-mono text-xs text-muted-foreground">
+                      <pre className="overflow-x-auto whitespace-pre-wrap break-all">
+                        {JSON.stringify(event.details, null, 2)}
+                      </pre>
+                    </Card>
+                  ) : null}
                 </Card>
               ))
             )}

@@ -885,6 +885,7 @@ export async function requestWhatsAppDisconnect() {
         desiredState: "stopped",
         status: "disconnecting",
         disconnectRequestedAt: new Date(),
+        phoneNumber: null,
         qr: null,
         qrExpiresAt: null,
         lastError: null,
@@ -906,11 +907,15 @@ export async function requestWhatsAppDisconnect() {
   await appendWhatsAppConnectionEvent({
     source: "api",
     eventType: "disconnect_requested",
-    message: "Se solicito la desvinculacion de WhatsApp desde la UI.",
+    message: "Se solicito una desvinculacion total de WhatsApp desde la UI.",
     status: "disconnecting",
     desiredState: "stopped",
-    phoneNumber: connection.phoneNumber,
+    phoneNumber: null,
     resetNonce: nextResetNonce,
+    details: {
+      mode: "full_reset_and_stop",
+      previousPhoneNumber: connection.phoneNumber,
+    },
   });
 
   return getWhatsAppConnectionStatus();
@@ -950,11 +955,15 @@ export async function prepareWhatsAppQrLinking() {
   await appendWhatsAppConnectionEvent({
     source: "api",
     eventType: "prepare_qr_requested",
-    message: "Se solicito preparar un QR nuevo desde la UI.",
+    message: "Se solicito un reset total de la sesion para preparar un QR nuevo.",
     status: "disconnecting",
     desiredState: "running",
-    phoneNumber: connection.phoneNumber,
+    phoneNumber: null,
     resetNonce: nextResetNonce,
+    details: {
+      mode: "full_reset_and_restart",
+      previousPhoneNumber: connection.phoneNumber,
+    },
   });
 
   return getWhatsAppConnectionStatus();
