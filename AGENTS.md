@@ -40,6 +40,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - La vinculacion de `Encuestas` ahora deja un historial corto de eventos en `whatsappConnectionEvents`; si vuelve a haber desalineacion entre el celular y la UI, primero revisar esos eventos recientes para distinguir `QR tardio`, `connection close`, `lease perdido`, `reset` o error de boot del worker.
 - `Desvincular` en `Encuestas` debe entenderse como reset total de la sesion: limpia el numero visible enseguida, deja la integracion en `stopped` y obliga a generar un QR nuevo para volver a vincular.
 - La pantalla `/encuestas/vincular` debe ofrecer tambien un log visible y copiable desde la propia UI, incluyendo `details` de cada evento, para poder diagnosticar problemas en produccion sin depender de `docker logs` o Mongo manual.
+- Si WhatsApp devuelve un corte terminal `logged_out`, el worker ahora debe dejar trazado el ultimo envio intentado y activar una pausa operativa (`globalPause` + campañas `running` a `paused`) para que el equipo revise la sesion antes de retomar envios.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

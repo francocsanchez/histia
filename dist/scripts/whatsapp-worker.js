@@ -18,6 +18,9 @@ let currentDesiredState = "running";
 let appliedResetNonce = null;
 let reconnectTimer = null;
 let reconnectAttempt = 0;
+let authWriteQueue = Promise.resolve();
+let authWriteSequence = 0;
+let lastOutboundAttempt = null;
 let currentSocket = null;
 const workerInstanceId = `${(0, node_os_1.hostname)()}:${process.pid}`;
 const WORKER_LEASE_TTL_MS = 30_000;
@@ -101,6 +104,17 @@ async function createMongoAuthState(baileys) {
         return JSON.parse(value, baileys.BufferJSON.reviver);
     };
     const serializeValue = (value) => JSON.stringify(value, baileys.BufferJSON.replacer);
+    const enqueueAuthWrite = (label, run) => {
+        const sequence = ++authWriteSequence;
+        authWriteQueue = authWriteQueue
+            .then(async () => {
+            await run();
+        })
+            .catch((error) => {
+            logger.error(`[whatsapp-worker] auth write failed (${label} #${sequence})`, error);
+        });
+        return authWriteQueue;
+    };
     const creds = parseStoredValue(recordMap.get("creds")) ?? baileys.initAuthCreds();
     const keysStore = {
         get: async (type, ids) => {
@@ -114,21 +128,23 @@ async function createMongoAuthState(baileys) {
             return data;
         },
         set: async (data) => {
-            for (const category of Object.keys(data)) {
-                for (const id of Object.keys(data[category])) {
-                    const value = data[category][id];
-                    const storageKey = `key:${category}:${id}`;
-                    if (value) {
-                        const serialized = serializeValue(value);
-                        recordMap.set(storageKey, serialized);
-                        await (0, surveys_1.upsertWhatsAppAuthRecord)(storageKey, serialized);
-                    }
-                    else {
-                        recordMap.delete(storageKey);
-                        await (0, surveys_1.removeWhatsAppAuthRecord)(storageKey);
+            await enqueueAuthWrite("keys.set", async () => {
+                for (const category of Object.keys(data)) {
+                    for (const id of Object.keys(data[category])) {
+                        const value = data[category][id];
+                        const storageKey = `key:${category}:${id}`;
+                        if (value) {
+                            const serialized = serializeValue(value);
+                            recordMap.set(storageKey, serialized);
+                            await (0, surveys_1.upsertWhatsAppAuthRecord)(storageKey, serialized);
+                        }
+                        else {
+                            recordMap.delete(storageKey);
+                            await (0, surveys_1.removeWhatsAppAuthRecord)(storageKey);
+                        }
                     }
                 }
-            }
+            });
         },
     };
     const authState = {
@@ -138,9 +154,11 @@ async function createMongoAuthState(baileys) {
     return {
         state: authState,
         saveCreds: async () => {
-            const serialized = serializeValue(authState.creds);
-            recordMap.set("creds", serialized);
-            await (0, surveys_1.upsertWhatsAppAuthRecord)("creds", serialized);
+            await enqueueAuthWrite("creds.update", async () => {
+                const serialized = serializeValue(authState.creds);
+                recordMap.set("creds", serialized);
+                await (0, surveys_1.upsertWhatsAppAuthRecord)("creds", serialized);
+            });
         },
     };
 }
@@ -181,6 +199,9 @@ async function closeSessionAndClearAuth() {
 async function applyTerminalDisconnect(input) {
     currentDesiredState = "stopped";
     resetReconnectBackoff();
+    if (input.lastDisconnectReason === "logged_out") {
+        await (0, surveys_1.pauseSurveyDispatchAfterWhatsAppLogout)();
+    }
     await (0, surveys_1.clearWhatsAppAuthState)();
     await traceEvent({
         eventType: "terminal_disconnect",
@@ -191,6 +212,8 @@ async function applyTerminalDisconnect(input) {
         details: {
             lastDisconnectCode: input.lastDisconnectCode,
             lastDisconnectReason: input.lastDisconnectReason,
+            pausedDispatch: input.lastDisconnectReason === "logged_out",
+            lastOutboundAttempt,
         },
     });
     await (0, surveys_1.updateWhatsAppConnectionState)({
@@ -205,6 +228,7 @@ async function applyTerminalDisconnect(input) {
         disconnected: true,
         clearDisconnectRequest: true,
     });
+    lastOutboundAttempt = null;
 }
 async function applyRequestedReset(input) {
     resetInProgress = true;
@@ -295,7 +319,18 @@ async function bootSocket() {
             if (generation !== socketGeneration) {
                 return;
             }
-            void saveCreds();
+            void saveCreds().catch((error) => {
+                void traceEvent({
+                    eventType: "creds_update_failed",
+                    message: "Fallo al persistir credenciales de WhatsApp en MongoDB.",
+                    status: "error",
+                    desiredState: currentDesiredState,
+                    generation,
+                    details: {
+                        error,
+                    },
+                });
+            });
         });
         sock.ev.on("connection.update", (...args) => {
             void (async () => {
@@ -384,6 +419,7 @@ async function bootSocket() {
                         details: {
                             statusCode,
                             connection,
+                            lastOutboundAttempt,
                         },
                     });
                     if (statusCode === baileys.DisconnectReason.loggedOut) {
@@ -487,17 +523,83 @@ async function sendPendingSurveyIfPossible() {
         return;
     }
     try {
+        lastOutboundAttempt = {
+            surveyId: String(lease._id),
+            campaignId: String(lease.campaignId),
+            phoneE164: lease.phoneE164,
+            startedAt: new Date().toISOString(),
+            providerMessageId: null,
+            finishedAt: null,
+            outcome: "sending",
+            errorMessage: null,
+        };
+        await traceEvent({
+            eventType: "survey_send_started",
+            message: `Se inicia el envio de la encuesta ${String(lease._id)}.`,
+            status: "connected",
+            desiredState: currentDesiredState,
+            phoneNumber: lease.phoneE164,
+            details: {
+                surveyId: String(lease._id),
+                campaignId: String(lease.campaignId),
+                phoneE164: lease.phoneE164,
+            },
+        });
         const text = await (0, surveys_1.buildSurveyIntroMessage)(String(lease._id));
         const sent = await currentSocket.sendMessage((0, surveys_2.getWhatsappJid)(lease.phoneE164), { text });
+        const providerMessageId = sent.key?.id ?? `sent-${Date.now()}`;
         await (0, surveys_1.markSurveySendSuccess)({
             surveyId: String(lease._id),
-            providerMessageId: sent.key?.id ?? `sent-${Date.now()}`,
+            providerMessageId,
+        });
+        lastOutboundAttempt = {
+            ...lastOutboundAttempt,
+            providerMessageId,
+            finishedAt: new Date().toISOString(),
+            outcome: "sent",
+            errorMessage: null,
+        };
+        await traceEvent({
+            eventType: "survey_send_succeeded",
+            message: `La encuesta ${String(lease._id)} se envio correctamente.`,
+            status: "connected",
+            desiredState: currentDesiredState,
+            phoneNumber: lease.phoneE164,
+            details: {
+                surveyId: String(lease._id),
+                campaignId: String(lease.campaignId),
+                phoneE164: lease.phoneE164,
+                providerMessageId,
+            },
         });
     }
     catch (error) {
+        lastOutboundAttempt = {
+            surveyId: String(lease._id),
+            campaignId: String(lease.campaignId),
+            phoneE164: lease.phoneE164,
+            startedAt: lastOutboundAttempt?.startedAt ?? new Date().toISOString(),
+            providerMessageId: lastOutboundAttempt?.providerMessageId ?? null,
+            finishedAt: new Date().toISOString(),
+            outcome: "failed",
+            errorMessage: error instanceof Error ? error.message : String(error),
+        };
         await (0, surveys_1.markSurveySendFailure)({
             surveyId: String(lease._id),
             errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        await traceEvent({
+            eventType: "survey_send_failed",
+            message: `Fallo el envio de la encuesta ${String(lease._id)}.`,
+            status: "error",
+            desiredState: currentDesiredState,
+            phoneNumber: lease.phoneE164,
+            details: {
+                surveyId: String(lease._id),
+                campaignId: String(lease.campaignId),
+                phoneE164: lease.phoneE164,
+                error,
+            },
         });
     }
 }

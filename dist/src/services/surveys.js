@@ -53,6 +53,7 @@ exports.getWhatsAppConnectionStatus = getWhatsAppConnectionStatus;
 exports.requestWhatsAppDisconnect = requestWhatsAppDisconnect;
 exports.prepareWhatsAppQrLinking = prepareWhatsAppQrLinking;
 exports.ensureSurveySettingsForWorker = ensureSurveySettingsForWorker;
+exports.pauseSurveyDispatchAfterWhatsAppLogout = pauseSurveyDispatchAfterWhatsAppLogout;
 exports.updateWhatsAppConnectionState = updateWhatsAppConnectionState;
 exports.isWhatsAppDisconnectRequested = isWhatsAppDisconnectRequested;
 exports.clearWhatsAppAuthState = clearWhatsAppAuthState;
@@ -716,6 +717,24 @@ async function prepareWhatsAppQrLinking() {
 async function ensureSurveySettingsForWorker() {
     await (0, mongoose_2.connectToDatabase)();
     return ensureSurveySettingsDocument();
+}
+async function pauseSurveyDispatchAfterWhatsAppLogout() {
+    await (0, mongoose_2.connectToDatabase)();
+    await survey_settings_1.SurveySettingsModel.findOneAndUpdate({}, {
+        $set: {
+            globalPause: true,
+        },
+    }, {
+        upsert: false,
+    });
+    await survey_campaign_1.SurveyCampaignModel.updateMany({
+        status: "running",
+    }, {
+        $set: {
+            status: "paused",
+            pausedAt: new Date(),
+        },
+    });
 }
 async function updateWhatsAppConnectionState(input) {
     await (0, mongoose_2.connectToDatabase)();

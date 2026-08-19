@@ -974,6 +974,34 @@ export async function ensureSurveySettingsForWorker() {
   return ensureSurveySettingsDocument();
 }
 
+export async function pauseSurveyDispatchAfterWhatsAppLogout() {
+  await connectToDatabase();
+
+  await SurveySettingsModel.findOneAndUpdate(
+    {},
+    {
+      $set: {
+        globalPause: true,
+      },
+    },
+    {
+      upsert: false,
+    },
+  );
+
+  await SurveyCampaignModel.updateMany(
+    {
+      status: "running",
+    },
+    {
+      $set: {
+        status: "paused",
+        pausedAt: new Date(),
+      },
+    },
+  );
+}
+
 export async function updateWhatsAppConnectionState(input: {
   status: WhatsAppConnectionDto["status"];
   desiredState?: WhatsAppConnectionDto["desiredState"];
