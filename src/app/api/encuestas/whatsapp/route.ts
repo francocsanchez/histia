@@ -2,6 +2,7 @@ import { AppError, fromUnknownError, ok } from "@/lib/api";
 import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import {
+  clearWhatsAppConnectionEvents,
   getWhatsAppConnectionStatus,
   prepareWhatsAppQrLinking,
   requestWhatsAppDisconnect,
@@ -37,6 +38,10 @@ export async function POST(request: Request) {
 
     if (body.action === "prepare-qr") {
       return ok(await prepareWhatsAppQrLinking());
+    }
+
+    if (body.action === "clear-log") {
+      return ok(await clearWhatsAppConnectionEvents());
     }
 
     if (body.action !== "disconnect") {

@@ -389,6 +389,12 @@ export async function listRecentWhatsAppConnectionEvents(limit = 20) {
   );
 }
 
+export async function clearWhatsAppConnectionEvents() {
+  await connectToDatabase();
+  await WhatsAppConnectionEventModel.deleteMany({});
+  return getWhatsAppConnectionStatus();
+}
+
 export async function acquireWhatsAppWorkerLease(input: {
   ownerId: string;
   ttlMs?: number;

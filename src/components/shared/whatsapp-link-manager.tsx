@@ -172,6 +172,30 @@ export function WhatsAppLinkManager() {
     }
   };
 
+  const clearUiLog = async () => {
+    setBusy(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/encuestas/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear-log" }),
+      });
+      const payload = (await response.json()) as WhatsAppPayload;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "No se pudo borrar el log");
+      }
+
+      setData(payload.data);
+    } catch (clearError) {
+      setError(clearError instanceof Error ? clearError.message : "Error inesperado");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -297,9 +321,19 @@ export function WhatsAppLinkManager() {
                 Eventos recientes del worker y de la UI para rastrear la sesion de WhatsApp tambien en produccion.
               </p>
             </div>
-            <Button type="button" variant="secondary" onClick={() => void copyUiLog()}>
-              Copiar log
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" onClick={() => void copyUiLog()}>
+                Copiar log
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => void clearUiLog()}
+                disabled={busy || data.recentEvents.length === 0}
+              >
+                {busy ? "Procesando..." : "Borrar log"}
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">

@@ -18,6 +18,7 @@
 - El log visual de `/encuestas/vincular` ahora suma resumen operativo, detalles JSON por evento y un boton `Copiar log`, pensado para poder diagnosticar fallos tambien desde produccion sin entrar al servidor.
 - El worker de WhatsApp ahora serializa las escrituras de credenciales en MongoDB, registra el ultimo envio intentado en los eventos de cierre y, ante un `401/logged_out`, activa `globalPause` y pausa las campañas `running` para evitar que la operacion siga como si la sesion siguiera valida.
 - La vista principal de `/encuestas` ahora expone un boton rapido de `Pausar envios` / `Reanudar envios`, para poder volver a vincular WhatsApp sin disparar mensajes automaticamente mientras la cuenta sigue restringida o bajo revision.
+- La pantalla `/encuestas/vincular` ahora permite borrar por completo el historial visual de eventos con `Borrar log`, para limpiar diagnosticos viejos que ya no aportan contexto.
 
 ## 2026-08-17
 
