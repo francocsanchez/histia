@@ -286,6 +286,53 @@ export function buildSurveyCounters(
   };
 }
 
+const WHATSAPP_RECONNECT_DELAYS_MS = [5_000, 10_000, 20_000, 30_000] as const;
+
+export function getWhatsAppReconnectDelayMs(attempt: number) {
+  return (
+    WHATSAPP_RECONNECT_DELAYS_MS[
+      Math.min(Math.max(attempt, 0), WHATSAPP_RECONNECT_DELAYS_MS.length - 1)
+    ] ?? WHATSAPP_RECONNECT_DELAYS_MS[WHATSAPP_RECONNECT_DELAYS_MS.length - 1]
+  );
+}
+
+export function getWhatsAppStatusPollingIntervalMs(
+  status:
+    | "disconnected"
+    | "connecting"
+    | "qr_required"
+    | "connected"
+    | "disconnecting"
+    | "error"
+    | null
+    | undefined,
+) {
+  if (status === "connected") {
+    return 10_000;
+  }
+
+  if (status === "qr_required" || status === "connecting" || status === "disconnecting") {
+    return 2_500;
+  }
+
+  return 5_000;
+}
+
+export function getVisibleWhatsAppPhoneNumber(
+  status:
+    | "disconnected"
+    | "connecting"
+    | "qr_required"
+    | "connected"
+    | "disconnecting"
+    | "error"
+    | null
+    | undefined,
+  phoneNumber: string | null | undefined,
+) {
+  return status === "connected" ? (phoneNumber ?? null) : null;
+}
+
 export function isWithinSurveySendWindow(date = new Date(), start = "09:00", end = "18:00") {
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: SURVEY_TIMEZONE,

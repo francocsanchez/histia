@@ -23,8 +23,11 @@ import {
   upsertWhatsAppAuthRecord,
 } from "@/services/surveys";
 import { getServerEnv } from "@/lib/env";
-import { getWhatsAppReconnectDelayMs } from "@/lib/whatsapp-connection";
-import { extractPhoneE164FromWhatsAppKey, getWhatsappJid } from "@/lib/surveys";
+import {
+  extractPhoneE164FromWhatsAppKey,
+  getWhatsAppReconnectDelayMs,
+  getWhatsappJid,
+} from "@/lib/surveys";
 
 loadEnvConfig(process.cwd());
 

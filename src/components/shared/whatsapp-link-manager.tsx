@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import {
   getVisibleWhatsAppPhoneNumber,
   getWhatsAppStatusPollingIntervalMs,
-} from "@/lib/whatsapp-connection";
+} from "@/lib/surveys";
 import { formatDate } from "@/lib/utils";
 import { WhatsAppConnectionDto } from "@/types/domain";
 
