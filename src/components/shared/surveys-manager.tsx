@@ -181,6 +181,7 @@ export function SurveysManager() {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [commentDialogSurvey, setCommentDialogSurvey] = useState<SurveyDto | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [sendingSurveyIds, setSendingSurveyIds] = useState<Set<string>>(new Set());
 
   const loadSurveys = async () => {
     setSurveysLoading(true);
@@ -356,21 +357,6 @@ export function SurveysManager() {
         throw new Error(payload.error?.message || "No se pudo crear la campana");
       }
 
-      const campaignId = payload.data?.campaign?.id as string | undefined;
-
-      if (campaignId) {
-        const startResponse = await fetch(`/api/encuestas/campaigns/${campaignId}/action`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "start" }),
-        });
-        const startPayload = await startResponse.json();
-
-        if (!startResponse.ok || !startPayload.success) {
-          throw new Error(startPayload.error?.message || "La campana se creo, pero no se pudo iniciar");
-        }
-      }
-
       setPreview(null);
       setPreviewError("");
       setSelectedFile(null);
@@ -380,6 +366,33 @@ export function SurveysManager() {
       setPreviewError(error instanceof Error ? error.message : "Error inesperado");
     } finally {
       setCreatingCampaign(false);
+    }
+  };
+
+  const sendSurvey = async (surveyId: string) => {
+    setSendingSurveyIds((current) => new Set(current).add(surveyId));
+    setSurveysError("");
+
+    try {
+      const response = await fetch(`/api/encuestas/surveys/${surveyId}/send`, {
+        method: "POST",
+      });
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "No se pudo enviar la encuesta");
+      }
+
+      await loadSurveys();
+    } catch (error) {
+      setSurveysError(error instanceof Error ? error.message : "Error inesperado");
+      await loadSurveys();
+    } finally {
+      setSendingSurveyIds((current) => {
+        const next = new Set(current);
+        next.delete(surveyId);
+        return next;
+      });
     }
   };
 
@@ -504,7 +517,7 @@ export function SurveysManager() {
             <p className="text-sm text-muted-foreground">
               {sendingPaused
                 ? "No se enviaran mensajes nuevos aunque vuelvas a vincular WhatsApp, hasta que reanudes manualmente."
-                : "Las encuestas listas pueden enviarse automaticamente dentro del horario operativo."}
+                : "Usa la accion Encuestar de cada fila para controlar que mensajes enviar y cuando hacerlo."}
             </p>
           </div>
           <Badge variant={sendingPaused ? "default" : "success"}>
@@ -588,6 +601,7 @@ export function SurveysManager() {
                   <th className="px-3 py-2">Doctor</th>
                   <th className="px-3 py-2">Rating</th>
                   <th className="px-3 py-2">Comentario</th>
+                  <th className="px-3 py-2 text-center">Acciones</th>
                   <th className="px-3 py-2 text-center">Estado</th>
                 </tr>
               </thead>
@@ -595,6 +609,9 @@ export function SurveysManager() {
                 {surveys.map((survey) => {
                   const statusMeta = getSurveyStatusMeta(survey.status);
                   const StatusIcon = statusMeta.icon;
+                  const canSendManually =
+                    survey.status === "queued" || survey.status === "send_failed";
+                  const sending = sendingSurveyIds.has(survey.id);
 
                   return (
                     <tr key={survey.id} className="border-t border-border">
@@ -614,6 +631,22 @@ export function SurveysManager() {
                             onClick={() => setCommentDialogSurvey(survey)}
                           >
                             Comentarios
+                          </Button>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-center">
+                        {canSendManually ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            disabled={sending}
+                            onClick={() => void sendSurvey(survey.id)}
+                          >
+                            <Send className="size-4" aria-hidden="true" />
+                            {sending ? "Enviando..." : "Encuestar"}
                           </Button>
                         ) : (
                           "-"
@@ -667,7 +700,7 @@ export function SurveysManager() {
         open={importDialogOpen}
         onClose={clearImportDialog}
         title="Importar encuestas"
-        description="Carga el Excel, valida las filas y confirma la creacion para iniciar los envios."
+        description="Carga el Excel, valida las filas y crea encuestas pendientes para enviar manualmente."
         className="max-w-5xl"
       >
         <div className="space-y-4">
@@ -769,7 +802,7 @@ export function SurveysManager() {
                   onClick={() => void createCampaign()}
                   disabled={creatingCampaign}
                 >
-                  {creatingCampaign ? "Creando..." : "Crear e iniciar"}
+                  {creatingCampaign ? "Creando..." : "Crear pendientes"}
                 </Button>
               </div>
             </div>

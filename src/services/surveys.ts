@@ -1219,23 +1219,109 @@ export async function takeNextSurveyLease() {
   return leased;
 }
 
+export async function claimSurveyForManualSend(surveyId: string) {
+  await connectToDatabase();
+
+  const [settings, connection] = await Promise.all([
+    ensureSurveySettingsDocument(),
+    ensureWhatsAppConnectionDocument(),
+  ]);
+
+  if (!settings.surveysEnabled) {
+    throw new AppError("VALIDATION_ERROR", "Los envios de encuestas estan deshabilitados", 409);
+  }
+
+  if (settings.globalPause) {
+    throw new AppError("VALIDATION_ERROR", "Los envios estan pausados globalmente", 409);
+  }
+
+  if (connection.status !== "connected") {
+    throw new AppError("VALIDATION_ERROR", "WhatsApp no esta vinculado", 409);
+  }
+
+  const now = new Date();
+  const leaseUntil = new Date(now.getTime() + 5 * 60 * 1000);
+  const survey = await SurveyModel.findOneAndUpdate(
+    {
+      _id: surveyId,
+      status: { $in: ["queued", "send_failed"] },
+      $or: [{ leaseUntil: null }, { leaseUntil: { $lt: now } }],
+    },
+    {
+      $set: {
+        status: "leased_for_send",
+        leaseUntil,
+        technicalError: null,
+      },
+      $inc: {
+        sendAttemptCount: 1,
+      },
+    },
+    { new: false },
+  ).lean();
+
+  if (survey) {
+    return survey;
+  }
+
+  const existingSurvey = await SurveyModel.findById(surveyId).select("status").lean();
+
+  if (!existingSurvey) {
+    throw new AppError("NOT_FOUND", "La encuesta no existe", 404);
+  }
+
+  throw new AppError(
+    "VALIDATION_ERROR",
+    "La encuesta ya no esta disponible para enviar",
+    409,
+  );
+}
+
+export async function releaseManualSurveyLease(input: {
+  surveyId: string;
+  previousStatus: "queued" | "send_failed";
+  errorMessage: string;
+}) {
+  await connectToDatabase();
+
+  await SurveyModel.findOneAndUpdate(
+    {
+      _id: input.surveyId,
+      status: "leased_for_send",
+    },
+    {
+      $set: {
+        status: input.previousStatus,
+        leaseUntil: null,
+        technicalError: input.errorMessage,
+      },
+      $inc: {
+        sendAttemptCount: -1,
+      },
+    },
+  );
+}
+
 export async function markSurveySendSuccess(input: {
   surveyId: string;
   providerMessageId: string;
 }) {
   await connectToDatabase();
 
-  await SurveyModel.findByIdAndUpdate(input.surveyId, {
-    $set: {
-      status: "waiting_rating",
-      providerMessageId: input.providerMessageId,
-      sentAt: new Date(),
-      scheduledAt: new Date(),
-      leaseUntil: null,
-      technicalError: null,
-      deliveryResolution: "accepted_by_provider",
+  await SurveyModel.findOneAndUpdate(
+    { _id: input.surveyId, status: "leased_for_send" },
+    {
+      $set: {
+        status: "waiting_rating",
+        providerMessageId: input.providerMessageId,
+        sentAt: new Date(),
+        scheduledAt: new Date(),
+        leaseUntil: null,
+        technicalError: null,
+        deliveryResolution: "accepted_by_provider",
+      },
     },
-  });
+  );
 }
 
 export async function markSurveySendFailure(input: {
@@ -1245,7 +1331,7 @@ export async function markSurveySendFailure(input: {
   await connectToDatabase();
 
   const settings = await ensureSurveySettingsDocument();
-  const survey = await SurveyModel.findById(input.surveyId);
+  const survey = await SurveyModel.findOne({ _id: input.surveyId, status: "leased_for_send" });
 
   if (!survey) {
     return;
@@ -1257,6 +1343,71 @@ export async function markSurveySendFailure(input: {
   survey.technicalError = input.errorMessage;
   survey.deliveryResolution = exhausted ? "failed_after_retries" : "retry_pending";
   await survey.save();
+}
+
+export async function sendLeasedSurvey(input: {
+  surveyId: string;
+  messenger: WhatsAppProvider;
+  trigger: "manual" | "worker";
+}) {
+  await connectToDatabase();
+
+  const survey = await SurveyModel.findOne({
+    _id: input.surveyId,
+    status: "leased_for_send",
+  }).lean();
+
+  if (!survey) {
+    throw new AppError("VALIDATION_ERROR", "La encuesta no esta reservada para envio", 409);
+  }
+
+  const details = {
+    trigger: input.trigger,
+    surveyId: String(survey._id),
+    campaignId: String(survey.campaignId),
+    phoneE164: survey.phoneE164,
+  };
+
+  await appendWhatsAppConnectionEvent({
+    source: "worker",
+    eventType: "survey_send_started",
+    message: `Se inicia el envio de la encuesta ${String(survey._id)}.`,
+    status: "connected",
+    phoneNumber: survey.phoneE164,
+    details,
+  });
+
+  try {
+    const text = await buildSurveyIntroMessage(String(survey._id));
+    const sent = await input.messenger.sendText(getWhatsappJid(survey.phoneE164), text);
+
+    await markSurveySendSuccess({
+      surveyId: String(survey._id),
+      providerMessageId: sent.id,
+    });
+    await appendWhatsAppConnectionEvent({
+      source: "worker",
+      eventType: "survey_send_succeeded",
+      message: `La encuesta ${String(survey._id)} se envio correctamente.`,
+      status: "connected",
+      phoneNumber: survey.phoneE164,
+      details: { ...details, providerMessageId: sent.id },
+    });
+
+    return { surveyId: String(survey._id), providerMessageId: sent.id };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await markSurveySendFailure({ surveyId: String(survey._id), errorMessage });
+    await appendWhatsAppConnectionEvent({
+      source: "worker",
+      eventType: "survey_send_failed",
+      message: `Fallo el envio de la encuesta ${String(survey._id)}.`,
+      status: "error",
+      phoneNumber: survey.phoneE164,
+      details: { ...details, error: errorMessage },
+    });
+    throw error;
+  }
 }
 
 export async function markLeasesAsDeliveryUnknown() {

@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-08-24
+
+### Added
+
+- La tabla operativa de `Encuestas` ahora incorpora la columna `Acciones` con el boton `Encuestar` para disparar cada mensaje de forma individual desde una encuesta pendiente o fallida.
+- Nuevo endpoint protegido `POST /api/encuestas/surveys/[id]/send` y canal interno con el worker para enviar manualmente sin abrir una segunda sesion de WhatsApp.
+
+### Changed
+
+- La importacion de Excel de `Encuestas` ahora crea las encuestas como pendientes y deja la campana en `ready`, sin iniciar envios automaticos.
+- Los envios manuales ignoran la ventana horaria configurada, pero siguen respetando la habilitacion general, la pausa global y una sesion de WhatsApp conectada.
+- Los intentos manuales ahora quedan diferenciados en `whatsappConnectionEvents`, y los envios se serializan en el worker para evitar mensajes concurrentes.
+
 ## 2026-08-19
 
 ### Added

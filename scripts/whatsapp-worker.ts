@@ -6,7 +6,6 @@ import { loadEnvConfig } from "@next/env";
 import {
   acquireWhatsAppWorkerLease,
   appendWhatsAppConnectionEvent,
-  buildSurveyIntroMessage,
   clearWhatsAppAuthState,
   ensureSurveySettingsForWorker,
   expireNoResponseSurveys,
@@ -14,12 +13,11 @@ import {
   getStoredWhatsAppAuthRecords,
   getWorkerHealthSnapshot,
   markLeasesAsDeliveryUnknown,
-  markSurveySendFailure,
-  markSurveySendSuccess,
   pauseSurveyDispatchAfterWhatsAppLogout,
   processIncomingWhatsAppMessage,
   releaseWhatsAppWorkerLease,
   removeWhatsAppAuthRecord,
+  sendLeasedSurvey,
   takeNextSurveyLease,
   updateWhatsAppConnectionState,
   upsertWhatsAppAuthRecord,
@@ -78,6 +76,7 @@ let reconnectTimer: NodeJS.Timeout | null = null;
 let reconnectAttempt = 0;
 let authWriteQueue: Promise<void> = Promise.resolve();
 let authWriteSequence = 0;
+let outboundSendQueue: Promise<void> = Promise.resolve();
 let lastOutboundAttempt:
   | {
       surveyId: string;
@@ -128,6 +127,15 @@ function sanitizeDetails(details: Record<string, unknown> | null | undefined) {
       return value;
     }),
   ) as Record<string, unknown>;
+}
+
+function enqueueOutboundSend<T>(task: () => Promise<T>) {
+  const result = outboundSendQueue.then(task, task);
+  outboundSendQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
 }
 
 async function traceEvent(input: {
@@ -706,46 +714,25 @@ async function sendPendingSurveyIfPossible() {
       outcome: "sending",
       errorMessage: null,
     };
-    await traceEvent({
-      eventType: "survey_send_started",
-      message: `Se inicia el envio de la encuesta ${String(lease._id)}.`,
-      status: "connected",
-      desiredState: currentDesiredState,
-      phoneNumber: lease.phoneE164,
-      details: {
+    const sent = await enqueueOutboundSend(() =>
+      sendLeasedSurvey({
         surveyId: String(lease._id),
-        campaignId: String(lease.campaignId),
-        phoneE164: lease.phoneE164,
-      },
-    });
-    const text = await buildSurveyIntroMessage(String(lease._id));
-    const sent = await currentSocket.sendMessage(getWhatsappJid(lease.phoneE164), { text });
-    const providerMessageId = sent.key?.id ?? `sent-${Date.now()}`;
-
-    await markSurveySendSuccess({
-      surveyId: String(lease._id),
-      providerMessageId,
-    });
+        trigger: "worker",
+        messenger: {
+          sendText: async (jid, text) => {
+            const response = await currentSocket!.sendMessage(jid, { text });
+            return { id: response.key?.id ?? `sent-${Date.now()}` };
+          },
+        },
+      }),
+    );
     lastOutboundAttempt = {
       ...lastOutboundAttempt,
-      providerMessageId,
+      providerMessageId: sent.providerMessageId,
       finishedAt: new Date().toISOString(),
       outcome: "sent",
       errorMessage: null,
     };
-    await traceEvent({
-      eventType: "survey_send_succeeded",
-      message: `La encuesta ${String(lease._id)} se envio correctamente.`,
-      status: "connected",
-      desiredState: currentDesiredState,
-      phoneNumber: lease.phoneE164,
-      details: {
-        surveyId: String(lease._id),
-        campaignId: String(lease.campaignId),
-        phoneE164: lease.phoneE164,
-        providerMessageId,
-      },
-    });
   } catch (error) {
     lastOutboundAttempt = {
       surveyId: String(lease._id),
@@ -757,23 +744,6 @@ async function sendPendingSurveyIfPossible() {
       outcome: "failed",
       errorMessage: error instanceof Error ? error.message : String(error),
     };
-    await markSurveySendFailure({
-      surveyId: String(lease._id),
-      errorMessage: error instanceof Error ? error.message : String(error),
-    });
-    await traceEvent({
-      eventType: "survey_send_failed",
-      message: `Fallo el envio de la encuesta ${String(lease._id)}.`,
-      status: "error",
-      desiredState: currentDesiredState,
-      phoneNumber: lease.phoneE164,
-      details: {
-        surveyId: String(lease._id),
-        campaignId: String(lease.campaignId),
-        phoneE164: lease.phoneE164,
-        error,
-      },
-    });
   }
 }
 
@@ -858,14 +828,102 @@ async function workerLoop() {
   }
 }
 
+function readJsonBody(request: import("node:http").IncomingMessage) {
+  return new Promise<Record<string, unknown>>((resolve, reject) => {
+    let body = "";
+
+    request.on("data", (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    request.on("end", () => {
+      try {
+        resolve(body ? (JSON.parse(body) as Record<string, unknown>) : {});
+      } catch (error) {
+        reject(error);
+      }
+    });
+    request.on("error", reject);
+  });
+}
+
+async function dispatchManualSurvey(surveyId: string) {
+  if (
+    !socketConnected ||
+    !currentSocket ||
+    !workerOwnsLease ||
+    currentDesiredState !== "running"
+  ) {
+    throw new Error("WhatsApp no esta listo para enviar la encuesta");
+  }
+
+  const sent = await enqueueOutboundSend(() =>
+    sendLeasedSurvey({
+      surveyId,
+      trigger: "manual",
+      messenger: {
+        sendText: async (jid, text) => {
+          const response = await currentSocket!.sendMessage(jid, { text });
+          return { id: response.key?.id ?? `sent-${Date.now()}` };
+        },
+      },
+    }),
+  );
+
+  return sent;
+}
+
 function startHealthServer() {
   const env = getServerEnv();
   const port = env.WHATSAPP_WORKER_PORT ?? 3010;
   const strictHealthPort = process.env.NODE_ENV === "production";
 
-  const server = createServer((_, response) => {
+  const server = createServer((request, response) => {
     void (async () => {
       try {
+        if (request.method === "POST" && request.url === "/send-survey") {
+          if (
+            !socketConnected ||
+            !currentSocket ||
+            !workerOwnsLease ||
+            currentDesiredState !== "running"
+          ) {
+            response.writeHead(409, { "Content-Type": "application/json" });
+            response.end(
+              JSON.stringify({
+                ok: false,
+                releaseLease: true,
+                error: "WhatsApp no esta listo para enviar",
+              }),
+            );
+            return;
+          }
+
+          const body = await readJsonBody(request);
+          const surveyId = typeof body.surveyId === "string" ? body.surveyId : "";
+
+          if (!surveyId) {
+            response.writeHead(400, { "Content-Type": "application/json" });
+            response.end(JSON.stringify({ ok: false, releaseLease: true, error: "surveyId es obligatorio" }));
+            return;
+          }
+
+          try {
+            const data = await dispatchManualSurvey(surveyId);
+            response.writeHead(200, { "Content-Type": "application/json" });
+            response.end(JSON.stringify({ ok: true, data }));
+          } catch (error) {
+            response.writeHead(500, { "Content-Type": "application/json" });
+            response.end(
+              JSON.stringify({
+                ok: false,
+                releaseLease: false,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            );
+          }
+          return;
+        }
+
         const snapshot = await getWorkerHealthSnapshot();
         response.writeHead(200, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ ok: true, ...snapshot }));
