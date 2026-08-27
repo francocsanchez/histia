@@ -8,6 +8,8 @@
 - `/inicio` ahora muestra un gráfico anualizado de honorarios por odontólogo, separando por mes lo pendiente de cobrar y lo ya pagado sobre `valor atención + coseguro odonto`.
 - El gráfico anualizado de honorarios en `/inicio` ahora suma `valor atención` por su marca real de pago, aunque la línea todavía no esté en estado `ok`, evitando que se vean sólo los coseguros en pendientes.
 - Las cards reutilizables de métricas ahora aceptan texto formateado además de números, corrigiendo el error de TypeScript en el build de `/inicio` al mostrar importes anuales en pesos.
+- Las cuatro métricas principales de `/inicio` ahora se muestran en una sola fila cuando hay ancho suficiente, manteniendo el acomodo responsive en pantallas chicas.
+- En desktop, la fila superior de `/inicio` ahora reparte el ancho en proporción `2/6` para métricas mensuales y `4/6` para honorarios anuales, dando más espacio visual a los importes.
 
 ## 2026-08-24
 

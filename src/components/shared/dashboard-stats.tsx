@@ -302,20 +302,25 @@ export function DashboardStats() {
 
       {error ? <ErrorState label={error} retry={() => void load()} /> : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <StatCard label="Atenciones del mes" value={data.totals.atenciones} />
-        <StatCard label="Codigos del mes" value={data.totals.codigos} />
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <StatCard
-          label="Honorarios pendientes del año"
-          value={formatCurrencyFromCents(annualPendingCentavos)}
-        />
-        <StatCard
-          label="Honorarios pagados del año"
-          value={formatCurrencyFromCents(annualPaidCentavos)}
-        />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <div className="xl:col-span-1">
+          <StatCard label="Atenciones del mes" value={data.totals.atenciones} />
+        </div>
+        <div className="xl:col-span-1">
+          <StatCard label="Codigos del mes" value={data.totals.codigos} />
+        </div>
+        <div className="xl:col-span-2">
+          <StatCard
+            label="Honorarios pendientes del año"
+            value={formatCurrencyFromCents(annualPendingCentavos)}
+          />
+        </div>
+        <div className="xl:col-span-2">
+          <StatCard
+            label="Honorarios pagados del año"
+            value={formatCurrencyFromCents(annualPaidCentavos)}
+          />
+        </div>
       </div>
 
       <Card className="overflow-hidden">
