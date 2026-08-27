@@ -5,13 +5,19 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { ErrorState, LoadingState } from "@/components/shared/states";
 import { StatCard } from "@/components/shared/stat-card";
 import { getAttentionStatusBadgeClassName } from "@/lib/attention-status";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrencyFromCents } from "@/lib/utils";
 import { DashboardMonthlyStatsDto } from "@/types/domain";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+
+type ChartTooltipState = {
+  x: number;
+  y: number;
+  lines: string[];
+};
 
 type DashboardPayload = {
   success: boolean;
@@ -38,6 +44,119 @@ function formatMonthLabel(month: string) {
     month: "long",
     year: "numeric",
   }).format(date);
+}
+
+function EmptyChart({ label }: { label: string }) {
+  return <div className="flex h-72 items-center justify-center text-sm text-muted-foreground">{label}</div>;
+}
+
+function ChartTooltip({ tooltip }: { tooltip: ChartTooltipState | null }) {
+  if (!tooltip) {
+    return null;
+  }
+
+  return (
+    <div
+      className="pointer-events-none absolute z-20 min-w-44 rounded-md border border-border bg-background/95 px-3 py-2 text-xs shadow-lg backdrop-blur"
+      style={{
+        left: tooltip.x,
+        top: tooltip.y,
+        transform: "translate(-50%, calc(-100% - 12px))",
+      }}
+    >
+      {tooltip.lines.map((line) => (
+        <p key={line} className="whitespace-nowrap leading-5 text-foreground">
+          {line}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function AnnualHonorariumChart({
+  items,
+}: {
+  items: DashboardMonthlyStatsDto["annualHonorariumByMonth"];
+}) {
+  const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
+  const maxValue = Math.max(...items.map((item) => item.totalCentavos), 0);
+
+  if (maxValue === 0) {
+    return <EmptyChart label="No hay honorarios pendientes ni pagados para el año seleccionado." />;
+  }
+
+  return (
+    <div className="relative space-y-4 overflow-x-auto" onMouseLeave={() => setTooltip(null)}>
+      <ChartTooltip tooltip={tooltip} />
+      <div className="flex flex-wrap gap-4 text-sm">
+        <span className="inline-flex items-center gap-2 text-muted-foreground">
+          <span className="h-3 w-3 rounded-full bg-amber-500" />
+          Pendiente
+        </span>
+        <span className="inline-flex items-center gap-2 text-muted-foreground">
+          <span className="h-3 w-3 rounded-full bg-emerald-500" />
+          Pagado
+        </span>
+      </div>
+      <div className="min-w-[720px]">
+        <div className="flex h-72 items-end gap-3 border-b border-l border-border px-3 pb-3 pt-6">
+          {items.map((item) => {
+            const height = `${Math.max((item.totalCentavos / maxValue) * 100, item.totalCentavos > 0 ? 8 : 2)}%`;
+
+            return (
+              <div key={item.month} className="flex min-w-0 flex-1 flex-col items-center gap-2 self-stretch">
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {formatCurrencyFromCents(item.totalCentavos)}
+                </span>
+                <div className="flex w-full flex-1 items-end">
+                  <div
+                    className="flex w-full cursor-pointer flex-col overflow-hidden border border-primary/20 transition-opacity hover:opacity-90"
+                    style={{ height }}
+                    onMouseMove={(event) => {
+                      const bounds = event.currentTarget.parentElement?.parentElement?.parentElement?.getBoundingClientRect();
+
+                      if (!bounds) {
+                        return;
+                      }
+
+                      setTooltip({
+                        x: event.clientX - bounds.left,
+                        y: event.clientY - bounds.top,
+                        lines: [
+                          item.label,
+                          `Pendiente: ${formatCurrencyFromCents(item.pendienteCentavos)}`,
+                          `Pagado: ${formatCurrencyFromCents(item.pagadoCentavos)}`,
+                          `Total: ${formatCurrencyFromCents(item.totalCentavos)}`,
+                        ],
+                      });
+                    }}
+                  >
+                    {item.pendienteCentavos > 0 ? (
+                      <div
+                        className="w-full bg-amber-500"
+                        style={{
+                          height: `${(item.pendienteCentavos / item.totalCentavos) * 100}%`,
+                        }}
+                      />
+                    ) : null}
+                    {item.pagadoCentavos > 0 ? (
+                      <div
+                        className="w-full bg-emerald-500"
+                        style={{
+                          height: `${(item.pagadoCentavos / item.totalCentavos) * 100}%`,
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                </div>
+                <span className="text-[11px] text-muted-foreground">{item.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function DashboardStats() {
@@ -110,6 +229,14 @@ export function DashboardStats() {
 
   const chartMaxValue = Math.max(...data.dailyAttentions.map((item) => item.total), 1);
   const isAdminView = data.availableUsers.length > 0;
+  const annualPendingCentavos = data.annualHonorariumByMonth.reduce(
+    (sum, item) => sum + item.pendienteCentavos,
+    0,
+  );
+  const annualPaidCentavos = data.annualHonorariumByMonth.reduce(
+    (sum, item) => sum + item.pagadoCentavos,
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -179,6 +306,29 @@ export function DashboardStats() {
         <StatCard label="Atenciones del mes" value={data.totals.atenciones} />
         <StatCard label="Codigos del mes" value={data.totals.codigos} />
       </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <StatCard
+          label="Honorarios pendientes del año"
+          value={formatCurrencyFromCents(annualPendingCentavos)}
+        />
+        <StatCard
+          label="Honorarios pagados del año"
+          value={formatCurrencyFromCents(annualPaidCentavos)}
+        />
+      </div>
+
+      <Card className="overflow-hidden">
+        <div className="border-b border-border px-4 py-4">
+          <h3 className="text-base font-semibold">Honorarios anualizados</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Suma mes a mes de valor atencion mas coseguro odonto para {data.selectedUser.nombreCompleto || "el usuario seleccionado"}, separando lo pendiente de cobrar y lo ya pagado del anio de {data.month.slice(0, 4)}.
+          </p>
+        </div>
+        <div className="p-4">
+          <AnnualHonorariumChart items={data.annualHonorariumByMonth} />
+        </div>
+      </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.9fr)]">
         <Card className="overflow-hidden">

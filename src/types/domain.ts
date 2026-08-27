@@ -255,12 +255,21 @@ export interface DashboardStatusSummaryItemDto {
   total: number;
 }
 
+export interface DashboardAnnualHonorariumItemDto {
+  month: number;
+  label: string;
+  pendienteCentavos: number;
+  pagadoCentavos: number;
+  totalCentavos: number;
+}
+
 export interface DashboardMonthlyStatsDto {
   month: string;
   selectedUser: DashboardSelectedUserDto;
   availableUsers: DashboardUserOptionDto[];
   dailyAttentions: DashboardDailyAttentionDto[];
   statusSummary: DashboardStatusSummaryItemDto[];
+  annualHonorariumByMonth: DashboardAnnualHonorariumItemDto[];
   totals: {
     atenciones: number;
     codigos: number;

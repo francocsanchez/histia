@@ -11,6 +11,8 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 ## Contexto reciente
 
 - El listado de `/atenciones` ahora debe exponer una columna `Observaciones` y marcar `Posible tope mensual superado` cuando la suma mensual de códigos para esa atención excede el límite de la obra social del paciente.
+- La pantalla `/inicio` ahora debe incluir un gráfico anualizado por odontólogo con la suma mensual de `valor atención + coseguro odonto`, distinguiendo claramente lo pendiente de cobrar y lo ya pagado.
+- En el gráfico anualizado de `/inicio`, `valor atención` debe contabilizarse por su marca de pago (`pendiente` o `pagado`) aunque la línea siga en estado de auditoría distinto de `ok`, para que no queden visibles sólo los coseguros.
 - En `RX`, los importes visibles para carga y edicion se ingresan en pesos con mascara monetaria, aunque la persistencia interna siga siendo en centavos.
 - En el listado de `RX`, la columna operativa visible debe priorizar la obra social del paciente y no mostrar `Generada por`.
 - En el formulario de `RX`, no se muestra `Usuario generador`; el origen del derivante debe verse compacto en una sola linea cuando sea posible.
