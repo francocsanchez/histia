@@ -7,6 +7,7 @@
 - El listado de `/atenciones` ahora muestra una columna `Observaciones` que marca `Posible tope mensual superado` cuando el total mensual de esa atención queda por encima del límite de la obra social del paciente.
 - `/inicio` ahora muestra un gráfico anualizado de honorarios por odontólogo, separando por mes lo pendiente de cobrar y lo ya pagado sobre `valor atención + coseguro odonto`.
 - El gráfico anualizado de honorarios en `/inicio` ahora suma `valor atención` por su marca real de pago, aunque la línea todavía no esté en estado `ok`, evitando que se vean sólo los coseguros en pendientes.
+- Las cards reutilizables de métricas ahora aceptan texto formateado además de números, corrigiendo el error de TypeScript en el build de `/inicio` al mostrar importes anuales en pesos.
 
 ## 2026-08-24
 

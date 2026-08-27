@@ -5,7 +5,7 @@ export function StatCard({
   value,
 }: {
   label: string;
-  value: number;
+  value: React.ReactNode;
 }) {
   return (
     <Card className="surface-grid p-5">
