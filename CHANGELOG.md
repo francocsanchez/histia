@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-27
+
+### Changed
+
+- El listado de `/atenciones` ahora muestra una columna `Observaciones` que marca `Posible tope mensual superado` cuando el total mensual de esa atención queda por encima del límite de la obra social del paciente.
+
 ## 2026-08-24
 
 ### Added

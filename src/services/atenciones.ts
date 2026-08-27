@@ -71,7 +71,7 @@ type AttentionRow = {
   createdAt: Date;
   updatedAt: Date;
   paciente?: { nombre: string; apellido: string; dni: string } | null;
-  obraSocial?: { nombre: string } | null;
+  obraSocial?: { nombre: string; cantidadPrestacionesMes?: number | null } | null;
   usuarioCarga?: { name: string; apellido?: string | null } | null;
   codigosDetalle?: Array<{
     _id: unknown;
@@ -106,6 +106,7 @@ type PopulatedPacienteRef = {
 type PopulatedObraSocialRef = {
   _id?: unknown;
   nombre: string;
+  cantidadPrestacionesMes?: number | null;
 };
 
 type PopulatedUserRef = {
@@ -491,6 +492,7 @@ function toAttentionDto(row: AttentionRow): AttentionDto {
       `${row.usuarioCarga?.apellido ?? ""}, ${row.usuarioCarga?.name ?? ""}`,
     ),
     observacionGeneral: row.observacionGeneral,
+    observacionTope: null,
     codigos,
     cantidadCodigos: codigos.length,
     totalCoseguroCentavos,
@@ -499,6 +501,19 @@ function toAttentionDto(row: AttentionRow): AttentionDto {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+function buildAttentionMonthlyLimitObservation(params: {
+  totalCodigosMes: number;
+  limiteMensual: number | null | undefined;
+}) {
+  const { totalCodigosMes, limiteMensual } = params;
+
+  if (typeof limiteMensual !== "number") {
+    return null;
+  }
+
+  return totalCodigosMes > limiteMensual ? "Posible tope mensual superado" : null;
 }
 
 function buildDateMatch(query: QueryParams) {
@@ -564,6 +579,107 @@ async function getMonthlyUsage(params: {
   ]);
 
   return rows[0]?.total ?? 0;
+}
+
+async function enrichAttentionDtosWithMonthlyLimitObservation(rows: AttentionRow[]) {
+  if (rows.length === 0) {
+    return [] as AttentionDto[];
+  }
+
+  const uniqueMonthlyGroups = new Map<
+    string,
+    {
+      pacienteId: string;
+      obraSocialId: string;
+      start: Date;
+      end: Date;
+      limiteMensual: number | null | undefined;
+    }
+  >();
+
+  for (const row of rows) {
+    const pacienteId = getObjectIdString(row.pacienteId);
+    const obraSocialId = getObjectIdString(row.obraSocialId);
+    const { start, end } = getMonthRange(row.fecha);
+    const monthKey = start.toISOString().slice(0, 7);
+    const key = `${pacienteId}:${obraSocialId}:${monthKey}`;
+
+    if (!uniqueMonthlyGroups.has(key)) {
+      uniqueMonthlyGroups.set(key, {
+        pacienteId,
+        obraSocialId,
+        start,
+        end,
+        limiteMensual: row.obraSocial?.cantidadPrestacionesMes,
+      });
+    }
+  }
+
+  const monthlyUsageRows =
+    uniqueMonthlyGroups.size > 0
+      ? await AttentionModel.aggregate<{
+          _id: { pacienteId: Types.ObjectId; obraSocialId: Types.ObjectId; month: string };
+          total: number;
+        }>([
+          {
+            $match: {
+              $or: Array.from(uniqueMonthlyGroups.values()).map((group) => ({
+                pacienteId: new Types.ObjectId(group.pacienteId),
+                obraSocialId: new Types.ObjectId(group.obraSocialId),
+                fecha: {
+                  $gte: group.start,
+                  $lte: group.end,
+                },
+              })),
+            },
+          },
+          {
+            $project: {
+              pacienteId: 1,
+              obraSocialId: 1,
+              month: {
+                $dateToString: {
+                  format: "%Y-%m",
+                  date: "$fecha",
+                },
+              },
+              cantidadCodigos: { $size: "$codigos" },
+            },
+          },
+          {
+            $group: {
+              _id: {
+                pacienteId: "$pacienteId",
+                obraSocialId: "$obraSocialId",
+                month: "$month",
+              },
+              total: { $sum: "$cantidadCodigos" },
+            },
+          },
+        ])
+      : [];
+
+  const totalsByGroup = new Map(
+    monthlyUsageRows.map((row) => [
+      `${getObjectIdString(row._id.pacienteId)}:${getObjectIdString(row._id.obraSocialId)}:${row._id.month}`,
+      row.total,
+    ]),
+  );
+
+  return rows.map((row) => {
+    const dto = toAttentionDto(row);
+    const monthKey = getMonthRange(row.fecha).start.toISOString().slice(0, 7);
+    const groupKey = `${dto.pacienteId}:${dto.obraSocialId}:${monthKey}`;
+    const totalCodigosMes = totalsByGroup.get(groupKey) ?? dto.cantidadCodigos;
+
+    return {
+      ...dto,
+      observacionTope: buildAttentionMonthlyLimitObservation({
+        totalCodigosMes,
+        limiteMensual: row.obraSocial?.cantidadPrestacionesMes,
+      }),
+    };
+  });
 }
 
 async function resolvePaciente(input: AttentionFormInput) {
@@ -840,7 +956,7 @@ export async function listAttentions(query: QueryParams, currentUser: SessionUse
   const total = totalRows[0]?.total ?? 0;
 
   return {
-    data: rows.map((row) => toAttentionDto(row)),
+    data: await enrichAttentionDtosWithMonthlyLimitObservation(rows),
     pagination: {
       page: query.page,
       limit: query.limit,
@@ -897,8 +1013,9 @@ export async function getAttentionById(id: string, currentUser: SessionUser) {
       : null,
     obraSocial: isPopulatedObraSocialRef(attention.obraSocialId)
       ? {
-          nombre: attention.obraSocialId.nombre,
-        }
+        nombre: attention.obraSocialId.nombre,
+        cantidadPrestacionesMes: attention.obraSocialId.cantidadPrestacionesMes,
+      }
       : null,
     usuarioCarga: isPopulatedUserRef(attention.usuarioCargaId)
       ? {

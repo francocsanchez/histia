@@ -416,6 +416,7 @@ export interface AttentionDto {
   usuarioCargaId: string;
   usuarioCargaNombre: string;
   observacionGeneral: string | null;
+  observacionTope: string | null;
   codigos: AttentionCodeLineDto[];
   cantidadCodigos: number;
   totalCoseguroCentavos: number;

@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -217,10 +218,11 @@ export function AtencionesManager({
           <div className="overflow-x-auto">
             <table className="min-w-full table-fixed text-sm">
               <colgroup>
-                <col className="w-[19%]" />
-                <col className="w-[24%]" />
+                <col className="w-[15%]" />
+                <col className="w-[22%]" />
                 <col className="w-[14%]" />
-                <col className="w-[37%]" />
+                <col className="w-[18%]" />
+                <col className="w-[25%]" />
                 <col className="w-[6%]" />
               </colgroup>
               <thead className="bg-muted/70 text-left">
@@ -228,6 +230,7 @@ export function AtencionesManager({
                   <th className="px-4 py-3">Fecha</th>
                   <th className="px-4 py-3">Paciente</th>
                   <th className="px-4 py-3">Obra social</th>
+                  <th className="px-4 py-3">Observaciones</th>
                   <th className="px-4 py-3">Codigos</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
@@ -241,6 +244,15 @@ export function AtencionesManager({
                       <p className="text-muted-foreground">DNI: {item.pacienteDni}</p>
                     </td>
                     <td className="px-4 py-3">{item.obraSocialNombre}</td>
+                    <td className="px-4 py-3">
+                      {item.observacionTope ? (
+                        <Badge className="border-amber-300 bg-amber-50 text-amber-900">
+                          {item.observacionTope}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">Sin observaciones</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <p className="text-xs font-medium text-foreground">
                         {item.cantidadCodigos} codigo{item.cantidadCodigos === 1 ? "" : "s"}{" "}
