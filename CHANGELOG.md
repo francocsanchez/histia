@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-30
+
+### Changed
+
+- `Pagos` ahora ofrece botones de seleccion masiva para marcar todos los codigos o todos los coseguros odonto visibles y liquidables sin perder la seleccion persistida de otras paginas.
+- La pantalla de `Pagos` ahora refresca candidatos e historial despues de generar una liquidacion y deja visibles los checks de conceptos ya pagados para evitar re-selecciones accidentales.
+- El historial de `Pagos` ahora incorpora `Ver detalle` con dialog inline para auditar cada linea liquidada, incluyendo paciente, codigo, estado snapshot e importes por concepto.
+
 ## 2026-08-27
 
 ### Changed

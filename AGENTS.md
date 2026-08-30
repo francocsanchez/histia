@@ -10,6 +10,8 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `Pagos` ahora debe ofrecer dos acciones masivas junto a `Generar pago` para seleccionar todos los codigos liquidables o todos los coseguros odonto liquidables dentro de la pagina visible y respetando los filtros activos.
+- El historial de `Pagos` ahora debe incluir `Ver detalle` por fila, abriendo un dialog inline con los `lineItems` liquidados para auditar exactamente que codigo o coseguro se pago.
 - El listado de `/atenciones` ahora debe exponer una columna `Observaciones` y marcar `Posible tope mensual superado` cuando la suma mensual de códigos para esa atención excede el límite de la obra social del paciente.
 - La pantalla `/inicio` ahora debe incluir un gráfico anualizado por odontólogo con la suma mensual de `valor atención + coseguro odonto`, distinguiendo claramente lo pendiente de cobrar y lo ya pagado.
 - En el gráfico anualizado de `/inicio`, `valor atención` debe contabilizarse por su marca de pago (`pendiente` o `pagado`) aunque la línea siga en estado de auditoría distinto de `ok`, para que no queden visibles sólo los coseguros.

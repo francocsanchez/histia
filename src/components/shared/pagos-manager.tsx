@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 import { Check } from "lucide-react";
 
+import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,7 @@ export function PagosManager() {
   const [paymentPage, setPaymentPage] = useState(1);
   const [paymentTotalPages, setPaymentTotalPages] = useState(1);
   const [successMessage, setSuccessMessage] = useState("");
+  const [paymentDetailDialog, setPaymentDetailDialog] = useState<PaymentDto | null>(null);
 
   const loadLookups = async () => {
     setLookupLoading(true);
@@ -318,6 +320,28 @@ export function PagosManager() {
     }));
   };
 
+  const selectVisibleConcepts = (key: "payCode" | "payCoseguroOdonto") => {
+    setSelection((current) => {
+      const next = { ...current };
+
+      candidates.forEach((line) => {
+        const canToggle =
+          key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto;
+
+        if (!canToggle) {
+          return;
+        }
+
+        next[line.lineId] = {
+          ...(current[line.lineId] ?? getInitialSelection(line.lineId)),
+          [key]: true,
+        };
+      });
+
+      return next;
+    });
+  };
+
   const submitPayment = async () => {
     if (!userId || !effectiveAttentionMonth || selectedItems.length === 0) {
       return;
@@ -447,7 +471,23 @@ export function PagosManager() {
             {formatCurrencyFromCents(selectedSummary.totalHonorariosCentavos)}
           </p>
         </div>
-        <div className="flex items-end justify-end">
+        <div className="flex flex-wrap items-end justify-end gap-2">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => selectVisibleConcepts("payCode")}
+            disabled={submitting || candidatesLoading || candidates.length === 0}
+          >
+            Seleccionar codigos
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => selectVisibleConcepts("payCoseguroOdonto")}
+            disabled={submitting || candidatesLoading || candidates.length === 0}
+          >
+            Seleccionar coseguros
+          </Button>
           <Button
             onClick={() => void submitPayment()}
             disabled={
@@ -649,6 +689,7 @@ export function PagosManager() {
                   <th className="px-3 py-2 text-right">Codigos</th>
                   <th className="px-3 py-2 text-right">Coseguro odonto</th>
                   <th className="px-3 py-2 text-right">Total</th>
+                  <th className="px-3 py-2 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -668,6 +709,16 @@ export function PagosManager() {
                     </td>
                     <td className="px-3 py-2 text-right font-medium tabular-nums">
                       {formatCurrencyFromCents(payment.totalHonorariosCentavos)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setPaymentDetailDialog(payment)}
+                      >
+                        Ver detalle
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -699,6 +750,117 @@ export function PagosManager() {
           </div>
         </Card>
       ) : null}
+
+      <Dialog
+        open={Boolean(paymentDetailDialog)}
+        onClose={() => setPaymentDetailDialog(null)}
+        title="Detalle del pago"
+        description={
+          paymentDetailDialog
+            ? `${paymentDetailDialog.usuarioNombreSnapshot} · ${paymentDetailDialog.attentionMonth} · ${formatTableDate(paymentDetailDialog.paidAt)}`
+            : undefined
+        }
+        className="max-w-6xl"
+      >
+        {paymentDetailDialog ? (
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {paymentDetailDialog.quantityConceptsPaid}
+                </p>
+              </Card>
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Codigos</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatCurrencyFromCents(paymentDetailDialog.totalPagoCodigosCentavos)}
+                </p>
+              </Card>
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Coseguro odonto</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatCurrencyFromCents(paymentDetailDialog.totalCoseguroOdontoCentavos)}
+                </p>
+              </Card>
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatCurrencyFromCents(paymentDetailDialog.totalHonorariosCentavos)}
+                </p>
+              </Card>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1360px] text-sm">
+                <thead className="bg-muted/70 text-left">
+                  <tr>
+                    <th className="px-3 py-2">Fecha</th>
+                    <th className="px-3 py-2">Paciente</th>
+                    <th className="px-3 py-2">DNI</th>
+                    <th className="px-3 py-2">Obra social</th>
+                    <th className="px-3 py-2">Codigo</th>
+                    <th className="px-3 py-2">Descripcion</th>
+                    <th className="px-3 py-2">Pieza</th>
+                    <th className="px-3 py-2">Estado</th>
+                    <th className="px-3 py-2 text-right">Importe codigo</th>
+                    <th className="px-3 py-2 text-right">Coseguro odonto</th>
+                    <th className="px-3 py-2 text-center">$</th>
+                    <th className="px-3 py-2 text-center">+</th>
+                    <th className="px-3 py-2 text-right">Total linea</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentDetailDialog.lineItems.map((lineItem, index) => (
+                    <tr
+                      key={`${paymentDetailDialog.id}-${lineItem.attentionId}-${lineItem.codigoObraSocialId}-${index}`}
+                      className="border-t border-border"
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {formatTableDate(lineItem.attentionFecha)}
+                      </td>
+                      <td className="px-3 py-2 font-medium">{lineItem.pacienteNombre}</td>
+                      <td className="px-3 py-2">{lineItem.pacienteDni}</td>
+                      <td className="px-3 py-2">{lineItem.obraSocialNombre}</td>
+                      <td className="px-3 py-2">{lineItem.codigo}</td>
+                      <td className="px-3 py-2">{lineItem.codigoNombre}</td>
+                      <td className="px-3 py-2">{lineItem.pieza || "-"}</td>
+                      <td className="px-3 py-2">{attentionStatusLabels[lineItem.estadoAtencionSnapshot]}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {formatCurrencyFromCents(lineItem.pagoOdontologoCentavos)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {formatCurrencyFromCents(lineItem.coseguroOdontoCentavos ?? 0)}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {lineItem.includesCodePayment ? (
+                          <span className="inline-flex items-center justify-center text-emerald-700">
+                            <Check className="h-4 w-4" strokeWidth={3} />
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {lineItem.includesCoseguroOdontoPayment ? (
+                          <span className="inline-flex items-center justify-center text-emerald-700">
+                            <Check className="h-4 w-4" strokeWidth={3} />
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-right font-medium tabular-nums">
+                        {formatCurrencyFromCents(lineItem.totalLineaCentavos)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
