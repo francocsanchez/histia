@@ -10,6 +10,9 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `Codigos de obras sociales` ahora debe ofrecer al lado izquierdo de `Nuevo codigo` las acciones `Descargar Excel` e `Importar Excel`, reutilizando un flujo de preview validado antes de aplicar cambios masivos.
+- La importacion de `Codigos de obras sociales` usa el Excel exportado como base editable: si una fila trae `id` actualiza ese codigo, si no trae `id` intenta crear uno nuevo, puede cambiar tambien `activo`, y la ausencia de una fila no debe modificar ni desactivar registros existentes.
+- La columna `obraSocialId` del Excel exportado de `Codigos de obras sociales` debe persistir como string real del documento, nunca como objeto poblado, y el preview de importacion debe permitir marcar todas las filas validas con un solo boton.
 - `Pagos` ahora debe ofrecer dos acciones masivas junto a `Generar pago` para seleccionar todos los codigos liquidables o todos los coseguros odonto liquidables dentro de la pagina visible y respetando los filtros activos.
 - El historial de `Pagos` ahora debe incluir `Ver detalle` por fila, abriendo un dialog inline con los `lineItems` liquidados para auditar exactamente que codigo o coseguro se pago.
 - El listado de `/atenciones` ahora debe exponer una columna `Observaciones` y marcar `Posible tope mensual superado` cuando la suma mensual de códigos para esa atención excede el límite de la obra social del paciente.

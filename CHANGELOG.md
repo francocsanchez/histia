@@ -4,6 +4,9 @@
 
 ### Changed
 
+- La pantalla de `Codigos de obras sociales` ahora suma acciones de `Descargar Excel` e `Importar Excel` junto a `Nuevo codigo`, con exportacion completa de la base y preview validado antes de aplicar cambios masivos.
+- La importacion masiva de `Codigos de obras sociales` ahora actualiza filas existentes por `id`, permite crear filas nuevas sin `id`, admite cambiar `activo` desde Excel y deja intactos los codigos que no vengan en el archivo.
+- La exportacion de `Codigos de obras sociales` ahora incluye correctamente `obraSocialId` como texto utilizable en Excel, y el preview de importacion suma un boton para incluir de una vez todas las filas validas.
 - `Pagos` ahora ofrece botones de seleccion masiva para marcar todos los codigos o todos los coseguros odonto visibles y liquidables sin perder la seleccion persistida de otras paginas.
 - La pantalla de `Pagos` ahora refresca candidatos e historial despues de generar una liquidacion y deja visibles los checks de conceptos ya pagados para evitar re-selecciones accidentales.
 - El historial de `Pagos` ahora incorpora `Ver detalle` con dialog inline para auditar cada linea liquidada, incluyendo paciente, codigo, estado snapshot e importes por concepto.
