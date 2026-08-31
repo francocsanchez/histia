@@ -742,7 +742,7 @@ export function AttentionForm({
                 {isAdministrative ? <th className="px-3 py-2">Coseguro odonto</th> : null}
                 {isAdministrative ? <th className="px-3 py-2">Valor atencion</th> : null}
                 {mode === "edit" ? <th className="px-3 py-2">Estado</th> : null}
-                <th className="px-3 py-2">Observacion</th>
+                <th className="min-w-[280px] px-3 py-2">Observacion</th>
                 <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
             </thead>
@@ -1051,23 +1051,23 @@ export function AttentionForm({
                         )}
                       </td>
                     ) : null}
-                    <td className="px-3 py-2">
+                    <td className="min-w-[280px] px-3 py-2">
                       {disableObservationInput ? (
                         <>
                           <input
                             type="hidden"
                             {...form.register(`codigos.${index}.observacion`)}
                           />
-                          <Input
-                            className="w-full"
+                          <textarea
+                            className="min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
                             value={displayedObservation}
                             disabled
                             readOnly
                           />
                         </>
                       ) : (
-                        <Input
-                          className="w-full"
+                        <textarea
+                          className="min-h-[88px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm outline-none transition placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                           {...form.register(`codigos.${index}.observacion`)}
                           value={displayedObservation}
                         />
