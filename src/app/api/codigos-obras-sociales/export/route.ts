@@ -13,8 +13,9 @@ export async function GET(request: Request) {
 
     const workbook = await buildCodigosObrasSocialesWorkbook();
     const fileName = `codigos-obras-sociales-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const body = new Uint8Array(workbook);
 
-    return new Response(workbook, {
+    return new Response(body, {
       status: 200,
       headers: {
         "Content-Type":
