@@ -13,6 +13,7 @@
 - El historial y `Ver detalle` de pagos ahora exponen los debitos aplicados y el neto efectivamente pagado.
 - El listado de `Ortodoncia` ahora muestra correctamente el paciente y el profesional asociados a cada tratamiento.
 - Los pagos parciales de `Ortodoncia` pendientes de liquidacion ahora pueden eliminarse con confirmacion; los pagos ya liquidados permanecen protegidos.
+- La eliminacion de pagos pendientes de `Ortodoncia` ahora usa una operacion compatible con TypeScript sobre el arreglo de subdocumentos.
 
 ## 2026-08-31
 

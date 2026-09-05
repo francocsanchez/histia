@@ -731,11 +731,12 @@ export async function updateOrthodonticPayment(
 
   ensureOwnership(treatment, currentUser);
 
-  const payment = treatment.payments.find(
+  const paymentIndex = treatment.payments.findIndex(
     (item) => String(item._id) === paymentId,
   );
+  const payment = treatment.payments[paymentIndex];
 
-  if (!payment) {
+  if (paymentIndex < 0 || !payment) {
     throw new AppError("NOT_FOUND", "Pago no encontrado", 404);
   }
 
@@ -775,11 +776,12 @@ export async function deleteOrthodonticPayment(
 
   ensureOwnership(treatment, currentUser);
 
-  const payment = treatment.payments.find(
+  const paymentIndex = treatment.payments.findIndex(
     (item) => String(item._id) === paymentId,
   );
+  const payment = treatment.payments[paymentIndex];
 
-  if (!payment) {
+  if (paymentIndex < 0 || !payment) {
     throw new AppError("NOT_FOUND", "Pago no encontrado", 404);
   }
 
@@ -791,7 +793,7 @@ export async function deleteOrthodonticPayment(
     );
   }
 
-  treatment.payments.pull(payment._id);
+  treatment.payments.splice(paymentIndex, 1);
   await treatment.save();
 
   return getOrthodonticTreatment(treatmentId, currentUser);
