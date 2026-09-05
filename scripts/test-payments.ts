@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-import { createPayment, listPaymentCandidates } from "@/services/pagos";
+import { createPayment, listPaymentCandidates, listPayments } from "@/services/pagos";
 
 const adminId = "6a6fc50dd7dda1844092cd9c";
 const odontologoId = "6a73b1aeb4cc795b03bfa8dd";
@@ -24,8 +24,10 @@ async function main() {
     new mongoose.Types.ObjectId(),
     new mongoose.Types.ObjectId(),
     new mongoose.Types.ObjectId(),
+    new mongoose.Types.ObjectId(),
   ];
   const testLineIds = [
+    new mongoose.Types.ObjectId(),
     new mongoose.Types.ObjectId(),
     new mongoose.Types.ObjectId(),
     new mongoose.Types.ObjectId(),
@@ -119,6 +121,35 @@ async function main() {
       updatedAt: new Date(),
       __v: 0,
     },
+    {
+      _id: testAttentionIds[3],
+      fecha: new Date("2026-07-28T12:00:00.000Z"),
+      pacienteId: new mongoose.Types.ObjectId(pacienteId),
+      obraSocialId: new mongoose.Types.ObjectId(obraSocialId),
+      usuarioCargaId: new mongoose.Types.ObjectId(odontologoId),
+      observacionGeneral: "test pago mes anterior",
+      codigos: [
+        {
+          _id: testLineIds[3],
+          codigoObraSocialId: new mongoose.Types.ObjectId(codigoId),
+          pieza: "14",
+          coseguroCentavos: 0,
+          coseguroOdontoCentavos: 0,
+          observacion: null,
+          pagoOdontologoCentavos: 50500,
+          estado: "ok",
+          codePaymentStatus: "pendiente",
+          codePaymentId: null,
+          codePaidAt: null,
+          coseguroOdontoPaymentStatus: "pendiente",
+          coseguroOdontoPaymentId: null,
+          coseguroOdontoPaidAt: null,
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      __v: 0,
+    },
   ]);
 
   const paymentIds: mongoose.Types.ObjectId[] = [];
@@ -159,7 +190,19 @@ async function main() {
       (item) => String(item.lineId) === String(testLineIds[2]),
     );
 
-    if (!codeOnly || !coseguroOnly || !both) {
+    const allCandidates = await listPaymentCandidates({
+      page: 1,
+      limit: 100,
+      userId: odontologoId,
+      attentionMonth: undefined,
+      attentionStatus: undefined,
+      search: undefined,
+    });
+    const previousMonthCode = allCandidates.data.find(
+      (item) => String(item.lineId) === String(testLineIds[3]),
+    );
+
+    if (!codeOnly || !coseguroOnly || !both || !previousMonthCode) {
       throw new Error("No se encontraron las lineas de prueba");
     }
 
@@ -224,6 +267,12 @@ async function main() {
             payCode: true,
             payCoseguroOdonto: true,
           },
+          {
+            sourceType: "attention",
+            lineId: previousMonthCode.lineId,
+            payCode: true,
+            payCoseguroOdonto: false,
+          },
         ],
         debitItems: [
           { montoCentavos: 10000, observacion: "Retiro de dinero" },
@@ -237,8 +286,9 @@ async function main() {
 
     if (
       payment3.totalDebitosCentavos !== 15000 ||
-      payment3.totalNetoPagarCentavos !== 55700 ||
-      payment3.debitItems.length !== 2
+      payment3.totalNetoPagarCentavos !== 106200 ||
+      payment3.debitItems.length !== 2 ||
+      payment3.attentionMonths.join(",") !== "2026-08,2026-07"
     ) {
       throw new Error("El pago con debitos no persistio los totales esperados");
     }
@@ -248,8 +298,19 @@ async function main() {
       origenId: new mongoose.Types.ObjectId(payment3.id),
     });
 
-    if (movement?.montoCentavos !== 55700) {
+    if (movement?.montoCentavos !== 106200) {
       throw new Error("El movimiento no uso el total neto del pago");
+    }
+
+    const julyHistory = await listPayments({
+      page: 1,
+      limit: 10,
+      userId: odontologoId,
+      attentionMonth: "2026-07",
+    });
+
+    if (!julyHistory.data.some((payment) => payment.id === payment3.id)) {
+      throw new Error("El historial no encontro el pago multimes al filtrar julio");
     }
 
     await createPayment(

@@ -244,7 +244,8 @@ export const paymentCreateSchema = z.object({
   userId: z.string().min(1, "El usuario es obligatorio"),
   attentionMonth: z
     .string()
-    .regex(/^\d{4}-\d{2}$/, "El mes debe tener formato YYYY-MM"),
+    .regex(/^\d{4}-\d{2}$/, "El mes debe tener formato YYYY-MM")
+    .optional(),
   selectedItems: z
     .array(paymentCandidateSelectionSchema)
     .min(1, "Debes seleccionar al menos un concepto"),

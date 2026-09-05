@@ -548,6 +548,7 @@ export interface PaymentDto {
   usuarioId: string;
   usuarioNombreSnapshot: string;
   attentionMonth: string;
+  attentionMonths: string[];
   paidAt: string;
   createdByUserId: string;
   totalPagoCodigosCentavos: number;
@@ -582,6 +583,7 @@ export interface MovementPaymentMetadataDto {
   usuarioId: string;
   usuarioNombreSnapshot: string;
   attentionMonth: string;
+  attentionMonths: string[];
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;

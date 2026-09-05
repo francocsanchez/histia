@@ -10,6 +10,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `Pagos` permite incluir conceptos pendientes de meses distintos en una única liquidación. El filtro de mes es sólo de búsqueda; el documento y el movimiento deben persistir `attentionMonths`, y el historial debe encontrar un pago al filtrar cualquiera de esos períodos, sin perder `attentionMonth` por compatibilidad.
 - En `/inicio`, la card `Honorarios pendientes del año` debe calcularse únicamente con `pagoOdontologoCentavos` de códigos de Atenciones en estado `pendiente`; el gráfico anual conserva su propia separación por marcas de pago e incluye coseguro odonto.
 - `Pagos` permite cargar varios debitos manuales por liquidacion, cada uno con importe y observacion, y debe confirmarse mostrando codigos, coseguros, ortodoncia, debitos y total neto antes de marcar conceptos como pagados.
 - Los debitos de `Pagos` se persisten como snapshot dentro del pago y de su movimiento automatico; el movimiento usa el neto, mientras el bruto se conserva para auditoria y un neto de cero debe seguir dejando trazabilidad.

@@ -54,6 +54,7 @@ export interface PaymentDocument {
   usuarioId: Types.ObjectId;
   usuarioNombreSnapshot: string;
   attentionMonth: string;
+  attentionMonths: string[];
   paidAt: Date;
   createdByUserId: Types.ObjectId;
   lineItems: PaymentLineItemDocument[];
@@ -233,6 +234,11 @@ const paymentSchema = new Schema<PaymentDocument>(
       required: true,
       index: true,
     },
+    attentionMonths: {
+      type: [String],
+      default: [],
+      index: true,
+    },
     paidAt: {
       type: Date,
       required: true,
@@ -296,6 +302,7 @@ const paymentSchema = new Schema<PaymentDocument>(
 );
 
 paymentSchema.index({ usuarioId: 1, attentionMonth: 1, paidAt: -1 });
+paymentSchema.index({ usuarioId: 1, attentionMonths: 1, paidAt: -1 });
 
 export const PaymentModel =
   (models.Payment as Model<PaymentDocument>) ||

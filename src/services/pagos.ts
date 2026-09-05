@@ -36,7 +36,7 @@ type PaymentCandidateQuery = {
 
 type PaymentCreateInput = {
   userId: string;
-  attentionMonth: string;
+  attentionMonth?: string;
   selectedItems: PaymentCandidateSelectionDto[];
   debitItems?: PaymentDebitItemDto[];
 };
@@ -151,6 +151,7 @@ function toPaymentDto(payment: {
   usuarioId: unknown;
   usuarioNombreSnapshot: string;
   attentionMonth: string;
+  attentionMonths?: string[];
   paidAt: Date;
   createdByUserId: unknown;
   totalPagoCodigosCentavos: number;
@@ -170,6 +171,10 @@ function toPaymentDto(payment: {
     usuarioId: String(payment.usuarioId),
     usuarioNombreSnapshot: payment.usuarioNombreSnapshot,
     attentionMonth: payment.attentionMonth,
+    attentionMonths:
+      payment.attentionMonths && payment.attentionMonths.length > 0
+        ? payment.attentionMonths
+        : [payment.attentionMonth],
     paidAt: payment.paidAt.toISOString(),
     createdByUserId: String(payment.createdByUserId),
     totalPagoCodigosCentavos: payment.totalPagoCodigosCentavos,
@@ -227,9 +232,7 @@ async function ensureLineIdsForPayments(match: Record<string, unknown>) {
   }
 }
 
-function buildAttentionCandidateBaseMatch(
-  query: PaymentCandidateQuery | PaymentCreateInput,
-) {
+function buildAttentionCandidateBaseMatch(query: PaymentCandidateQuery) {
   const match: Record<string, unknown> = {};
 
   if (query.userId) {
@@ -550,7 +553,6 @@ async function getFreshSelectedCandidates(input: PaymentCreateInput) {
     page: 1,
     limit: Math.max(input.selectedItems.length, 1),
     userId: input.userId,
-    attentionMonth: input.attentionMonth,
   });
   const selectedKeys = new Set(
     input.selectedItems.map((item) => `${item.sourceType}:${item.lineId}`),
@@ -755,7 +757,10 @@ export async function listPayments(query: PaymentHistoryQuery) {
   }
 
   if (query.attentionMonth) {
-    match.attentionMonth = query.attentionMonth;
+    match.$or = [
+      { attentionMonth: query.attentionMonth },
+      { attentionMonths: query.attentionMonth },
+    ];
   }
 
   const skip = (query.page - 1) * query.limit;
@@ -909,7 +914,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
   if (candidatesByKey.size !== normalizedSelection.length) {
     throw new AppError(
       "NOT_FOUND",
-      "Uno o mas conceptos seleccionados ya no estan disponibles para este usuario o mes",
+      "Uno o mas conceptos seleccionados ya no estan disponibles para este usuario",
       404,
     );
   }
@@ -938,11 +943,15 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     }
   });
 
+  const attentionMonths = Array.from(
+    new Set(candidates.map((candidate) => candidate.attentionMonth)),
+  ).sort((left, right) => right.localeCompare(left));
+  const primaryAttentionMonth = attentionMonths[0];
   const summary = buildPaymentSummary(
     candidates,
     normalizedSelection,
     input.userId,
-    input.attentionMonth,
+    primaryAttentionMonth,
     debitItems,
   );
 
@@ -1026,7 +1035,8 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     _id: paymentId,
     usuarioId: new Types.ObjectId(input.userId),
     usuarioNombreSnapshot: firstCandidate.userName,
-    attentionMonth: input.attentionMonth,
+    attentionMonth: primaryAttentionMonth,
+    attentionMonths,
     paidAt,
     createdByUserId: new Types.ObjectId(currentUserId),
     lineItems,
@@ -1112,7 +1122,8 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
       paidAt,
       usuarioId: input.userId,
       usuarioNombreSnapshot: firstCandidate.userName,
-      attentionMonth: input.attentionMonth,
+      attentionMonth: primaryAttentionMonth,
+      attentionMonths,
       totalPagoCodigosCentavos: summary.totalPagoCodigosCentavos,
       totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
       totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,

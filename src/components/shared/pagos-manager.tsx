@@ -414,12 +414,6 @@ export function PagosManager() {
     [candidateCache, selectedItems],
   );
 
-  const effectiveAttentionMonth =
-    attentionMonth || (selectedMonths.length === 1 ? selectedMonths[0] : "");
-
-  const hasMixedSelectedMonths =
-    !attentionMonth && selectedItems.length > 0 && selectedMonths.length > 1;
-
   const debitSummary = useMemo(() => {
     const parsedItems = debitItems.map((item) => ({
       ...item,
@@ -524,7 +518,7 @@ export function PagosManager() {
   };
 
   const submitPayment = async () => {
-    if (!userId || !effectiveAttentionMonth || selectedItems.length === 0) {
+    if (!userId || selectedItems.length === 0) {
       return;
     }
 
@@ -538,7 +532,6 @@ export function PagosManager() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId,
-          attentionMonth: effectiveAttentionMonth,
           selectedItems,
           debitItems: debitSummary.debitItems.map((item) => ({
             montoCentavos: item.montoCentavos,
@@ -696,8 +689,7 @@ export function PagosManager() {
             disabled={
               submitting ||
               selectedItems.length === 0 ||
-              !userId ||
-              !effectiveAttentionMonth
+              !userId
             }
           >
             {submitting ? "Generando..." : "Generar pago"}
@@ -718,7 +710,7 @@ export function PagosManager() {
             size="sm"
             variant="secondary"
             onClick={() => setDebitItems((current) => [...current, createPaymentDebitDraft()])}
-            disabled={!userId || !effectiveAttentionMonth || submitting}
+            disabled={!userId || selectedItems.length === 0 || submitting}
           >
             <Plus className="mr-1 h-4 w-4" />
             Agregar debito
@@ -782,11 +774,9 @@ export function PagosManager() {
         ) : null}
       </Card>
 
-      {!userId || !effectiveAttentionMonth ? (
+      {!userId ? (
         <Card className="p-3 text-sm text-muted-foreground">
-          {hasMixedSelectedMonths
-            ? "La seleccion incluye meses distintos. Filtra un mes para generar el pago."
-            : "Selecciona usuario y mes para generar una liquidacion."}
+          Selecciona un profesional para generar una liquidacion.
         </Card>
       ) : null}
 
@@ -978,7 +968,7 @@ export function PagosManager() {
                 {payments.map((payment) => (
                   <tr key={payment.id} className="border-t border-border">
                     <td className="px-3 py-2 font-medium">{payment.usuarioNombreSnapshot}</td>
-                    <td className="px-3 py-2">{payment.attentionMonth}</td>
+                    <td className="px-3 py-2">{payment.attentionMonths.join(", ")}</td>
                     <td className="px-3 py-2">{formatTableDate(payment.paidAt)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {payment.quantityConceptsPaid}
@@ -1046,6 +1036,9 @@ export function PagosManager() {
         description="Revisa el importe final antes de generar el pago. Esta accion marcara los conceptos como pagados."
       >
         <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Meses de atencion incluidos: {selectedMonths.join(", ")}.
+          </p>
           <div className="divide-y divide-border border-y border-border text-sm">
             <div className="flex items-center justify-between gap-4 py-2">
               <span>Total codigos</span>
@@ -1118,7 +1111,7 @@ export function PagosManager() {
         title="Detalle del pago"
         description={
           paymentDetailDialog
-            ? `${paymentDetailDialog.usuarioNombreSnapshot} · ${paymentDetailDialog.attentionMonth} · ${formatTableDate(paymentDetailDialog.paidAt)}`
+            ? `${paymentDetailDialog.usuarioNombreSnapshot} · ${paymentDetailDialog.attentionMonths.join(", ")} · ${formatTableDate(paymentDetailDialog.paidAt)}`
             : undefined
         }
         className="max-w-6xl"

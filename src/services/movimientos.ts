@@ -67,6 +67,7 @@ type PaymentMovementInput = {
   usuarioId: string;
   usuarioNombreSnapshot: string;
   attentionMonth: string;
+  attentionMonths: string[];
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
@@ -289,6 +290,7 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
     usuarioId: input.usuarioId,
     usuarioNombreSnapshot: input.usuarioNombreSnapshot,
     attentionMonth: input.attentionMonth,
+    attentionMonths: input.attentionMonths,
     totalPagoCodigosCentavos: input.totalPagoCodigosCentavos,
     totalCoseguroOdontoCentavos: input.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: input.totalOrtodonciaCentavos,
@@ -304,7 +306,7 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
       fecha: input.paidAt,
       descripcion: buildPaymentMovementDescription(
         input.usuarioNombreSnapshot,
-        input.attentionMonth,
+        input.attentionMonths.join(", "),
       ),
       direccion: movementType.direccion,
       tipoMovimientoId: new Types.ObjectId(movementType.id),
