@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   attentionCodeStatusValues,
   movementDirectionValues,
+  orthodonticTreatmentStatusValues,
+  orthodonticTreatmentTypeValues,
   paymentStatusValues,
   referrerTypeValues,
   rxTypeValues,
@@ -215,6 +217,7 @@ export const attentionSchema = z
 
 export const paymentCandidateSelectionSchema = z
   .object({
+    sourceType: z.enum(["attention", "orthodontic-payment"]),
     lineId: z.string().min(1, "La linea es obligatoria"),
     payCode: z.boolean(),
     payCoseguroOdonto: z.boolean(),
@@ -229,6 +232,14 @@ export const paymentCandidateSelectionSchema = z
     }
   });
 
+export const paymentDebitItemSchema = z.object({
+  montoCentavos: z
+    .coerce.number()
+    .int("El importe del debito debe ser un entero")
+    .min(1, "El importe del debito debe ser mayor que cero"),
+  observacion: z.string().trim().min(1, "La observacion del debito es obligatoria"),
+});
+
 export const paymentCreateSchema = z.object({
   userId: z.string().min(1, "El usuario es obligatorio"),
   attentionMonth: z
@@ -237,6 +248,47 @@ export const paymentCreateSchema = z.object({
   selectedItems: z
     .array(paymentCandidateSelectionSchema)
     .min(1, "Debes seleccionar al menos un concepto"),
+  debitItems: z.array(paymentDebitItemSchema).default([]),
+});
+
+export const orthodonticTreatmentSchema = z.object({
+  fechaInicio: z.string().min(1, "La fecha de inicio es obligatoria"),
+  pacienteId: z.string().optional().nullable(),
+  paciente: inlinePacienteSchema.optional(),
+  usuarioOrtodoncistaId: z.string().optional().nullable(),
+  tratamientoTipo: z.enum(orthodonticTreatmentTypeValues),
+  valorTratamientoCentavos: z
+    .coerce.number()
+    .int("El valor del tratamiento debe ser un entero")
+    .min(0, "El valor del tratamiento debe ser igual o mayor que cero"),
+  valorMaterialesCentavos: z
+    .coerce.number()
+    .int("El valor de materiales debe ser un entero")
+    .min(0, "El valor de materiales debe ser igual o mayor que cero"),
+  estado: z.enum(orthodonticTreatmentStatusValues).default("activo"),
+}).superRefine((value, ctx) => {
+  const hasPacienteId = Boolean(value.pacienteId);
+  const hasPacienteInline = Boolean(value.paciente);
+
+  if (!hasPacienteId && !hasPacienteInline) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["pacienteId"],
+      message: "Debes seleccionar un paciente o crearlo en el flujo",
+    });
+  }
+});
+
+export const orthodonticPaymentSchema = z.object({
+  fecha: z.string().min(1, "La fecha es obligatoria"),
+  montoCentavos: z
+    .coerce.number()
+    .int("El monto debe ser un entero")
+    .min(1, "El monto debe ser mayor que cero"),
+  porcentajeOrtodoncista: z
+    .coerce.number()
+    .min(0, "El porcentaje debe ser igual o mayor que cero")
+    .max(100, "El porcentaje debe ser igual o menor que 100"),
 });
 
 export const paymentStatusSchema = z.enum(paymentStatusValues);

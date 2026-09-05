@@ -10,6 +10,9 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `Pagos` permite cargar varios debitos manuales por liquidacion, cada uno con importe y observacion, y debe confirmarse mostrando codigos, coseguros, ortodoncia, debitos y total neto antes de marcar conceptos como pagados.
+- Los debitos de `Pagos` se persisten como snapshot dentro del pago y de su movimiento automatico; el movimiento usa el neto, mientras el bruto se conserva para auditoria y un neto de cero debe seguir dejando trazabilidad.
+- En `Ortodoncia`, el listado debe conservar los datos poblados de paciente y ortodoncista al transformar resultados de agregacion; los pagos parciales pendientes se pueden editar o eliminar, pero quedan bloqueados una vez liquidados desde `Pagos`.
 - `Codigos de obras sociales` ahora debe ofrecer al lado izquierdo de `Nuevo codigo` las acciones `Descargar Excel` e `Importar Excel`, reutilizando un flujo de preview validado antes de aplicar cambios masivos.
 - La importacion de `Codigos de obras sociales` usa el Excel exportado como base editable: si una fila trae `id` actualiza ese codigo, si no trae `id` intenta crear uno nuevo, puede cambiar tambien `activo`, y la ausencia de una fila no debe modificar ni desactivar registros existentes.
 - La columna `obraSocialId` del Excel exportado de `Codigos de obras sociales` debe persistir como string real del documento, nunca como objeto poblado, y el preview de importacion debe permitir marcar todas las filas validas con un solo boton.
@@ -58,6 +61,9 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 - Si WhatsApp devuelve un corte terminal `logged_out`, el worker ahora debe dejar trazado el ultimo envio intentado y activar una pausa operativa (`globalPause` + campañas `running` a `paused`) para que el equipo revise la sesion antes de retomar envios.
 - La pantalla principal `/encuestas` debe ofrecer ademas un control rapido de pausa global de envios, visible junto a `Vincular numero`, para poder escanear un QR nuevo sin que arranque un envio automatico apenas vuelva la sesion.
 - La pantalla `/encuestas/vincular` debe permitir tambien borrar todos los eventos de `whatsappConnectionEvents` desde la UI cuando el historial acumulado ya no sirva para diagnostico actual.
+- Existe un nuevo modulo `Ortodoncia` accesible para `administrador` y `ortodoncista`, con un solo tratamiento activo por paciente, alta por DNI como en `Atenciones` y pagos parciales libres que calculan saldo del paciente y monto liquidable del profesional.
+- `Pagos` ahora debe contemplar tambien conceptos provenientes de `Ortodoncia`, distinguiendo el origen en candidatos, historial y detalle, mientras sigue creando un unico movimiento automatico por liquidacion.
+- El rol `ortodoncista` debe estar disponible en `Usuarios`, en permisos y en navegacion, pero el modulo dedicado de `Pacientes` para roles clinicos no administradores sigue siendo solo de lectura.
 
 <!-- BEGIN:nextjs-agent-rules -->
 
@@ -87,6 +93,7 @@ Current implemented scope as of August 10, 2026:
 - Dashboard operativo mensual en `Inicio`
 - Dashboard administrativo de indicadores
 - Encuestas de satisfaccion por WhatsApp
+- Ortodoncia
 
 Out of scope:
 
@@ -144,6 +151,7 @@ Supported roles:
 
 - `administrador`
 - `odontologo`
+- `ortodoncista`
 - `radiologo`
 
 Role behavior currently implemented:

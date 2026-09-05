@@ -58,7 +58,7 @@ const movementSchema = new Schema<MovementDocument>(
     montoCentavos: {
       type: Number,
       required: true,
-      min: 1,
+      min: 0,
     },
     origenTipo: {
       type: String,

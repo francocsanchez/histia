@@ -15,6 +15,7 @@ import {
   MovementMercadoPagoMetadataDto,
   MovementOriginType,
   MovementPaymentMetadataDto,
+  PaymentDebitItemDto,
   MovementUpdateDto,
 } from "@/types/domain";
 
@@ -68,8 +69,12 @@ type PaymentMovementInput = {
   attentionMonth: string;
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
+  totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalDebitosCentavos: number;
+  totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
+  debitItems: PaymentDebitItemDto[];
   createdByUserId: string;
 };
 
@@ -286,8 +291,12 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
     attentionMonth: input.attentionMonth,
     totalPagoCodigosCentavos: input.totalPagoCodigosCentavos,
     totalCoseguroOdontoCentavos: input.totalCoseguroOdontoCentavos,
+    totalOrtodonciaCentavos: input.totalOrtodonciaCentavos,
     totalHonorariosCentavos: input.totalHonorariosCentavos,
+    totalDebitosCentavos: input.totalDebitosCentavos,
+    totalNetoPagarCentavos: input.totalNetoPagarCentavos,
     quantityConceptsPaid: input.quantityConceptsPaid,
+    debitItems: input.debitItems,
   };
 
   try {
@@ -300,7 +309,7 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
       direccion: movementType.direccion,
       tipoMovimientoId: new Types.ObjectId(movementType.id),
       tipo: movementType.nombre,
-      montoCentavos: input.totalHonorariosCentavos,
+      montoCentavos: input.totalNetoPagarCentavos,
       origenTipo: "payment",
       origenId: input.paymentId,
       externalId: null,

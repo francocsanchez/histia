@@ -17,6 +17,7 @@ async function main() {
   const db = mongoose.connection.db!;
   const attentionCollection = db.collection("attentions");
   const paymentCollection = db.collection("payments");
+  const movementCollection = db.collection("movements");
   const baseDate = new Date("2026-08-06T12:00:00.000Z");
 
   const testAttentionIds = [
@@ -168,6 +169,7 @@ async function main() {
         attentionMonth: month,
         selectedItems: [
           {
+            sourceType: "attention",
             lineId: codeOnly.lineId,
             payCode: true,
             payCoseguroOdonto: false,
@@ -185,16 +187,31 @@ async function main() {
         attentionMonth: month,
         selectedItems: [
           {
+            sourceType: "attention",
             lineId: coseguroOnly.lineId,
             payCode: false,
             payCoseguroOdonto: true,
           },
         ],
+        debitItems: [{ montoCentavos: 20200, observacion: "Retiro total" }],
       },
       adminId,
     );
     paymentIds.push(new mongoose.Types.ObjectId(payment2.id));
     console.log("payment2", payment2.id);
+
+    if (payment2.totalNetoPagarCentavos !== 0) {
+      throw new Error("El pago con debito total deberia dejar un neto de cero");
+    }
+
+    const zeroMovement = await movementCollection.findOne({
+      origenTipo: "payment",
+      origenId: new mongoose.Types.ObjectId(payment2.id),
+    });
+
+    if (zeroMovement?.montoCentavos !== 0) {
+      throw new Error("El movimiento de un pago neto cero deberia conservar el importe cero");
+    }
 
     const payment3 = await createPayment(
       {
@@ -202,16 +219,64 @@ async function main() {
         attentionMonth: month,
         selectedItems: [
           {
+            sourceType: "attention",
             lineId: both.lineId,
             payCode: true,
             payCoseguroOdonto: true,
           },
+        ],
+        debitItems: [
+          { montoCentavos: 10000, observacion: "Retiro de dinero" },
+          { montoCentavos: 5000, observacion: "Anticipo" },
         ],
       },
       adminId,
     );
     paymentIds.push(new mongoose.Types.ObjectId(payment3.id));
     console.log("payment3", payment3.id);
+
+    if (
+      payment3.totalDebitosCentavos !== 15000 ||
+      payment3.totalNetoPagarCentavos !== 55700 ||
+      payment3.debitItems.length !== 2
+    ) {
+      throw new Error("El pago con debitos no persistio los totales esperados");
+    }
+
+    const movement = await movementCollection.findOne({
+      origenTipo: "payment",
+      origenId: new mongoose.Types.ObjectId(payment3.id),
+    });
+
+    if (movement?.montoCentavos !== 55700) {
+      throw new Error("El movimiento no uso el total neto del pago");
+    }
+
+    await createPayment(
+      {
+        userId: odontologoId,
+        attentionMonth: month,
+        selectedItems: [
+          {
+            sourceType: "attention",
+            lineId: codeOnly.lineId,
+            payCode: true,
+            payCoseguroOdonto: false,
+          },
+        ],
+        debitItems: [{ montoCentavos: 100101, observacion: "Debito excedido" }],
+      },
+      adminId,
+    ).then(
+      () => {
+        throw new Error("Se permitio un debito mayor al total bruto");
+      },
+      (error: unknown) => {
+        if (!(error instanceof Error) || !error.message.includes("no pueden superar")) {
+          throw error;
+        }
+      },
+    );
 
     const persistedAttentions = await attentionCollection
       .find({ _id: { $in: testAttentionIds } })
@@ -227,6 +292,7 @@ async function main() {
     );
   } finally {
     if (paymentIds.length > 0) {
+      await movementCollection.deleteMany({ origenId: { $in: paymentIds } });
       await paymentCollection.deleteMany({ _id: { $in: paymentIds } });
     }
 

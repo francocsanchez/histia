@@ -20,6 +20,7 @@ export async function GET(request: Request) {
     const role = searchParams.get("role") as
       | "administrador"
       | "odontologo"
+      | "ortodoncista"
       | "radiologo"
       | null;
     const result = await listUsers({ page, limit, search, status, role: role ?? undefined });

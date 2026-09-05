@@ -1,8 +1,13 @@
 import { Model, Schema, Types, model, models } from "mongoose";
 
-import { AttentionCodeStatus } from "@/types/domain";
+import {
+  AttentionCodeStatus,
+  OrthodonticTreatmentType,
+  PaymentDebitItemDto,
+} from "@/types/domain";
 
-export interface PaymentLineItemDocument {
+export interface AttentionPaymentLineItemDocument {
+  sourceType: "attention";
   attentionId: Types.ObjectId;
   attentionFecha: Date;
   pacienteId: Types.ObjectId;
@@ -22,6 +27,28 @@ export interface PaymentLineItemDocument {
   totalLineaCentavos: number;
 }
 
+export interface OrthodonticPaymentLineItemDocument {
+  sourceType: "orthodontic-payment";
+  orthodonticTreatmentId: Types.ObjectId;
+  orthodonticPaymentId: Types.ObjectId;
+  treatmentStartDate: Date;
+  paymentDate: Date;
+  treatmentType: OrthodonticTreatmentType;
+  patientId: Types.ObjectId;
+  patientName: string;
+  patientDni: string;
+  paymentAmountCentavos: number;
+  percentageToOrthodontist: number;
+  orthodontistAmountCentavos: number;
+  totalLineaCentavos: number;
+}
+
+export type PaymentLineItemDocument =
+  | AttentionPaymentLineItemDocument
+  | OrthodonticPaymentLineItemDocument;
+
+export type PaymentDebitItemDocument = PaymentDebitItemDto;
+
 export interface PaymentDocument {
   _id: Types.ObjectId;
   usuarioId: Types.ObjectId;
@@ -32,61 +59,70 @@ export interface PaymentDocument {
   lineItems: PaymentLineItemDocument[];
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
+  totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalDebitosCentavos: number;
+  totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
+  debitItems: PaymentDebitItemDocument[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-const paymentLineItemSchema = new Schema<PaymentLineItemDocument>(
+const paymentLineItemSchema = new Schema(
   {
+    sourceType: {
+      type: String,
+      enum: ["attention", "orthodontic-payment"],
+      required: true,
+    },
     attentionId: {
       type: Schema.Types.ObjectId,
       ref: "Attention",
-      required: true,
+      default: null,
     },
     attentionFecha: {
       type: Date,
-      required: true,
+      default: null,
     },
     pacienteId: {
       type: Schema.Types.ObjectId,
       ref: "Paciente",
-      required: true,
+      default: null,
     },
     pacienteNombre: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
     },
     pacienteDni: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
     },
     obraSocialId: {
       type: Schema.Types.ObjectId,
       ref: "ObraSocial",
-      required: true,
+      default: null,
     },
     obraSocialNombre: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
     },
     codigoObraSocialId: {
       type: Schema.Types.ObjectId,
       ref: "CodigoObraSocial",
-      required: true,
+      default: null,
     },
     codigo: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
     },
     codigoNombre: {
       type: String,
-      required: true,
+      default: null,
       trim: true,
     },
     pieza: {
@@ -96,12 +132,12 @@ const paymentLineItemSchema = new Schema<PaymentLineItemDocument>(
     },
     estadoAtencionSnapshot: {
       type: String,
-      enum: ["no-cargado", "pendiente", "ok", "diferido", "denegado"],
-      required: true,
+      enum: ["no-cargado", "pendiente", "ok", "diferido", "denegado", null],
+      default: null,
     },
     pagoOdontologoCentavos: {
       type: Number,
-      required: true,
+      default: null,
       min: 0,
     },
     coseguroOdontoCentavos: {
@@ -111,13 +147,54 @@ const paymentLineItemSchema = new Schema<PaymentLineItemDocument>(
     },
     includesCodePayment: {
       type: Boolean,
-      required: true,
       default: false,
     },
     includesCoseguroOdontoPayment: {
       type: Boolean,
-      required: true,
       default: false,
+    },
+    orthodonticTreatmentId: {
+      type: Schema.Types.ObjectId,
+      ref: "OrthodonticTreatment",
+      default: null,
+    },
+    orthodonticPaymentId: {
+      type: Schema.Types.ObjectId,
+      default: null,
+    },
+    treatmentStartDate: {
+      type: Date,
+      default: null,
+    },
+    paymentDate: {
+      type: Date,
+      default: null,
+    },
+    treatmentType: {
+      type: String,
+      enum: ["damon-q", "arco-recto", "damon-ultimate", "a-ligable-nac", null],
+      default: null,
+    },
+    patientName: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    paymentAmountCentavos: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    percentageToOrthodontist: {
+      type: Number,
+      default: null,
+      min: 0,
+      max: 100,
+    },
+    orthodontistAmountCentavos: {
+      type: Number,
+      default: null,
+      min: 0,
     },
     totalLineaCentavos: {
       type: Number,
@@ -128,6 +205,14 @@ const paymentLineItemSchema = new Schema<PaymentLineItemDocument>(
   {
     _id: false,
   },
+);
+
+const paymentDebitItemSchema = new Schema<PaymentDebitItemDocument>(
+  {
+    montoCentavos: { type: Number, required: true, min: 1 },
+    observacion: { type: String, required: true, trim: true },
+  },
+  { _id: false },
 );
 
 const paymentSchema = new Schema<PaymentDocument>(
@@ -172,15 +257,36 @@ const paymentSchema = new Schema<PaymentDocument>(
       required: true,
       min: 0,
     },
+    totalOrtodonciaCentavos: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
     totalHonorariosCentavos: {
       type: Number,
       required: true,
+      min: 0,
+    },
+    totalDebitosCentavos: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
+    totalNetoPagarCentavos: {
+      type: Number,
+      required: true,
+      default: 0,
       min: 0,
     },
     quantityConceptsPaid: {
       type: Number,
       required: true,
       min: 1,
+    },
+    debitItems: {
+      type: [paymentDebitItemSchema],
+      default: [],
     },
   },
   {

@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-09-05
+
+### Added
+
+- `Pagos` ahora permite cargar multiples debitos manuales con importe y observacion dentro de una liquidacion, para descontar retiros u otros anticipos del profesional.
+- Antes de confirmar una liquidacion, `Pagos` ahora muestra un resumen de codigos, coseguros, ortodoncia, debitos y total neto a transferir.
+
+### Changed
+
+- Los pagos y movimientos automaticos ahora guardan el total de debitos, el total neto y el detalle de cada descuento, manteniendo el total bruto historico para auditoria.
+- El historial y `Ver detalle` de pagos ahora exponen los debitos aplicados y el neto efectivamente pagado.
+- El listado de `Ortodoncia` ahora muestra correctamente el paciente y el profesional asociados a cada tratamiento.
+- Los pagos parciales de `Ortodoncia` pendientes de liquidacion ahora pueden eliminarse con confirmacion; los pagos ya liquidados permanecen protegidos.
+
+## 2026-08-31
+
+### Added
+
+- Nuevo modulo `Ortodoncia` para usuarios `administrador` u `ortodoncista`, con alta por DNI reutilizando/creando paciente inline, seguimiento de tratamientos activos y registro de pagos parciales del paciente.
+- Nuevas APIs protegidas para `Ortodoncia`: listado, detalle, lookups por DNI y carga/edicion de pagos parciales dentro del tratamiento.
+
+### Changed
+
+- El sistema ahora reconoce el rol `ortodoncista` en tipos, validaciones, permisos, filtros de usuarios y navegacion principal.
+- `Pagos` ahora integra candidatos y detalle de liquidaciones provenientes tanto de `Atenciones` como de `Ortodoncia`, distinguiendo el origen en la UI y en los `lineItems` persistidos.
+- El historial de `Pagos` ahora muestra tambien el total liquidado de `Ortodoncia`, manteniendo el movimiento financiero automatico unificado por pago.
+- La gestion de `Pacientes` para roles clinicos sin administracion queda en modo lectura desde el modulo dedicado, manteniendo el alta inline solo dentro de los flujos operativos como `Atenciones`, `RX` y `Ortodoncia`.
+
 ## 2026-08-30
 
 ### Changed

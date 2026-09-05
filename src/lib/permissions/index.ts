@@ -4,6 +4,7 @@ export type ResourceKey =
   | "dashboard"
   | "admin-dashboard"
   | "encuestas"
+  | "ortodoncia"
   | "rx"
   | "atenciones"
   | "liquidaciones"
@@ -17,7 +18,7 @@ export type ResourceKey =
 
 export type PermissionAction = "read" | "write";
 
-const readOnlyRoles: UserRole[] = ["odontologo", "radiologo"];
+const readOnlyRoles: UserRole[] = ["odontologo", "ortodoncista", "radiologo"];
 
 export function isAdmin(user: Pick<SessionUser, "roles">) {
   return user.roles.includes("administrador");
@@ -36,12 +37,16 @@ export function can(
     return user.roles.includes("radiologo");
   }
 
+  if (resource === "ortodoncia") {
+    return user.roles.includes("ortodoncista");
+  }
+
   if (resource === "atenciones") {
     return user.roles.includes("odontologo");
   }
 
   if (resource === "pacientes") {
-    return readOnlyRoles.some((role) => user.roles.includes(role));
+    return action === "read" && readOnlyRoles.some((role) => user.roles.includes(role));
   }
 
   if (

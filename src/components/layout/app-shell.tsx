@@ -25,6 +25,7 @@ const primaryLinks = [
   { href: "/dashboard", label: "Dashboard", resource: "admin-dashboard" as const },
   { href: "/inicio", label: "Inicio", resource: "dashboard" as const },
   { href: "/atenciones", label: "Atenciones", resource: "atenciones" as const },
+  { href: "/ortodoncia", label: "Ortodoncia", resource: "ortodoncia" as const },
   { href: "/rx", label: "RX", resource: "rx" as const },
   { href: "/encuestas", label: "Encuestas", resource: "encuestas" as const },
   { href: "/pacientes", label: "Pacientes", resource: "pacientes" as const },

@@ -43,6 +43,7 @@ export function splitRoles(value?: string | null): UserRole[] {
       (role): role is UserRole =>
         role === "administrador" ||
         role === "odontologo" ||
+        role === "ortodoncista" ||
         role === "radiologo",
     );
 }

@@ -51,6 +51,7 @@ type ListPayload = {
 const roleLabels: Record<UserRole, string> = {
   administrador: "Administrador",
   odontologo: "Odontologo",
+  ortodoncista: "Ortodoncista",
   radiologo: "Radiologo",
 };
 

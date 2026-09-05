@@ -1,6 +1,7 @@
 export const userRoleValues = [
   "administrador",
   "odontologo",
+  "ortodoncista",
   "radiologo",
 ] as const;
 
@@ -19,6 +20,7 @@ export interface QueryParams {
   search?: string;
   status?: "all" | "active" | "inactive";
   attentionStatus?: AttentionCodeStatus;
+  orthodonticTreatmentStatus?: OrthodonticTreatmentStatus;
   obraSocialId?: string;
   role?: UserRole;
   rxType?: RxType;
@@ -375,6 +377,25 @@ export interface RxAttentionDto {
   updatedAt: string;
 }
 
+export const orthodonticTreatmentTypeValues = [
+  "damon-q",
+  "arco-recto",
+  "damon-ultimate",
+  "a-ligable-nac",
+] as const;
+
+export type OrthodonticTreatmentType =
+  (typeof orthodonticTreatmentTypeValues)[number];
+
+export const orthodonticTreatmentStatusValues = [
+  "activo",
+  "cerrado",
+  "cancelado",
+] as const;
+
+export type OrthodonticTreatmentStatus =
+  (typeof orthodonticTreatmentStatusValues)[number];
+
 export const attentionCodeStatusValues = [
   "no-cargado",
   "pendiente",
@@ -436,6 +457,8 @@ export interface AttentionDto {
 }
 
 export interface PaymentCandidateLineDto {
+  sourceType: "attention" | "orthodontic-payment";
+  sourceLabel: string;
   attentionId: string;
   attentionFecha: string;
   attentionMonth: string;
@@ -458,15 +481,23 @@ export interface PaymentCandidateLineDto {
   coseguroOdontoPaymentStatus: PaymentStatus;
   canPayCode: boolean;
   canPayCoseguroOdonto: boolean;
+  orthodonticTreatmentId: string | null;
+  orthodonticTreatmentType: OrthodonticTreatmentType | null;
+  orthodonticPaymentId: string | null;
+  orthodonticPaymentDate: string | null;
+  orthodonticPaymentAmountCentavos: number | null;
+  orthodonticPaymentPercentage: number | null;
 }
 
 export interface PaymentCandidateSelectionDto {
+  sourceType: "attention" | "orthodontic-payment";
   lineId: string;
   payCode: boolean;
   payCoseguroOdonto: boolean;
 }
 
-export interface PaymentLineItemDto {
+export interface AttentionPaymentLineItemDto {
+  sourceType: "attention";
   attentionId: string;
   attentionFecha: string;
   pacienteId: string;
@@ -486,6 +517,31 @@ export interface PaymentLineItemDto {
   totalLineaCentavos: number;
 }
 
+export interface OrthodonticPaymentLineItemDto {
+  sourceType: "orthodontic-payment";
+  orthodonticTreatmentId: string;
+  orthodonticPaymentId: string;
+  treatmentStartDate: string;
+  paymentDate: string;
+  treatmentType: OrthodonticTreatmentType;
+  patientId: string;
+  patientName: string;
+  patientDni: string;
+  paymentAmountCentavos: number;
+  percentageToOrthodontist: number;
+  orthodontistAmountCentavos: number;
+  totalLineaCentavos: number;
+}
+
+export type PaymentLineItemDto =
+  | AttentionPaymentLineItemDto
+  | OrthodonticPaymentLineItemDto;
+
+export interface PaymentDebitItemDto {
+  montoCentavos: number;
+  observacion: string;
+}
+
 export interface PaymentDto {
   id: string;
   usuarioId: string;
@@ -495,9 +551,13 @@ export interface PaymentDto {
   createdByUserId: string;
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
+  totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalDebitosCentavos: number;
+  totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
   lineItems: PaymentLineItemDto[];
+  debitItems: PaymentDebitItemDto[];
   createdAt: string;
   updatedAt: string;
 }
@@ -508,7 +568,10 @@ export interface PaymentSummaryDto {
   selectedItems: PaymentCandidateSelectionDto[];
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
+  totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalDebitosCentavos: number;
+  totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
 }
 
@@ -520,8 +583,12 @@ export interface MovementPaymentMetadataDto {
   attentionMonth: string;
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
+  totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalDebitosCentavos: number;
+  totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
+  debitItems: PaymentDebitItemDto[];
 }
 
 export interface MovementMercadoPagoMetadataDto {
@@ -577,6 +644,47 @@ export interface MovementCreateDto {
   descripcion?: string | null;
   movementTypeId: string;
   montoCentavos: number;
+}
+
+export interface OrthodonticPaymentDto {
+  id: string;
+  fecha: string;
+  montoCentavos: number;
+  porcentajeOrtodoncista: number;
+  montoOrtodoncistaCentavos: number;
+  paymentStatus: PaymentStatus;
+  paymentId: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrthodonticTreatmentTotalsDto {
+  totalPresupuestadoCentavos: number;
+  totalPagadoPacienteCentavos: number;
+  saldoPacienteCentavos: number;
+  porcentajePagado: number;
+  totalLiquidableOrtodoncistaCentavos: number;
+  totalPendienteOrtodoncistaCentavos: number;
+  totalPagadoOrtodoncistaCentavos: number;
+}
+
+export interface OrthodonticTreatmentDto {
+  id: string;
+  fechaInicio: string;
+  pacienteId: string;
+  pacienteNombreCompleto: string;
+  pacienteDni: string;
+  usuarioOrtodoncistaId: string;
+  usuarioOrtodoncistaNombre: string;
+  tratamientoTipo: OrthodonticTreatmentType;
+  valorTratamientoCentavos: number;
+  valorMaterialesCentavos: number;
+  estado: OrthodonticTreatmentStatus;
+  payments: OrthodonticPaymentDto[];
+  totals: OrthodonticTreatmentTotalsDto;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MovementUpdateDto {

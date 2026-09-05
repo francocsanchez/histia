@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Plus, Trash2 } from "lucide-react";
 
 import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
@@ -11,11 +11,17 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { attentionStatusLabels } from "@/lib/attention-status";
-import { formatCurrencyFromCents, formatDateOnly } from "@/lib/utils";
+import {
+  formatCurrencyFromCents,
+  formatDateOnly,
+  formatMoneyMaskedInput,
+  parseMoneyInputToCents,
+} from "@/lib/utils";
 import {
   attentionCodeStatusValues,
   PaymentCandidateLineDto,
   PaymentDto,
+  PaymentLineItemDto,
 } from "@/types/domain";
 
 type LookupPayload = {
@@ -47,17 +53,37 @@ type PaymentsPayload = {
 type SelectionState = Record<
   string,
   {
+    sourceType: "attention" | "orthodontic-payment";
     lineId: string;
     payCode: boolean;
     payCoseguroOdonto: boolean;
   }
 >;
 
-function getInitialSelection(lineId: string) {
+type PaymentDebitDraft = {
+  id: string;
+  monto: string;
+  observacion: string;
+};
+
+function getSelectionKey(line: Pick<PaymentCandidateLineDto, "sourceType" | "lineId">) {
+  return `${line.sourceType}:${line.lineId}`;
+}
+
+function getInitialSelection(line: Pick<PaymentCandidateLineDto, "sourceType" | "lineId">) {
   return {
-    lineId,
+    sourceType: line.sourceType,
+    lineId: line.lineId,
     payCode: false,
     payCoseguroOdonto: false,
+  };
+}
+
+function createPaymentDebitDraft(): PaymentDebitDraft {
+  return {
+    id: crypto.randomUUID(),
+    monto: "",
+    observacion: "",
   };
 }
 
@@ -67,6 +93,84 @@ function getPaymentCellClass(enabled: boolean) {
 
 function formatTableDate(value: string) {
   return formatDateOnly(value);
+}
+
+function renderCandidateDescription(line: PaymentCandidateLineDto) {
+  if (line.sourceType === "orthodontic-payment") {
+    return (
+      <div className="space-y-1">
+        <p className="font-medium">{line.codigo}</p>
+        <p className="text-muted-foreground">Pago parcial de ortodoncia</p>
+        <p className="text-muted-foreground">
+          Pago paciente: {formatCurrencyFromCents(line.orthodonticPaymentAmountCentavos ?? 0)}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-[68px_1fr_48px_92px] items-center gap-2">
+      <p className="font-medium">{line.codigo}</p>
+      <p className="truncate text-muted-foreground">{line.codigoNombre}</p>
+      <p className="text-center">{line.pieza || "-"}</p>
+      <p className="text-right tabular-nums">
+        {formatCurrencyFromCents(line.pagoOdontologoCentavos)}
+      </p>
+    </div>
+  );
+}
+
+function renderPaymentLineItem(lineItem: PaymentLineItemDto) {
+  if (lineItem.sourceType === "orthodontic-payment") {
+    return (
+      <tr
+        key={`${lineItem.orthodonticTreatmentId}-${lineItem.orthodonticPaymentId}`}
+        className="border-t border-border"
+      >
+        <td className="px-3 py-2">Ortodoncia</td>
+        <td className="px-3 py-2 whitespace-nowrap">{formatTableDate(lineItem.paymentDate)}</td>
+        <td className="px-3 py-2 font-medium">{lineItem.patientName}</td>
+        <td className="px-3 py-2">{lineItem.patientDni}</td>
+        <td className="px-3 py-2">{lineItem.treatmentType.toUpperCase()}</td>
+        <td className="px-3 py-2 text-right tabular-nums">
+          {formatCurrencyFromCents(lineItem.paymentAmountCentavos)}
+        </td>
+        <td className="px-3 py-2 text-right tabular-nums">
+          {lineItem.percentageToOrthodontist.toFixed(2)}%
+        </td>
+        <td className="px-3 py-2 text-right font-medium tabular-nums">
+          {formatCurrencyFromCents(lineItem.totalLineaCentavos)}
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <tr
+      key={`${lineItem.attentionId}-${lineItem.codigoObraSocialId}-${lineItem.pieza ?? "na"}-${lineItem.totalLineaCentavos}`}
+      className="border-t border-border"
+    >
+      <td className="px-3 py-2">Atenciones</td>
+      <td className="px-3 py-2 whitespace-nowrap">{formatTableDate(lineItem.attentionFecha)}</td>
+      <td className="px-3 py-2 font-medium">{lineItem.pacienteNombre}</td>
+      <td className="px-3 py-2">{lineItem.pacienteDni}</td>
+      <td className="px-3 py-2">
+        {lineItem.codigo} · {lineItem.codigoNombre}
+      </td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {formatCurrencyFromCents(
+          (lineItem.includesCodePayment ? lineItem.pagoOdontologoCentavos : 0) +
+            (lineItem.includesCoseguroOdontoPayment ? lineItem.coseguroOdontoCentavos ?? 0 : 0),
+        )}
+      </td>
+      <td className="px-3 py-2">
+        {attentionStatusLabels[lineItem.estadoAtencionSnapshot]}
+      </td>
+      <td className="px-3 py-2 text-right font-medium tabular-nums">
+        {formatCurrencyFromCents(lineItem.totalLineaCentavos)}
+      </td>
+    </tr>
+  );
 }
 
 export function PagosManager() {
@@ -94,6 +198,8 @@ export function PagosManager() {
   const [paymentTotalPages, setPaymentTotalPages] = useState(1);
   const [successMessage, setSuccessMessage] = useState("");
   const [paymentDetailDialog, setPaymentDetailDialog] = useState<PaymentDto | null>(null);
+  const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
+  const [debitItems, setDebitItems] = useState<PaymentDebitDraft[]>([]);
 
   const loadLookups = async () => {
     setLookupLoading(true);
@@ -143,7 +249,7 @@ export function PagosManager() {
         const next = { ...current };
 
         payload.data.forEach((line) => {
-          next[line.lineId] = line;
+          next[getSelectionKey(line)] = line;
         });
 
         return next;
@@ -152,16 +258,15 @@ export function PagosManager() {
         const next = { ...current };
 
         payload.data.forEach((line) => {
-          const previous = current[line.lineId];
+          const key = getSelectionKey(line);
+          const previous = current[key];
 
-          next[line.lineId] = {
+          next[key] = {
+            sourceType: line.sourceType,
             lineId: line.lineId,
-            payCode:
-              line.canPayCode &&
-              Boolean(previous?.payCode),
+            payCode: line.canPayCode && Boolean(previous?.payCode),
             payCoseguroOdonto:
-              line.canPayCoseguroOdonto &&
-              Boolean(previous?.payCoseguroOdonto),
+              line.canPayCoseguroOdonto && Boolean(previous?.payCoseguroOdonto),
           };
         });
 
@@ -238,7 +343,8 @@ export function PagosManager() {
     () =>
       Object.values(selection)
         .filter((line) => line.payCode || line.payCoseguroOdonto)
-        .map(({ lineId, payCode, payCoseguroOdonto }) => ({
+        .map(({ sourceType, lineId, payCode, payCoseguroOdonto }) => ({
+          sourceType,
           lineId,
           payCode,
           payCoseguroOdonto,
@@ -249,9 +355,21 @@ export function PagosManager() {
   const selectedSummary = useMemo(() => {
     return selectedItems.reduce(
       (acc, item) => {
-        const line = candidateCache[item.lineId];
+        const line = candidateCache[`${item.sourceType}:${item.lineId}`];
 
         if (!line) {
+          return acc;
+        }
+
+        if (line.sourceType === "orthodontic-payment") {
+          if (item.payCode) {
+            acc.totalOrtodonciaCentavos += line.pagoOdontologoCentavos;
+            acc.quantityConceptsPaid += 1;
+          }
+          acc.totalHonorariosCentavos =
+            acc.totalPagoCodigosCentavos +
+            acc.totalCoseguroOdontoCentavos +
+            acc.totalOrtodonciaCentavos;
           return acc;
         }
 
@@ -266,13 +384,16 @@ export function PagosManager() {
         }
 
         acc.totalHonorariosCentavos =
-          acc.totalPagoCodigosCentavos + acc.totalCoseguroOdontoCentavos;
+          acc.totalPagoCodigosCentavos +
+          acc.totalCoseguroOdontoCentavos +
+          acc.totalOrtodonciaCentavos;
 
         return acc;
       },
       {
         totalPagoCodigosCentavos: 0,
         totalCoseguroOdontoCentavos: 0,
+        totalOrtodonciaCentavos: 0,
         totalHonorariosCentavos: 0,
         quantityConceptsPaid: 0,
       },
@@ -284,7 +405,7 @@ export function PagosManager() {
       Array.from(
         new Set(
           selectedItems
-            .map((item) => candidateCache[item.lineId])
+            .map((item) => candidateCache[`${item.sourceType}:${item.lineId}`])
             .filter((line): line is PaymentCandidateLineDto => Boolean(line))
             .map((line) => line.attentionMonth)
             .filter((month): month is string => Boolean(month)),
@@ -299,22 +420,49 @@ export function PagosManager() {
   const hasMixedSelectedMonths =
     !attentionMonth && selectedItems.length > 0 && selectedMonths.length > 1;
 
+  const debitSummary = useMemo(() => {
+    const parsedItems = debitItems.map((item) => ({
+      ...item,
+      montoCentavos: parseMoneyInputToCents(item.monto),
+      observacion: item.observacion.trim(),
+    }));
+    const invalidItem = parsedItems.find(
+      (item) => !item.montoCentavos || item.montoCentavos <= 0 || !item.observacion,
+    );
+    const totalDebitosCentavos = parsedItems.reduce(
+      (total, item) => total + (item.montoCentavos ?? 0),
+      0,
+    );
+
+    return {
+      totalDebitosCentavos,
+      totalNetoPagarCentavos:
+        selectedSummary.totalHonorariosCentavos - totalDebitosCentavos,
+      debitItems: parsedItems,
+      validationMessage: invalidItem
+        ? "Cada debito debe tener un importe mayor que cero y una observacion."
+        : "",
+    };
+  }, [debitItems, selectedSummary.totalHonorariosCentavos]);
+
   const toggleSelection = (
     line: PaymentCandidateLineDto,
     key: "payCode" | "payCoseguroOdonto",
     checked: boolean,
   ) => {
     const canToggle =
-      (key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto);
+      key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto;
 
     if (!canToggle) {
       return;
     }
 
+    const selectionKey = getSelectionKey(line);
+
     setSelection((current) => ({
       ...current,
-      [line.lineId]: {
-        ...(current[line.lineId] ?? getInitialSelection(line.lineId)),
+      [selectionKey]: {
+        ...(current[selectionKey] ?? getInitialSelection(line)),
         [key]: checked,
       },
     }));
@@ -332,14 +480,47 @@ export function PagosManager() {
           return;
         }
 
-        next[line.lineId] = {
-          ...(current[line.lineId] ?? getInitialSelection(line.lineId)),
+        const selectionKey = getSelectionKey(line);
+        next[selectionKey] = {
+          ...(current[selectionKey] ?? getInitialSelection(line)),
           [key]: true,
         };
       });
 
       return next;
     });
+  };
+
+  const updateDebitItem = (
+    id: string,
+    field: "monto" | "observacion",
+    value: string,
+  ) => {
+    setDebitItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              [field]: field === "monto" ? formatMoneyMaskedInput(value) : value,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const openPaymentConfirmation = () => {
+    if (debitSummary.validationMessage) {
+      setError(debitSummary.validationMessage);
+      return;
+    }
+
+    if (debitSummary.totalNetoPagarCentavos < 0) {
+      setError("Los debitos no pueden superar el total bruto de la liquidacion.");
+      return;
+    }
+
+    setError("");
+    setPaymentConfirmationOpen(true);
   };
 
   const submitPayment = async () => {
@@ -359,6 +540,10 @@ export function PagosManager() {
           userId,
           attentionMonth: effectiveAttentionMonth,
           selectedItems,
+          debitItems: debitSummary.debitItems.map((item) => ({
+            montoCentavos: item.montoCentavos,
+            observacion: item.observacion,
+          })),
         }),
       });
       const payload = await response.json();
@@ -369,6 +554,8 @@ export function PagosManager() {
 
       setSelection({});
       setCandidateCache({});
+      setDebitItems([]);
+      setPaymentConfirmationOpen(false);
       setSuccessMessage("El pago se genero correctamente.");
       await Promise.all([loadCandidates(), loadPayments()]);
     } catch (submitError) {
@@ -386,7 +573,7 @@ export function PagosManager() {
     <div className="space-y-4">
       <PageHeader
         title="Pagos"
-        description="Liquida honorarios odontologicos por concepto, separando codigo y coseguro odonto."
+        description="Liquida honorarios profesionales por concepto, integrando atenciones y ortodoncia."
       />
 
       <Card className="grid gap-2 p-3 xl:grid-cols-[180px_180px_180px_1fr]">
@@ -396,6 +583,8 @@ export function PagosManager() {
           onChange={(event) => {
             setCandidatePage(1);
             setPaymentPage(1);
+            setDebitItems([]);
+            setPaymentConfirmationOpen(false);
             setUserId(event.target.value);
           }}
         >
@@ -412,6 +601,8 @@ export function PagosManager() {
           onChange={(event) => {
             setCandidatePage(1);
             setPaymentPage(1);
+            setDebitItems([]);
+            setPaymentConfirmationOpen(false);
             setAttentionMonth(event.target.value);
           }}
         >
@@ -439,7 +630,7 @@ export function PagosManager() {
         </Select>
         <Input
           className="h-10"
-          placeholder="Buscar por paciente, DNI, codigo, descripcion o odontologo"
+          placeholder="Buscar por paciente, DNI, codigo, sistema o profesional"
           value={search}
           onChange={(event) => {
             setCandidatePage(1);
@@ -448,7 +639,7 @@ export function PagosManager() {
         />
       </Card>
 
-      <Card className="grid gap-3 p-3 md:grid-cols-[110px_1fr_1fr_1fr_auto]">
+      <Card className="grid gap-3 p-3 xl:grid-cols-7">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
           <p className="mt-1 text-lg font-semibold">{selectedSummary.quantityConceptsPaid}</p>
@@ -466,9 +657,21 @@ export function PagosManager() {
           </p>
         </div>
         <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Total a pagar</p>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
           <p className="mt-1 text-lg font-semibold">
-            {formatCurrencyFromCents(selectedSummary.totalHonorariosCentavos)}
+            {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Debitos</p>
+          <p className="mt-1 text-lg font-semibold">
+            {formatCurrencyFromCents(debitSummary.totalDebitosCentavos)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Total neto a pagar</p>
+          <p className="mt-1 text-lg font-semibold">
+            {formatCurrencyFromCents(debitSummary.totalNetoPagarCentavos)}
           </p>
         </div>
         <div className="flex flex-wrap items-end justify-end gap-2">
@@ -478,7 +681,7 @@ export function PagosManager() {
             onClick={() => selectVisibleConcepts("payCode")}
             disabled={submitting || candidatesLoading || candidates.length === 0}
           >
-            Seleccionar codigos
+            Seleccionar conceptos
           </Button>
           <Button
             type="button"
@@ -489,7 +692,7 @@ export function PagosManager() {
             Seleccionar coseguros
           </Button>
           <Button
-            onClick={() => void submitPayment()}
+            onClick={openPaymentConfirmation}
             disabled={
               submitting ||
               selectedItems.length === 0 ||
@@ -502,11 +705,88 @@ export function PagosManager() {
         </div>
       </Card>
 
+      <Card className="space-y-3 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-medium">Debitos de la liquidacion</p>
+            <p className="text-sm text-muted-foreground">
+              Registra retiros u otros descuentos que se aplicaran solo al confirmar este pago.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => setDebitItems((current) => [...current, createPaymentDebitDraft()])}
+            disabled={!userId || !effectiveAttentionMonth || submitting}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Agregar debito
+          </Button>
+        </div>
+
+        {debitItems.length > 0 ? (
+          <div className="space-y-2 border-t border-border pt-3">
+            {debitItems.map((item, index) => (
+              <div
+                key={item.id}
+                className="grid items-end gap-2 md:grid-cols-[160px_1fr_auto]"
+              >
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Importe #{index + 1}
+                  </label>
+                  <Input
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={item.monto}
+                    onChange={(event) => updateDebitItem(item.id, "monto", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Observacion
+                  </label>
+                  <Input
+                    placeholder="Ej. Retiro de dinero"
+                    value={item.observacion}
+                    onChange={(event) =>
+                      updateDebitItem(item.id, "observacion", event.target.value)
+                    }
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive"
+                  onClick={() =>
+                    setDebitItems((current) => current.filter((debit) => debit.id !== item.id))
+                  }
+                  aria-label={`Quitar debito ${index + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {debitSummary.validationMessage ? (
+          <p className="text-sm text-destructive">{debitSummary.validationMessage}</p>
+        ) : null}
+        {debitSummary.totalNetoPagarCentavos < 0 ? (
+          <p className="text-sm text-destructive">
+            Los debitos superan el total bruto de la liquidacion.
+          </p>
+        ) : null}
+      </Card>
+
       {!userId || !effectiveAttentionMonth ? (
         <Card className="p-3 text-sm text-muted-foreground">
           {hasMixedSelectedMonths
             ? "La seleccion incluye meses distintos. Filtra un mes para generar el pago."
-            : "Selecciona usuario y mes de atencion para generar una liquidacion."}
+            : "Selecciona usuario y mes para generar una liquidacion."}
         </Card>
       ) : null}
 
@@ -525,12 +805,13 @@ export function PagosManager() {
       {!candidatesLoading && !error && candidates.length > 0 ? (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1260px] table-fixed text-xs">
+            <table className="w-full min-w-[1380px] table-fixed text-xs">
               <colgroup>
+                <col className="w-[96px]" />
                 <col className="w-[72px]" />
                 <col className="w-[170px]" />
                 <col className="w-[100px]" />
-                <col className="w-[120px]" />
+                <col className="w-[140px]" />
                 <col />
                 <col className="w-[110px]" />
                 <col className="w-[120px]" />
@@ -539,57 +820,54 @@ export function PagosManager() {
               </colgroup>
               <thead className="bg-muted/70 text-left">
                 <tr>
+                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Origen</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Fecha</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Paciente</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">DNI</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Obra social</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">
-                    <div className="grid grid-cols-[68px_1fr_48px_92px] gap-2">
-                      <span>Codigo</span>
-                      <span>Descripcion</span>
-                      <span className="text-center">Pieza</span>
-                      <span className="text-right">Valor</span>
-                    </div>
-                  </th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Coseg. odonto</th>
+                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Cobertura</th>
+                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Concepto</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Estado</th>
-                  <th className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-muted-foreground" title="Pago codigo">$</th>
+                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground text-right">Coseg. odonto</th>
+                  <th className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-muted-foreground" title="Pago principal">$</th>
                   <th className="px-3 py-2 text-center font-semibold uppercase tracking-wide text-muted-foreground" title="Pago coseguro odonto">+</th>
                 </tr>
               </thead>
               <tbody>
                 {candidates.map((line) => {
+                  const selectionKey = getSelectionKey(line);
                   const currentSelection =
-                    selection[line.lineId] ?? getInitialSelection(line.lineId);
+                    selection[selectionKey] ?? getInitialSelection(line);
                   const canToggleCode = line.canPayCode;
                   const canToggleCoseguro = line.canPayCoseguroOdonto;
 
                   return (
-                    <tr key={line.lineId} className="border-t border-border align-top">
-                      <td className="whitespace-nowrap px-3 py-2">{formatTableDate(line.attentionFecha)}</td>
+                    <tr key={selectionKey} className="border-t border-border align-top">
+                      <td className="px-3 py-2">{line.sourceLabel}</td>
+                      <td className="whitespace-nowrap px-3 py-2">
+                        {formatTableDate(
+                          line.sourceType === "orthodontic-payment"
+                            ? line.orthodonticPaymentDate ?? line.attentionFecha
+                            : line.attentionFecha,
+                        )}
+                      </td>
                       <td className="px-3 py-2 font-medium">
                         <p>{line.pacienteNombreCompleto}</p>
                         <p className="text-[11px] text-muted-foreground">{line.userName}</p>
                       </td>
                       <td className="px-3 py-2">{line.pacienteDni}</td>
-                      <td className="px-3 py-2">{line.obraSocialNombre}</td>
                       <td className="px-3 py-2">
-                        <div className="grid grid-cols-[68px_1fr_48px_92px] items-center gap-2">
-                          <p className="font-medium">{line.codigo}</p>
-                          <p className="truncate text-muted-foreground">{line.codigoNombre}</p>
-                          <p className="text-center">{line.pieza || "-"}</p>
-                          <p className="text-right tabular-nums">
-                            {formatCurrencyFromCents(line.pagoOdontologoCentavos)}
-                          </p>
-                        </div>
+                        {line.sourceType === "orthodontic-payment" ? "-" : line.obraSocialNombre}
+                      </td>
+                      <td className="px-3 py-2">{renderCandidateDescription(line)}</td>
+                      <td className="px-3 py-2">
+                        {line.sourceType === "orthodontic-payment"
+                          ? "Pago ortodoncia"
+                          : attentionStatusLabels[line.estado]}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
-                        {formatCurrencyFromCents(line.coseguroOdontoCentavos ?? 0)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span>{attentionStatusLabels[line.estado]}</span>
-                        </div>
+                        {line.sourceType === "orthodontic-payment"
+                          ? "-"
+                          : formatCurrencyFromCents(line.coseguroOdontoCentavos ?? 0)}
                       </td>
                       <td className={`px-3 py-2 text-center ${getPaymentCellClass(canToggleCode)}`}>
                         {line.codePaymentStatus === "pagado" ? (
@@ -610,7 +888,9 @@ export function PagosManager() {
                         )}
                       </td>
                       <td className={`px-3 py-2 text-center ${getPaymentCellClass(canToggleCoseguro)}`}>
-                        {line.coseguroOdontoPaymentStatus === "pagado" ? (
+                        {line.sourceType === "orthodontic-payment" ? (
+                          "-"
+                        ) : line.coseguroOdontoPaymentStatus === "pagado" ? (
                           <span className="inline-flex items-center justify-center text-emerald-700">
                             <Check className="h-4 w-4" strokeWidth={3} />
                           </span>
@@ -679,16 +959,18 @@ export function PagosManager() {
       {!paymentsLoading && !historyError && payments.length > 0 ? (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[1080px] text-sm">
               <thead className="bg-muted/70 text-left">
                 <tr>
-                  <th className="px-3 py-2">Odontologo</th>
-                  <th className="px-3 py-2">Mes atencion</th>
+                  <th className="px-3 py-2">Profesional</th>
+                  <th className="px-3 py-2">Mes</th>
                   <th className="px-3 py-2">Fecha pago</th>
                   <th className="px-3 py-2 text-right">Conceptos</th>
                   <th className="px-3 py-2 text-right">Codigos</th>
                   <th className="px-3 py-2 text-right">Coseguro odonto</th>
-                  <th className="px-3 py-2 text-right">Total</th>
+                  <th className="px-3 py-2 text-right">Ortodoncia</th>
+                  <th className="px-3 py-2 text-right">Debitos</th>
+                  <th className="px-3 py-2 text-right">Neto pagado</th>
                   <th className="px-3 py-2 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -707,8 +989,14 @@ export function PagosManager() {
                     <td className="px-3 py-2 text-right tabular-nums">
                       {formatCurrencyFromCents(payment.totalCoseguroOdontoCentavos)}
                     </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {formatCurrencyFromCents(payment.totalOrtodonciaCentavos)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-destructive">
+                      - {formatCurrencyFromCents(payment.totalDebitosCentavos)}
+                    </td>
                     <td className="px-3 py-2 text-right font-medium tabular-nums">
-                      {formatCurrencyFromCents(payment.totalHonorariosCentavos)}
+                      {formatCurrencyFromCents(payment.totalNetoPagarCentavos)}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <Button
@@ -752,6 +1040,79 @@ export function PagosManager() {
       ) : null}
 
       <Dialog
+        open={paymentConfirmationOpen}
+        onClose={() => setPaymentConfirmationOpen(false)}
+        title="Confirmar liquidacion"
+        description="Revisa el importe final antes de generar el pago. Esta accion marcara los conceptos como pagados."
+      >
+        <div className="space-y-4">
+          <div className="divide-y divide-border border-y border-border text-sm">
+            <div className="flex items-center justify-between gap-4 py-2">
+              <span>Total codigos</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrencyFromCents(selectedSummary.totalPagoCodigosCentavos)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2">
+              <span>Total coseguros</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrencyFromCents(selectedSummary.totalCoseguroOdontoCentavos)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2">
+              <span>Total ortodoncia</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2 text-destructive">
+              <span>Total debitos</span>
+              <span className="font-medium tabular-nums">
+                - {formatCurrencyFromCents(debitSummary.totalDebitosCentavos)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-3 text-base font-semibold">
+              <span>Total a pagar</span>
+              <span className="tabular-nums">
+                {formatCurrencyFromCents(debitSummary.totalNetoPagarCentavos)}
+              </span>
+            </div>
+          </div>
+
+          {debitSummary.debitItems.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Debitos aplicados</p>
+              {debitSummary.debitItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 border border-border px-3 py-2 text-sm"
+                >
+                  <span>{item.observacion}</span>
+                  <span className="font-medium tabular-nums">
+                    {formatCurrencyFromCents(item.montoCentavos ?? 0)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setPaymentConfirmationOpen(false)}
+              disabled={submitting}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => void submitPayment()} disabled={submitting}>
+              {submitting ? "Generando..." : "Confirmar pago"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      <Dialog
         open={Boolean(paymentDetailDialog)}
         onClose={() => setPaymentDetailDialog(null)}
         title="Detalle del pago"
@@ -764,7 +1125,7 @@ export function PagosManager() {
       >
         {paymentDetailDialog ? (
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-6">
               <Card className="p-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
                 <p className="mt-1 text-lg font-semibold">
@@ -784,78 +1145,66 @@ export function PagosManager() {
                 </p>
               </Card>
               <Card className="p-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Total</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
                 <p className="mt-1 text-lg font-semibold">
-                  {formatCurrencyFromCents(paymentDetailDialog.totalHonorariosCentavos)}
+                  {formatCurrencyFromCents(paymentDetailDialog.totalOrtodonciaCentavos)}
+                </p>
+              </Card>
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Debitos</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatCurrencyFromCents(paymentDetailDialog.totalDebitosCentavos)}
+                </p>
+              </Card>
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Total neto</p>
+                <p className="mt-1 text-lg font-semibold">
+                  {formatCurrencyFromCents(paymentDetailDialog.totalNetoPagarCentavos)}
                 </p>
               </Card>
             </div>
 
+            {paymentDetailDialog.debitItems.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Debitos aplicados</p>
+                <div className="overflow-x-auto border border-border">
+                  <table className="w-full min-w-[480px] text-sm">
+                    <thead className="bg-muted/70 text-left">
+                      <tr>
+                        <th className="px-3 py-2">Observacion</th>
+                        <th className="px-3 py-2 text-right">Importe</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentDetailDialog.debitItems.map((item, index) => (
+                        <tr key={`${item.observacion}-${index}`} className="border-t border-border">
+                          <td className="px-3 py-2">{item.observacion}</td>
+                          <td className="px-3 py-2 text-right font-medium tabular-nums">
+                            - {formatCurrencyFromCents(item.montoCentavos)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1360px] text-sm">
+              <table className="w-full min-w-[1120px] text-sm">
                 <thead className="bg-muted/70 text-left">
                   <tr>
+                    <th className="px-3 py-2">Origen</th>
                     <th className="px-3 py-2">Fecha</th>
                     <th className="px-3 py-2">Paciente</th>
                     <th className="px-3 py-2">DNI</th>
-                    <th className="px-3 py-2">Obra social</th>
-                    <th className="px-3 py-2">Codigo</th>
-                    <th className="px-3 py-2">Descripcion</th>
-                    <th className="px-3 py-2">Pieza</th>
-                    <th className="px-3 py-2">Estado</th>
-                    <th className="px-3 py-2 text-right">Importe codigo</th>
-                    <th className="px-3 py-2 text-right">Coseguro odonto</th>
-                    <th className="px-3 py-2 text-center">$</th>
-                    <th className="px-3 py-2 text-center">+</th>
+                    <th className="px-3 py-2">Concepto</th>
+                    <th className="px-3 py-2 text-right">Base</th>
+                    <th className="px-3 py-2">Estado / %</th>
                     <th className="px-3 py-2 text-right">Total linea</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {paymentDetailDialog.lineItems.map((lineItem, index) => (
-                    <tr
-                      key={`${paymentDetailDialog.id}-${lineItem.attentionId}-${lineItem.codigoObraSocialId}-${index}`}
-                      className="border-t border-border"
-                    >
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {formatTableDate(lineItem.attentionFecha)}
-                      </td>
-                      <td className="px-3 py-2 font-medium">{lineItem.pacienteNombre}</td>
-                      <td className="px-3 py-2">{lineItem.pacienteDni}</td>
-                      <td className="px-3 py-2">{lineItem.obraSocialNombre}</td>
-                      <td className="px-3 py-2">{lineItem.codigo}</td>
-                      <td className="px-3 py-2">{lineItem.codigoNombre}</td>
-                      <td className="px-3 py-2">{lineItem.pieza || "-"}</td>
-                      <td className="px-3 py-2">{attentionStatusLabels[lineItem.estadoAtencionSnapshot]}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {formatCurrencyFromCents(lineItem.pagoOdontologoCentavos)}
-                      </td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {formatCurrencyFromCents(lineItem.coseguroOdontoCentavos ?? 0)}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {lineItem.includesCodePayment ? (
-                          <span className="inline-flex items-center justify-center text-emerald-700">
-                            <Check className="h-4 w-4" strokeWidth={3} />
-                          </span>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        {lineItem.includesCoseguroOdontoPayment ? (
-                          <span className="inline-flex items-center justify-center text-emerald-700">
-                            <Check className="h-4 w-4" strokeWidth={3} />
-                          </span>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right font-medium tabular-nums">
-                        {formatCurrencyFromCents(lineItem.totalLineaCentavos)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                <tbody>{paymentDetailDialog.lineItems.map(renderPaymentLineItem)}</tbody>
               </table>
             </div>
           </div>

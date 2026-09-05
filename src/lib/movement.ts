@@ -19,7 +19,7 @@ export function buildPaymentMovementDescription(
   userName: string,
   attentionMonth: string,
 ) {
-  return `Pago honorarios odontologicos - ${userName} - ${attentionMonth}`;
+  return `Pago honorarios profesionales - ${userName} - ${attentionMonth}`;
 }
 
 export function isPaymentMovementMetadata(
