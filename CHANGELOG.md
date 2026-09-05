@@ -9,6 +9,7 @@
 
 ### Changed
 
+- El gráfico `Honorarios anualizados` de `/inicio` ahora agrupa sus barras por estado de atención, visibilizando también los importes `diferido` y `denegado` junto a `pendiente`, `ok` y `no cargado`.
 - `Pagos` ahora permite liquidar en una misma operación conceptos pendientes de distintos meses; cada pago conserva todos los períodos de atención incluidos y el historial puede recuperarlo al filtrar cualquiera de ellos.
 - En `/inicio`, la card `Honorarios pendientes del año` ahora suma exclusivamente los honorarios de códigos de Atenciones cuyo estado es `pendiente`, sin incluir coseguros ni códigos auditados con otro estado.
 - Los pagos y movimientos automaticos ahora guardan el total de debitos, el total neto y el detalle de cada descuento, manteniendo el total bruto historico para auditoria.

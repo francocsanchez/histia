@@ -234,11 +234,14 @@ export async function getDashboardMonthlyStats(params: {
     ]),
     AttentionModel.aggregate<{
       _id: number;
-      pendientePagoCodigosCentavos: number;
       pendingAttentionCodeCentavos: number;
       pagadoPagoCodigosCentavos: number;
-      pendienteCoseguroOdontoCentavos: number;
       pagadoCoseguroOdontoCentavos: number;
+      noCargadoCentavos: number;
+      pendienteCentavos: number;
+      okCentavos: number;
+      diferidoCentavos: number;
+      denegadoCentavos: number;
     }>([
       {
         $match: {
@@ -256,20 +259,6 @@ export async function getDashboardMonthlyStats(params: {
             $month: {
               date: "$fecha",
               timezone: BUSINESS_TIMEZONE,
-            },
-          },
-          pendientePagoCodigosCentavos: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: [
-                    { $ifNull: ["$codigos.codePaymentStatus", "pendiente"] },
-                    "pendiente",
-                  ],
-                },
-                "$codigos.pagoOdontologoCentavos",
-                0,
-              ],
             },
           },
           pendingAttentionCodeCentavos: {
@@ -291,29 +280,6 @@ export async function getDashboardMonthlyStats(params: {
                   ],
                 },
                 "$codigos.pagoOdontologoCentavos",
-                0,
-              ],
-            },
-          },
-          pendienteCoseguroOdontoCentavos: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    {
-                      $gt: [{ $ifNull: ["$codigos.coseguroOdontoCentavos", 0] }, 0],
-                    },
-                    {
-                      $eq: [
-                        {
-                          $ifNull: ["$codigos.coseguroOdontoPaymentStatus", "pendiente"],
-                        },
-                        "pendiente",
-                      ],
-                    },
-                  ],
-                },
-                { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
                 0,
               ],
             },
@@ -341,6 +307,76 @@ export async function getDashboardMonthlyStats(params: {
               ],
             },
           },
+          noCargadoCentavos: {
+            $sum: {
+              $cond: [
+                { $eq: ["$codigos.estado", "no-cargado"] },
+                {
+                  $add: [
+                    { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                    { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          pendienteCentavos: {
+            $sum: {
+              $cond: [
+                { $eq: ["$codigos.estado", "pendiente"] },
+                {
+                  $add: [
+                    { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                    { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          okCentavos: {
+            $sum: {
+              $cond: [
+                { $eq: ["$codigos.estado", "ok"] },
+                {
+                  $add: [
+                    { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                    { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          diferidoCentavos: {
+            $sum: {
+              $cond: [
+                { $eq: ["$codigos.estado", "diferido"] },
+                {
+                  $add: [
+                    { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                    { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
+          denegadoCentavos: {
+            $sum: {
+              $cond: [
+                { $eq: ["$codigos.estado", "denegado"] },
+                {
+                  $add: [
+                    { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                    { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                  ],
+                },
+                0,
+              ],
+            },
+          },
         },
       },
       { $sort: { _id: 1 } },
@@ -354,11 +390,15 @@ export async function getDashboardMonthlyStats(params: {
     annualHonorariumRows.map((row) => [
       row._id,
       {
-        pendienteCentavos:
-          row.pendientePagoCodigosCentavos + row.pendienteCoseguroOdontoCentavos,
         pendingAttentionCodeCentavos: row.pendingAttentionCodeCentavos,
-        pagadoCentavos:
-          row.pagadoPagoCodigosCentavos + row.pagadoCoseguroOdontoCentavos,
+        pagadoCentavos: row.pagadoPagoCodigosCentavos + row.pagadoCoseguroOdontoCentavos,
+        honorariosPorEstadoCentavos: {
+          "no-cargado": row.noCargadoCentavos,
+          pendiente: row.pendienteCentavos,
+          ok: row.okCentavos,
+          diferido: row.diferidoCentavos,
+          denegado: row.denegadoCentavos,
+        },
       },
     ]),
   );
@@ -367,17 +407,27 @@ export async function getDashboardMonthlyStats(params: {
     (label, index) => {
       const monthNumber = index + 1;
       const item = annualHonorariumMap.get(monthNumber);
-      const pendienteCentavos = item?.pendienteCentavos ?? 0;
       const pendingAttentionCodeCentavos = item?.pendingAttentionCodeCentavos ?? 0;
       const pagadoCentavos = item?.pagadoCentavos ?? 0;
+      const honorariosPorEstadoCentavos = item?.honorariosPorEstadoCentavos ?? {
+        "no-cargado": 0,
+        pendiente: 0,
+        ok: 0,
+        diferido: 0,
+        denegado: 0,
+      };
+      const totalCentavos = Object.values(honorariosPorEstadoCentavos).reduce(
+        (total, amount) => total + amount,
+        0,
+      );
 
       return {
         month: monthNumber,
         label,
-        pendienteCentavos,
         pendingAttentionCodeCentavos,
+        honorariosPorEstadoCentavos,
         pagadoCentavos,
-        totalCentavos: pendienteCentavos + pagadoCentavos,
+        totalCentavos,
       };
     },
   );

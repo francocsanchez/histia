@@ -260,8 +260,8 @@ export interface DashboardStatusSummaryItemDto {
 export interface DashboardAnnualHonorariumItemDto {
   month: number;
   label: string;
-  pendienteCentavos: number;
   pendingAttentionCodeCentavos: number;
+  honorariosPorEstadoCentavos: Record<AttentionCodeStatus, number>;
   pagadoCentavos: number;
   totalCentavos: number;
 }

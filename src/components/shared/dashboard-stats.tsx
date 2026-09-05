@@ -19,6 +19,14 @@ type ChartTooltipState = {
   lines: string[];
 };
 
+const annualHonorariumStatusSegments = [
+  { status: "pendiente", label: "Pendiente", className: "bg-amber-500" },
+  { status: "ok", label: "OK", className: "bg-emerald-500" },
+  { status: "diferido", label: "Diferido", className: "bg-orange-500" },
+  { status: "denegado", label: "Denegado", className: "bg-rose-600" },
+  { status: "no-cargado", label: "No cargado", className: "bg-zinc-700" },
+] as const;
+
 type DashboardPayload = {
   success: boolean;
   data: DashboardMonthlyStatsDto;
@@ -82,21 +90,19 @@ function AnnualHonorariumChart({
   const maxValue = Math.max(...items.map((item) => item.totalCentavos), 0);
 
   if (maxValue === 0) {
-    return <EmptyChart label="No hay honorarios pendientes ni pagados para el año seleccionado." />;
+    return <EmptyChart label="No hay honorarios registrados para el año seleccionado." />;
   }
 
   return (
     <div className="relative space-y-4 overflow-x-auto" onMouseLeave={() => setTooltip(null)}>
       <ChartTooltip tooltip={tooltip} />
       <div className="flex flex-wrap gap-4 text-sm">
-        <span className="inline-flex items-center gap-2 text-muted-foreground">
-          <span className="h-3 w-3 rounded-full bg-amber-500" />
-          Pendiente
-        </span>
-        <span className="inline-flex items-center gap-2 text-muted-foreground">
-          <span className="h-3 w-3 rounded-full bg-emerald-500" />
-          Pagado
-        </span>
+        {annualHonorariumStatusSegments.map((segment) => (
+          <span key={segment.status} className="inline-flex items-center gap-2 text-muted-foreground">
+            <span className={`h-3 w-3 rounded-full ${segment.className}`} />
+            {segment.label}
+          </span>
+        ))}
       </div>
       <div className="min-w-[720px]">
         <div className="flex h-72 items-end gap-3 border-b border-l border-border px-3 pb-3 pt-6">
@@ -124,29 +130,28 @@ function AnnualHonorariumChart({
                         y: event.clientY - bounds.top,
                         lines: [
                           item.label,
-                          `Pendiente: ${formatCurrencyFromCents(item.pendienteCentavos)}`,
-                          `Pagado: ${formatCurrencyFromCents(item.pagadoCentavos)}`,
+                          ...annualHonorariumStatusSegments.map(
+                            (segment) =>
+                              `${segment.label}: ${formatCurrencyFromCents(
+                                item.honorariosPorEstadoCentavos[segment.status],
+                              )}`,
+                          ),
                           `Total: ${formatCurrencyFromCents(item.totalCentavos)}`,
                         ],
                       });
                     }}
                   >
-                    {item.pendienteCentavos > 0 ? (
-                      <div
-                        className="w-full bg-amber-500"
-                        style={{
-                          height: `${(item.pendienteCentavos / item.totalCentavos) * 100}%`,
-                        }}
-                      />
-                    ) : null}
-                    {item.pagadoCentavos > 0 ? (
-                      <div
-                        className="w-full bg-emerald-500"
-                        style={{
-                          height: `${(item.pagadoCentavos / item.totalCentavos) * 100}%`,
-                        }}
-                      />
-                    ) : null}
+                    {annualHonorariumStatusSegments.map((segment) => {
+                      const amount = item.honorariosPorEstadoCentavos[segment.status];
+
+                      return amount > 0 ? (
+                        <div
+                          key={segment.status}
+                          className={`w-full ${segment.className}`}
+                          style={{ height: `${(amount / item.totalCentavos) * 100}%` }}
+                        />
+                      ) : null;
+                    })}
                   </div>
                 </div>
                 <span className="text-[11px] text-muted-foreground">{item.label}</span>
@@ -327,7 +332,7 @@ export function DashboardStats() {
         <div className="border-b border-border px-4 py-4">
           <h3 className="text-base font-semibold">Honorarios anualizados</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Suma mes a mes de valor atencion mas coseguro odonto para {data.selectedUser.nombreCompleto || "el usuario seleccionado"}, separando lo pendiente de cobrar y lo ya pagado del anio de {data.month.slice(0, 4)}.
+            Suma mes a mes de valor atencion mas coseguro odonto para {data.selectedUser.nombreCompleto || "el usuario seleccionado"}, agrupada por estado de atencion durante el anio de {data.month.slice(0, 4)}.
           </p>
         </div>
         <div className="p-4">
