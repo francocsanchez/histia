@@ -9,6 +9,7 @@
 
 ### Changed
 
+- En `/inicio`, la card `Honorarios pendientes del año` ahora suma exclusivamente los honorarios de códigos de Atenciones cuyo estado es `pendiente`, sin incluir coseguros ni códigos auditados con otro estado.
 - Los pagos y movimientos automaticos ahora guardan el total de debitos, el total neto y el detalle de cada descuento, manteniendo el total bruto historico para auditoria.
 - El historial y `Ver detalle` de pagos ahora exponen los debitos aplicados y el neto efectivamente pagado.
 - El listado de `Ortodoncia` ahora muestra correctamente el paciente y el profesional asociados a cada tratamiento.

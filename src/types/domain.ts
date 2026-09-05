@@ -261,6 +261,7 @@ export interface DashboardAnnualHonorariumItemDto {
   month: number;
   label: string;
   pendienteCentavos: number;
+  pendingAttentionCodeCentavos: number;
   pagadoCentavos: number;
   totalCentavos: number;
 }

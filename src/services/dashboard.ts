@@ -235,6 +235,7 @@ export async function getDashboardMonthlyStats(params: {
     AttentionModel.aggregate<{
       _id: number;
       pendientePagoCodigosCentavos: number;
+      pendingAttentionCodeCentavos: number;
       pagadoPagoCodigosCentavos: number;
       pendienteCoseguroOdontoCentavos: number;
       pagadoCoseguroOdontoCentavos: number;
@@ -267,6 +268,15 @@ export async function getDashboardMonthlyStats(params: {
                   ],
                 },
                 "$codigos.pagoOdontologoCentavos",
+                0,
+              ],
+            },
+          },
+          pendingAttentionCodeCentavos: {
+            $sum: {
+              $cond: [
+                { $eq: ["$codigos.estado", "pendiente"] },
+                { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
                 0,
               ],
             },
@@ -346,6 +356,7 @@ export async function getDashboardMonthlyStats(params: {
       {
         pendienteCentavos:
           row.pendientePagoCodigosCentavos + row.pendienteCoseguroOdontoCentavos,
+        pendingAttentionCodeCentavos: row.pendingAttentionCodeCentavos,
         pagadoCentavos:
           row.pagadoPagoCodigosCentavos + row.pagadoCoseguroOdontoCentavos,
       },
@@ -357,12 +368,14 @@ export async function getDashboardMonthlyStats(params: {
       const monthNumber = index + 1;
       const item = annualHonorariumMap.get(monthNumber);
       const pendienteCentavos = item?.pendienteCentavos ?? 0;
+      const pendingAttentionCodeCentavos = item?.pendingAttentionCodeCentavos ?? 0;
       const pagadoCentavos = item?.pagadoCentavos ?? 0;
 
       return {
         month: monthNumber,
         label,
         pendienteCentavos,
+        pendingAttentionCodeCentavos,
         pagadoCentavos,
         totalCentavos: pendienteCentavos + pagadoCentavos,
       };

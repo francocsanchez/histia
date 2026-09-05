@@ -229,8 +229,8 @@ export function DashboardStats() {
 
   const chartMaxValue = Math.max(...data.dailyAttentions.map((item) => item.total), 1);
   const isAdminView = data.availableUsers.length > 0;
-  const annualPendingCentavos = data.annualHonorariumByMonth.reduce(
-    (sum, item) => sum + item.pendienteCentavos,
+  const annualPendingAttentionCodesCentavos = data.annualHonorariumByMonth.reduce(
+    (sum, item) => sum + item.pendingAttentionCodeCentavos,
     0,
   );
   const annualPaidCentavos = data.annualHonorariumByMonth.reduce(
@@ -312,7 +312,7 @@ export function DashboardStats() {
         <div className="xl:col-span-2">
           <StatCard
             label="Honorarios pendientes del año"
-            value={formatCurrencyFromCents(annualPendingCentavos)}
+            value={formatCurrencyFromCents(annualPendingAttentionCodesCentavos)}
           />
         </div>
         <div className="xl:col-span-2">
