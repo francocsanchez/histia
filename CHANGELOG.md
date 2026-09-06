@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-06
+
+### Removed
+
+- Se elimino por completo la integracion de Mercado Pago de `Movimientos`: scheduler, sincronizacion, APIs, configuracion, tipos de sistema, UI y dependencias asociadas.
+
+### Changed
+
+- `Movimientos` conserva las cargas manuales y los egresos automaticos originados al confirmar una liquidacion de `Pagos`, sin integraciones externas.
+
 ## 2026-09-05
 
 ### Added

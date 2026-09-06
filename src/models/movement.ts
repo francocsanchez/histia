@@ -1,7 +1,6 @@
 import { Schema, Types, model, models } from "mongoose";
 
 import {
-  MercadoPagoExternalComponent,
   MovementDirection,
   MovementMetadataDto,
   MovementOriginType,
@@ -17,8 +16,6 @@ export interface MovementDocument {
   montoCentavos: number;
   origenTipo: MovementOriginType;
   origenId: Types.ObjectId | null;
-  externalId: string | null;
-  externalComponent: MercadoPagoExternalComponent | null;
   creadoAutomaticamente: boolean;
   metadata: MovementMetadataDto | null;
   createdByUserId: Types.ObjectId;
@@ -62,25 +59,13 @@ const movementSchema = new Schema<MovementDocument>(
     },
     origenTipo: {
       type: String,
-      enum: ["manual", "payment", "mercadopago"],
+      enum: ["manual", "payment"],
       required: true,
       index: true,
     },
     origenId: {
       type: Schema.Types.ObjectId,
       default: null,
-    },
-    externalId: {
-      type: String,
-      default: null,
-      trim: true,
-      index: true,
-    },
-    externalComponent: {
-      type: String,
-      enum: ["TRANSACTION", "TAX", "FEE", null],
-      default: null,
-      index: true,
     },
     creadoAutomaticamente: {
       type: Boolean,
@@ -115,18 +100,6 @@ movementSchema.index(
     },
   },
 );
-movementSchema.index(
-  { origenTipo: 1, externalId: 1, externalComponent: 1 },
-  {
-    unique: true,
-    partialFilterExpression: {
-      origenTipo: "mercadopago",
-      externalId: { $type: "string" },
-      externalComponent: { $type: "string" },
-    },
-  },
-);
-
 if (models.Movement) {
   delete models.Movement;
 }

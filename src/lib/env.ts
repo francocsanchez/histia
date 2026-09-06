@@ -16,7 +16,6 @@ const serverEnvSchema = z.object({
   SEED_ADMIN_PASSWORD: z.string().min(8).optional(),
   SEED_ADMIN_NAME: z.string().min(1).optional(),
   SEED_ADMIN_LAST_NAME: z.string().min(1).optional(),
-  MERCADOPAGO_ACCESS_TOKEN: z.string().min(1).optional(),
   WHATSAPP_WORKER_PORT: z.coerce.number().int().min(1).max(65535).optional(),
   WHATSAPP_WORKER_URL: z.string().url().optional(),
 });
@@ -44,7 +43,6 @@ export function getServerEnv(): ServerEnv {
     SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
     SEED_ADMIN_NAME: process.env.SEED_ADMIN_NAME,
     SEED_ADMIN_LAST_NAME: process.env.SEED_ADMIN_LAST_NAME,
-    MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
     WHATSAPP_WORKER_PORT: process.env.WHATSAPP_WORKER_PORT,
     WHATSAPP_WORKER_URL: process.env.WHATSAPP_WORKER_URL,
   });

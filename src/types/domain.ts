@@ -411,15 +411,8 @@ export type PaymentStatus = (typeof paymentStatusValues)[number];
 export const movementDirectionValues = ["ingreso", "egreso"] as const;
 export type MovementDirection = (typeof movementDirectionValues)[number];
 
-export const movementOriginTypeValues = ["manual", "payment", "mercadopago"] as const;
+export const movementOriginTypeValues = ["manual", "payment"] as const;
 export type MovementOriginType = (typeof movementOriginTypeValues)[number];
-export const mercadoPagoExternalComponentValues = [
-  "TRANSACTION",
-  "TAX",
-  "FEE",
-] as const;
-export type MercadoPagoExternalComponent =
-  (typeof mercadoPagoExternalComponentValues)[number];
 
 export interface AttentionCodeLineDto {
   lineId: string;
@@ -594,34 +587,7 @@ export interface MovementPaymentMetadataDto {
   debitItems: PaymentDebitItemDto[];
 }
 
-export interface MovementMercadoPagoMetadataDto {
-  kind: "mercadopago";
-  reportId: number;
-  sourceId: string;
-  payerName: string | null;
-  externalReference: string | null;
-  paymentMethod: string | null;
-  paymentMethodType: string | null;
-  transactionType: string | null;
-  transactionAmountCentavos: number;
-  transactionDate: string;
-  feeAmountCentavos: number;
-  settlementDate: string | null;
-  realAmountCentavos: number;
-  taxesAmountCentavos: number;
-  moneyReleaseDate: string | null;
-  description: string | null;
-  businessUnit: string | null;
-  subUnit: string | null;
-  externalComponent: MercadoPagoExternalComponent;
-  reconciliationExpectedCentavos: number;
-  reconciliationDifferenceCentavos: number;
-  reconciliationMatches: boolean;
-}
-
-export type MovementMetadataDto =
-  | MovementPaymentMetadataDto
-  | MovementMercadoPagoMetadataDto;
+export type MovementMetadataDto = MovementPaymentMetadataDto;
 
 export interface MovementDto {
   id: string;
@@ -633,8 +599,6 @@ export interface MovementDto {
   montoCentavos: number;
   origenTipo: MovementOriginType;
   origenId: string | null;
-  externalId: string | null;
-  externalComponent: MercadoPagoExternalComponent | null;
   creadoAutomaticamente: boolean;
   metadata: MovementMetadataDto | null;
   createdByUserId: string;
@@ -708,39 +672,4 @@ export interface MovementTypeDto {
 export interface MovementTypeCreateDto {
   nombre: string;
   direccion: MovementDirection;
-}
-
-export const mercadoPagoSyncTypeValues = [
-  "hourly",
-  "daily_recovery",
-  "manual",
-] as const;
-export type MercadoPagoSyncType = (typeof mercadoPagoSyncTypeValues)[number];
-
-export const mercadoPagoSyncStatusValues = [
-  "PENDING",
-  "WAITING_REPORT",
-  "PROCESSING",
-  "PROCESSED",
-  "FAILED",
-] as const;
-export type MercadoPagoSyncStatus = (typeof mercadoPagoSyncStatusValues)[number];
-
-export interface MercadoPagoSyncDto {
-  id: string;
-  reportId: number | null;
-  fileName: string | null;
-  beginDate: string;
-  endDate: string;
-  status: MercadoPagoSyncStatus;
-  remoteStatus: string | null;
-  tipoSincronizacion: MercadoPagoSyncType;
-  cantidadFilas: number;
-  cantidadMovimientosCreados: number;
-  cantidadMovimientosIgnorados: number;
-  cantidadAdvertencias: number;
-  error: string | null;
-  createdAt: string;
-  updatedAt: string;
-  processedAt: string | null;
 }

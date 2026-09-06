@@ -12,7 +12,6 @@ export const movementDirectionLabels: Record<MovementDirection, string> = {
 export const movementOriginLabels: Record<MovementOriginType, string> = {
   manual: "Manual",
   payment: "Pago",
-  mercadopago: "Mercado Pago",
 };
 
 export function buildPaymentMovementDescription(

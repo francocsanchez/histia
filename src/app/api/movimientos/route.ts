@@ -7,13 +7,10 @@ import {
 import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { movementCreateSchema } from "@/lib/validations/schemas";
-import { runMercadoPagoAutomaticMaintenanceIfDue } from "@/services/mercadopago-sync";
 import { createManualMovement, listMovements } from "@/services/movimientos";
 import {
   MovementDirection,
-  MovementOriginType,
   movementDirectionValues,
-  movementOriginTypeValues,
 } from "@/types/domain";
 
 function parseEnumValue<T extends string>(
@@ -35,8 +32,6 @@ export async function GET(request: Request) {
       throw new AppError("FORBIDDEN", "No tenes permisos para acceder", 403);
     }
 
-    await runMercadoPagoAutomaticMaintenanceIfDue();
-
     const { searchParams } = new URL(request.url);
     const page = parsePositiveInteger(searchParams.get("page"), 1);
     const limit = parsePositiveInteger(searchParams.get("limit"), 10, 50);
@@ -44,17 +39,11 @@ export async function GET(request: Request) {
     const dateTo = searchParams.get("dateTo") ?? undefined;
     const directionParam = searchParams.get("direction");
     const typeId = searchParams.get("type") ?? undefined;
-    const originTypeParam = searchParams.get("originType");
 
     const direction = parseEnumValue<MovementDirection>(
       directionParam,
       movementDirectionValues,
     );
-    const originType = parseEnumValue<MovementOriginType>(
-      originTypeParam,
-      movementOriginTypeValues,
-    );
-
     const result = await listMovements({
       page,
       limit,
@@ -62,7 +51,6 @@ export async function GET(request: Request) {
       dateTo,
       direction,
       typeId,
-      originType,
     });
 
     return Response.json({

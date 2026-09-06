@@ -7,12 +7,10 @@ import { parseDateOnlyAsUtc, normalizeWhitespace } from "@/lib/utils";
 import { MovementModel } from "@/models/movement";
 import { getMovementTypeById, getSystemMovementType } from "@/services/tipos-movimientos";
 import {
-  MercadoPagoExternalComponent,
   MovementMetadataDto,
   MovementCreateDto,
   MovementDirection,
   MovementDto,
-  MovementMercadoPagoMetadataDto,
   MovementOriginType,
   MovementPaymentMetadataDto,
   PaymentDebitItemDto,
@@ -26,7 +24,6 @@ type ListMovementsQuery = {
   dateTo?: string;
   direction?: MovementDirection;
   typeId?: string;
-  originType?: MovementOriginType;
 };
 
 function buildMovementMatch(query: ListMovementsQuery) {
@@ -54,10 +51,6 @@ function buildMovementMatch(query: ListMovementsQuery) {
     match.tipoMovimientoId = new Types.ObjectId(query.typeId);
   }
 
-  if (query.originType) {
-    match.origenTipo = query.originType;
-  }
-
   return match;
 }
 
@@ -79,34 +72,6 @@ type PaymentMovementInput = {
   createdByUserId: string;
 };
 
-type MercadoPagoMovementInput = {
-  reportId: number;
-  sourceId: string;
-  externalComponent: MercadoPagoExternalComponent;
-  fecha: Date;
-  descripcion: string;
-  direccion: MovementDirection;
-  montoCentavos: number;
-  payerName: string | null;
-  externalReference: string | null;
-  paymentMethod: string | null;
-  paymentMethodType: string | null;
-  transactionType: string | null;
-  transactionAmountCentavos: number;
-  transactionDate: Date;
-  feeAmountCentavos: number;
-  settlementDate: Date | null;
-  realAmountCentavos: number;
-  taxesAmountCentavos: number;
-  moneyReleaseDate: Date | null;
-  description: string | null;
-  businessUnit: string | null;
-  subUnit: string | null;
-  reconciliationDifferenceCentavos: number;
-  reconciliationExpectedCentavos: number;
-  createdByUserId: string;
-};
-
 function toMovementDto(movement: {
   _id: Types.ObjectId | string;
   fecha: Date;
@@ -117,8 +82,6 @@ function toMovementDto(movement: {
   montoCentavos: number;
   origenTipo: MovementOriginType;
   origenId: Types.ObjectId | null;
-  externalId: string | null;
-  externalComponent: MercadoPagoExternalComponent | null;
   creadoAutomaticamente: boolean;
   metadata: MovementMetadataDto | null;
   createdByUserId: Types.ObjectId | string;
@@ -135,8 +98,6 @@ function toMovementDto(movement: {
     montoCentavos: movement.montoCentavos,
     origenTipo: movement.origenTipo,
     origenId: movement.origenId ? String(movement.origenId) : null,
-    externalId: movement.externalId ?? null,
-    externalComponent: movement.externalComponent ?? null,
     creadoAutomaticamente: movement.creadoAutomaticamente,
     metadata: movement.metadata,
     createdByUserId: String(movement.createdByUserId),
@@ -314,8 +275,6 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
       montoCentavos: input.totalNetoPagarCentavos,
       origenTipo: "payment",
       origenId: input.paymentId,
-      externalId: null,
-      externalComponent: null,
       creadoAutomaticamente: true,
       metadata,
       createdByUserId: new Types.ObjectId(input.createdByUserId),
@@ -336,93 +295,6 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
 
       if (existing) {
         return toMovementDto(existing);
-      }
-    }
-
-    throw error;
-  }
-}
-
-export async function createMercadoPagoMovement(input: MercadoPagoMovementInput) {
-  await connectToDatabase();
-  const movementType = await getSystemMovementType(
-    input.externalComponent === "TAX"
-      ? input.direccion === "ingreso"
-        ? "mercadopago-tax-income"
-        : "mercadopago-tax-expense"
-      : input.externalComponent === "FEE"
-        ? input.direccion === "ingreso"
-          ? "mercadopago-fee-income"
-          : "mercadopago-fee-expense"
-        : input.direccion === "ingreso"
-          ? "mercadopago-income"
-          : "mercadopago-expense",
-  );
-
-  const metadata: MovementMercadoPagoMetadataDto = {
-    kind: "mercadopago",
-    reportId: input.reportId,
-    sourceId: input.sourceId,
-    payerName: input.payerName,
-    externalReference: input.externalReference,
-    paymentMethod: input.paymentMethod,
-    paymentMethodType: input.paymentMethodType,
-    transactionType: input.transactionType,
-    transactionAmountCentavos: input.transactionAmountCentavos,
-    transactionDate: input.transactionDate.toISOString(),
-    feeAmountCentavos: input.feeAmountCentavos,
-    settlementDate: input.settlementDate?.toISOString() ?? null,
-    realAmountCentavos: input.realAmountCentavos,
-    taxesAmountCentavos: input.taxesAmountCentavos,
-    moneyReleaseDate: input.moneyReleaseDate?.toISOString() ?? null,
-    description: input.description,
-    businessUnit: input.businessUnit,
-    subUnit: input.subUnit,
-    externalComponent: input.externalComponent,
-    reconciliationExpectedCentavos: input.reconciliationExpectedCentavos,
-    reconciliationDifferenceCentavos: input.reconciliationDifferenceCentavos,
-    reconciliationMatches: input.reconciliationDifferenceCentavos === 0,
-  };
-
-  try {
-    const movement = await MovementModel.create({
-      fecha: input.fecha,
-      descripcion: input.descripcion,
-      direccion: input.direccion,
-      tipoMovimientoId: new Types.ObjectId(movementType.id),
-      tipo: movementType.nombre,
-      montoCentavos: input.montoCentavos,
-      origenTipo: "mercadopago",
-      origenId: null,
-      externalId: input.sourceId,
-      externalComponent: input.externalComponent,
-      creadoAutomaticamente: true,
-      metadata,
-      createdByUserId: new Types.ObjectId(input.createdByUserId),
-    });
-
-    return {
-      created: true,
-      movement: toMovementDto(movement.toObject()),
-    };
-  } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === 11000
-    ) {
-      const existing = await MovementModel.findOne({
-        origenTipo: "mercadopago",
-        externalId: input.sourceId,
-        externalComponent: input.externalComponent,
-      }).lean();
-
-      if (existing) {
-        return {
-          created: false,
-          movement: toMovementDto(existing),
-        };
       }
     }
 

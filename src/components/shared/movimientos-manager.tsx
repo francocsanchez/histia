@@ -1,24 +1,18 @@
 "use client";
 
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
-import { RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { TrendingDown, TrendingUp } from "lucide-react";
 
 import { EmptyState, ErrorState, LoadingState } from "@/components/shared/states";
 import { PageHeader } from "@/components/shared/page-header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import {
-  isPaymentMovementMetadata,
-  movementDirectionLabels,
-  movementOriginLabels,
-} from "@/lib/movement";
+import { isPaymentMovementMetadata, movementDirectionLabels } from "@/lib/movement";
 import {
   formatCurrencyFromCents,
-  formatDate,
   formatDateOnly,
   formatMoneyInputFromCents,
   formatMoneyMaskedInput,
@@ -29,10 +23,8 @@ import {
   MovementCreateDto,
   MovementDirection,
   MovementDto,
-  MercadoPagoSyncDto,
   MovementTypeDto,
   movementDirectionValues,
-  movementOriginTypeValues,
 } from "@/types/domain";
 
 type ListPayload = {
@@ -64,21 +56,6 @@ type UpdatePayload = {
   success: boolean;
   data: MovementDto;
   error?: { message?: string; fields?: Record<string, string> };
-};
-
-type MercadoPagoSyncTriggerPayload = {
-  success: boolean;
-  data?: {
-    created: boolean;
-  };
-  error?: { message?: string };
-};
-
-type MercadoPagoSyncsPayload = {
-  success: boolean;
-  data: MercadoPagoSyncDto[];
-  pagination: { page: number; limit: number; total: number; totalPages: number };
-  error?: { message?: string };
 };
 
 type FormState = MovementCreateDto & {
@@ -115,11 +92,9 @@ export function MovimientosManager() {
   const [dateTo, setDateTo] = useState("");
   const [direction, setDirection] = useState("");
   const [typeId, setTypeId] = useState("");
-  const [originType, setOriginType] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [syncSubmitting, setSyncSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [summary, setSummary] = useState<ListPayload["summary"]>({
     ingresosCentavos: 0,
@@ -144,9 +119,6 @@ export function MovimientosManager() {
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [editError, setEditError] = useState("");
   const [editFields, setEditFields] = useState<Record<string, string>>({});
-  const [latestMercadoPagoSync, setLatestMercadoPagoSync] = useState<MercadoPagoSyncDto | null>(
-    null,
-  );
 
   const activeMovementTypes = useMemo(
     () => movementTypes.filter((item) => item.activo),
@@ -195,24 +167,6 @@ export function MovimientosManager() {
     }
   };
 
-  const loadLatestMercadoPagoSync = async () => {
-    const response = await fetch("/api/mercadopago/syncs?limit=5", {
-      cache: "no-store",
-    });
-    const payload = (await response.json()) as MercadoPagoSyncsPayload;
-
-    if (!response.ok || !payload.success) {
-      throw new Error(
-        payload.error?.message || "No se pudo cargar el estado de sincronizacion",
-      );
-    }
-
-    const latestRelevantSync =
-      payload.data.find((item) => item.status === "PROCESSED") ?? payload.data[0] ?? null;
-
-    setLatestMercadoPagoSync(latestRelevantSync);
-  };
-
   const load = async () => {
     setLoading(true);
     setError("");
@@ -227,7 +181,6 @@ export function MovimientosManager() {
       if (dateTo) params.set("dateTo", dateTo);
       if (direction) params.set("direction", direction);
       if (typeId) params.set("type", typeId);
-      if (originType) params.set("originType", originType);
 
       const response = await fetch(`/api/movimientos?${params.toString()}`, {
         cache: "no-store",
@@ -249,7 +202,7 @@ export function MovimientosManager() {
   };
 
   const loadFromEffect = useEffectEvent(async () => {
-    await Promise.all([loadMovementTypes(), load(), loadLatestMercadoPagoSync()]);
+    await Promise.all([loadMovementTypes(), load()]);
   });
 
   useEffect(() => {
@@ -258,7 +211,7 @@ export function MovimientosManager() {
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [page, dateFrom, dateTo, direction, typeId, originType]);
+  }, [page, dateFrom, dateTo, direction, typeId]);
 
   const resetForm = () => {
     const defaultDirection: MovementDirection = "egreso";
@@ -373,56 +326,6 @@ export function MovimientosManager() {
     }
   };
 
-  const triggerMercadoPagoSync = async () => {
-    setSyncSubmitting(true);
-    setSuccessMessage("");
-    setError("");
-
-    try {
-      const response = await fetch("/api/mercadopago/sync", {
-        method: "POST",
-      });
-      const payload = (await response.json()) as MercadoPagoSyncTriggerPayload;
-
-      if (!response.ok || !payload.success) {
-        throw new Error(
-          payload.error?.message || "No se pudo iniciar la sincronizacion de Mercado Pago",
-        );
-      }
-
-      setSuccessMessage(
-        payload.data?.created
-          ? "Se inicio la sincronizacion manual de Mercado Pago."
-          : "Ya existe una sincronizacion reciente de Mercado Pago en curso.",
-      );
-      await Promise.all([load(), loadLatestMercadoPagoSync()]);
-    } catch (syncError) {
-      setError(syncError instanceof Error ? syncError.message : "Error inesperado");
-    } finally {
-      setSyncSubmitting(false);
-    }
-  };
-
-  const latestSyncLabel = latestMercadoPagoSync
-    ? formatDate(latestMercadoPagoSync.processedAt ?? latestMercadoPagoSync.updatedAt)
-    : "Sin sincronizaciones";
-  const latestSyncStatusLabel =
-    latestMercadoPagoSync?.status === "PROCESSED"
-      ? "Correcta"
-      : latestMercadoPagoSync?.status === "FAILED"
-        ? "Con error"
-        : latestMercadoPagoSync
-          ? "En proceso"
-          : "Sin datos";
-  const latestSyncDotClass =
-    latestMercadoPagoSync?.status === "PROCESSED"
-      ? "bg-emerald-500"
-      : latestMercadoPagoSync?.status === "FAILED"
-        ? "bg-rose-500"
-        : latestMercadoPagoSync
-          ? "bg-amber-500"
-          : "bg-muted-foreground/30";
-
   return (
     <div className="space-y-4">
       <PageHeader
@@ -430,20 +333,6 @@ export function MovimientosManager() {
         description="Libro contable operativo de ingresos y egresos de la clinica."
         actionLabel="Nuevo movimiento"
         onAction={openCreate}
-        actions={
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void triggerMercadoPagoSync()}
-            disabled={syncSubmitting}
-            title="Forzar sincronizacion de Mercado Pago"
-          >
-            <RefreshCw
-              className={`mr-2 h-4 w-4 ${syncSubmitting ? "animate-spin" : ""}`}
-            />
-            {syncSubmitting ? "Sincronizando..." : "Forzar sync"}
-          </Button>
-        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -473,7 +362,7 @@ export function MovimientosManager() {
         </Card>
       </div>
 
-      <Card className="grid items-center gap-2 p-3 xl:grid-cols-[150px_150px_180px_220px_180px_minmax(240px,1fr)]">
+      <Card className="grid items-center gap-2 p-3 xl:grid-cols-[150px_150px_180px_minmax(220px,1fr)]">
         <Input
           className="h-10"
           type="date"
@@ -523,30 +412,6 @@ export function MovimientosManager() {
             </option>
           ))}
         </Select>
-        <Select
-          className="h-10"
-          value={originType}
-          onChange={(event) => {
-            setPage(1);
-            setOriginType(event.target.value);
-          }}
-        >
-          <option value="">Todos los origenes</option>
-          {movementOriginTypeValues.map((item) => (
-            <option key={item} value={item}>
-              {movementOriginLabels[item]}
-            </option>
-          ))}
-        </Select>
-        <div className="flex min-h-10 items-center justify-start rounded-md border border-border px-3 xl:justify-end">
-          <div className="flex items-center gap-3 whitespace-nowrap text-sm">
-            <span className={`h-2.5 w-2.5 rounded-full ${latestSyncDotClass}`} />
-            <p className="text-left text-sm text-foreground xl:text-right">
-              <span className="font-medium">Ultima sync Mercado Pago:</span> {latestSyncLabel}
-              <span className="ml-2 text-muted-foreground">• {latestSyncStatusLabel}</span>
-            </p>
-          </div>
-        </div>
       </Card>
 
       {successMessage ? (
@@ -571,7 +436,6 @@ export function MovimientosManager() {
                 <col className="w-[260px]" />
                 <col />
               <col className="w-[140px]" />
-              <col className="w-[190px]" />
               <col className="w-[120px]" />
               </colgroup>
               <thead className="bg-muted/70 text-left">
@@ -581,7 +445,6 @@ export function MovimientosManager() {
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Concepto</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Descripcion</th>
                   <th className="px-3 py-2 text-right font-semibold uppercase tracking-wide text-muted-foreground">Monto</th>
-                  <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Origen</th>
                   <th className="px-3 py-2 font-semibold uppercase tracking-wide text-muted-foreground">Accion</th>
                 </tr>
               </thead>
@@ -612,11 +475,6 @@ export function MovimientosManager() {
                       }`}
                     >
                       {formatSignedMovementAmount(item)}
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge variant="muted" className="inline-flex whitespace-nowrap">
-                        {movementOriginLabels[item.origenTipo]}
-                      </Badge>
                     </td>
                     <td className="px-3 py-2">
                       <Button
