@@ -184,6 +184,7 @@ export function PagosManager() {
   );
   const [lookupLoading, setLookupLoading] = useState(true);
   const [candidatesLoading, setCandidatesLoading] = useState(true);
+  const [massSelectionLoading, setMassSelectionLoading] = useState(false);
   const [paymentsLoading, setPaymentsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -462,27 +463,69 @@ export function PagosManager() {
     }));
   };
 
-  const selectVisibleConcepts = (key: "payCode" | "payCoseguroOdonto") => {
-    setSelection((current) => {
-      const next = { ...current };
+  const selectAllFilteredConcepts = async (key: "payCode" | "payCoseguroOdonto") => {
+    setMassSelectionLoading(true);
+    setError("");
 
-      candidates.forEach((line) => {
-        const canToggle =
-          key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto;
-
-        if (!canToggle) {
-          return;
-        }
-
-        const selectionKey = getSelectionKey(line);
-        next[selectionKey] = {
-          ...(current[selectionKey] ?? getInitialSelection(line)),
-          [key]: true,
-        };
+    try {
+      const params = new URLSearchParams({
+        page: "1",
+        limit: "100",
+        all: "1",
       });
 
-      return next;
-    });
+      if (userId) params.set("userId", userId);
+      if (attentionMonth) params.set("attentionMonth", attentionMonth);
+      if (attentionStatus) params.set("attentionStatus", attentionStatus);
+      if (search) params.set("search", search);
+
+      const response = await fetch(`/api/pagos/candidates?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const payload = (await response.json()) as CandidatePayload;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(payload.error?.message || "No se pudieron seleccionar los conceptos");
+      }
+
+      setCandidateCache((current) => {
+        const next = { ...current };
+
+        payload.data.forEach((line) => {
+          next[getSelectionKey(line)] = line;
+        });
+
+        return next;
+      });
+      setSelection((current) => {
+        const next = { ...current };
+
+        payload.data.forEach((line) => {
+          const canToggle =
+            key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto;
+
+          if (!canToggle) {
+            return;
+          }
+
+          const selectionKey = getSelectionKey(line);
+          next[selectionKey] = {
+            ...(current[selectionKey] ?? getInitialSelection(line)),
+            [key]: true,
+          };
+        });
+
+        return next;
+      });
+    } catch (selectionError) {
+      setError(
+        selectionError instanceof Error
+          ? selectionError.message
+          : "Error inesperado al seleccionar los conceptos",
+      );
+    } finally {
+      setMassSelectionLoading(false);
+    }
   };
 
   const updateDebitItem = (
@@ -671,18 +714,18 @@ export function PagosManager() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => selectVisibleConcepts("payCode")}
-            disabled={submitting || candidatesLoading || candidates.length === 0}
+            onClick={() => void selectAllFilteredConcepts("payCode")}
+            disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
           >
-            Seleccionar conceptos
+            {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los conceptos"}
           </Button>
           <Button
             type="button"
             variant="secondary"
-            onClick={() => selectVisibleConcepts("payCoseguroOdonto")}
-            disabled={submitting || candidatesLoading || candidates.length === 0}
+            onClick={() => void selectAllFilteredConcepts("payCoseguroOdonto")}
+            disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
           >
-            Seleccionar coseguros
+            {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los coseguros"}
           </Button>
           <Button
             onClick={openPaymentConfirmation}

@@ -24,6 +24,7 @@ export async function GET(request: Request) {
     const attentionMonth = searchParams.get("attentionMonth") ?? undefined;
     const attentionStatus = searchParams.get("attentionStatus") ?? undefined;
     const search = searchParams.get("search") ?? undefined;
+    const all = searchParams.get("all") === "1";
 
     const statusFilter =
       attentionStatus && attentionCodeStatusValues.includes(attentionStatus as never)
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
     const result = await listPaymentCandidates({
       page,
       limit,
+      all,
       userId,
       attentionMonth,
       attentionStatus: statusFilter,

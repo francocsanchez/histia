@@ -28,6 +28,7 @@ const APP_TIMEZONE = "America/Argentina/Buenos_Aires";
 type PaymentCandidateQuery = {
   page: number;
   limit: number;
+  all?: boolean;
   userId?: string;
   attentionMonth?: string;
   attentionStatus?: AttentionCodeStatus;
@@ -682,7 +683,7 @@ export async function listPaymentCandidates(query: PaymentCandidateQuery) {
 
   const allCandidates = await getAllCandidates(query);
   const skip = (query.page - 1) * query.limit;
-  const data = allCandidates.slice(skip, skip + query.limit);
+  const data = query.all ? allCandidates : allCandidates.slice(skip, skip + query.limit);
 
   return {
     data,
