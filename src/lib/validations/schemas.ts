@@ -240,6 +240,14 @@ export const paymentDebitItemSchema = z.object({
   observacion: z.string().trim().min(1, "La observacion del debito es obligatoria"),
 });
 
+export const paymentCreditItemSchema = z.object({
+  montoCentavos: z
+    .coerce.number()
+    .int("El importe del credito debe ser un entero")
+    .min(1, "El importe del credito debe ser mayor que cero"),
+  observacion: z.string().trim().min(1, "La observacion del credito es obligatoria"),
+});
+
 export const paymentCreateSchema = z.object({
   userId: z.string().min(1, "El usuario es obligatorio"),
   attentionMonth: z
@@ -250,6 +258,7 @@ export const paymentCreateSchema = z.object({
     .array(paymentCandidateSelectionSchema)
     .min(1, "Debes seleccionar al menos un concepto"),
   debitItems: z.array(paymentDebitItemSchema).default([]),
+  creditItems: z.array(paymentCreditItemSchema).default([]),
 });
 
 export const orthodonticTreatmentSchema = z.object({

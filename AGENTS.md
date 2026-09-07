@@ -10,6 +10,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `Pagos` permite agregar créditos manuales además de débitos. Ambos requieren importe y observación y se persisten como snapshots (`creditItems`/`debitItems`); el neto del movimiento es `honorarios + créditos - débitos`, y el historial/detalle debe exponer ambos ajustes.
 - En `/inicio`, los badges del resumen mensual `Codigos por estado` deben llevar a `/atenciones/codigos-por-estado` preservando mes y profesional; la grilla es por línea de código, omite `valor atencion`, muestra coseguros/estado/observación y sólo ofrece editar para `pendiente`, retornando al mismo control.
 - En `Pagos`, `Seleccionar todos los conceptos` y `Seleccionar todos los coseguros` deben incluir todos los candidatos liquidables que respetan los filtros actuales, no sólo la página visible; la grilla sigue paginada.
 - Se elimino la integracion de Mercado Pago: `Movimientos` solo conserva ingresos/egresos manuales y los egresos automaticos de liquidaciones generadas desde `Pagos`; no se deben reintroducir schedulers, endpoints, variables ni tipos de sistema de proveedores de pago externos sin una decision explicita.

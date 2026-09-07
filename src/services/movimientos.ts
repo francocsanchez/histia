@@ -13,6 +13,7 @@ import {
   MovementDto,
   MovementOriginType,
   MovementPaymentMetadataDto,
+  PaymentCreditItemDto,
   PaymentDebitItemDto,
   MovementUpdateDto,
 } from "@/types/domain";
@@ -65,10 +66,12 @@ type PaymentMovementInput = {
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalCreditosCentavos: number;
   totalDebitosCentavos: number;
   totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
   debitItems: PaymentDebitItemDto[];
+  creditItems: PaymentCreditItemDto[];
   createdByUserId: string;
 };
 
@@ -256,10 +259,12 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
     totalCoseguroOdontoCentavos: input.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: input.totalOrtodonciaCentavos,
     totalHonorariosCentavos: input.totalHonorariosCentavos,
+    totalCreditosCentavos: input.totalCreditosCentavos,
     totalDebitosCentavos: input.totalDebitosCentavos,
     totalNetoPagarCentavos: input.totalNetoPagarCentavos,
     quantityConceptsPaid: input.quantityConceptsPaid,
     debitItems: input.debitItems,
+    creditItems: input.creditItems,
   };
 
   try {

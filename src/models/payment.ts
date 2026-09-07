@@ -3,6 +3,7 @@ import { Model, Schema, Types, model, models } from "mongoose";
 import {
   AttentionCodeStatus,
   OrthodonticTreatmentType,
+  PaymentCreditItemDto,
   PaymentDebitItemDto,
 } from "@/types/domain";
 
@@ -48,6 +49,7 @@ export type PaymentLineItemDocument =
   | OrthodonticPaymentLineItemDocument;
 
 export type PaymentDebitItemDocument = PaymentDebitItemDto;
+export type PaymentCreditItemDocument = PaymentCreditItemDto;
 
 export interface PaymentDocument {
   _id: Types.ObjectId;
@@ -62,10 +64,12 @@ export interface PaymentDocument {
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalCreditosCentavos: number;
   totalDebitosCentavos: number;
   totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
   debitItems: PaymentDebitItemDocument[];
+  creditItems: PaymentCreditItemDocument[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -216,6 +220,14 @@ const paymentDebitItemSchema = new Schema<PaymentDebitItemDocument>(
   { _id: false },
 );
 
+const paymentCreditItemSchema = new Schema<PaymentCreditItemDocument>(
+  {
+    montoCentavos: { type: Number, required: true, min: 1 },
+    observacion: { type: String, required: true, trim: true },
+  },
+  { _id: false },
+);
+
 const paymentSchema = new Schema<PaymentDocument>(
   {
     usuarioId: {
@@ -273,6 +285,12 @@ const paymentSchema = new Schema<PaymentDocument>(
       required: true,
       min: 0,
     },
+    totalCreditosCentavos: {
+      type: Number,
+      required: true,
+      default: 0,
+      min: 0,
+    },
     totalDebitosCentavos: {
       type: Number,
       required: true,
@@ -292,6 +310,10 @@ const paymentSchema = new Schema<PaymentDocument>(
     },
     debitItems: {
       type: [paymentDebitItemSchema],
+      default: [],
+    },
+    creditItems: {
+      type: [paymentCreditItemSchema],
       default: [],
     },
   },

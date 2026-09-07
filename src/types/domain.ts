@@ -554,6 +554,11 @@ export interface PaymentDebitItemDto {
   observacion: string;
 }
 
+export interface PaymentCreditItemDto {
+  montoCentavos: number;
+  observacion: string;
+}
+
 export interface PaymentDto {
   id: string;
   usuarioId: string;
@@ -566,11 +571,13 @@ export interface PaymentDto {
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalCreditosCentavos: number;
   totalDebitosCentavos: number;
   totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
   lineItems: PaymentLineItemDto[];
   debitItems: PaymentDebitItemDto[];
+  creditItems: PaymentCreditItemDto[];
   createdAt: string;
   updatedAt: string;
 }
@@ -583,6 +590,7 @@ export interface PaymentSummaryDto {
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalCreditosCentavos: number;
   totalDebitosCentavos: number;
   totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
@@ -599,10 +607,12 @@ export interface MovementPaymentMetadataDto {
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalCreditosCentavos: number;
   totalDebitosCentavos: number;
   totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
   debitItems: PaymentDebitItemDto[];
+  creditItems: PaymentCreditItemDto[];
 }
 
 export type MovementMetadataDto = MovementPaymentMetadataDto;

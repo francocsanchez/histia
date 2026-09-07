@@ -9,6 +9,7 @@
 
 ### Changed
 
+- `Pagos` ahora permite registrar créditos manuales, como adicionales, junto a débitos; los créditos incrementan el neto a pagar y quedan auditables en la confirmación, historial, detalle y movimiento automático.
 - En `Pagos`, las acciones masivas ahora seleccionan todos los conceptos o coseguros liquidables que coinciden con los filtros activos, incluso si están en otras páginas de la grilla.
 
 ## 2026-09-06

@@ -66,6 +66,8 @@ type PaymentDebitDraft = {
   observacion: string;
 };
 
+type PaymentCreditDraft = PaymentDebitDraft;
+
 function getSelectionKey(line: Pick<PaymentCandidateLineDto, "sourceType" | "lineId">) {
   return `${line.sourceType}:${line.lineId}`;
 }
@@ -80,6 +82,14 @@ function getInitialSelection(line: Pick<PaymentCandidateLineDto, "sourceType" | 
 }
 
 function createPaymentDebitDraft(): PaymentDebitDraft {
+  return {
+    id: crypto.randomUUID(),
+    monto: "",
+    observacion: "",
+  };
+}
+
+function createPaymentCreditDraft(): PaymentCreditDraft {
   return {
     id: crypto.randomUUID(),
     monto: "",
@@ -201,6 +211,7 @@ export function PagosManager() {
   const [paymentDetailDialog, setPaymentDetailDialog] = useState<PaymentDto | null>(null);
   const [paymentConfirmationOpen, setPaymentConfirmationOpen] = useState(false);
   const [debitItems, setDebitItems] = useState<PaymentDebitDraft[]>([]);
+  const [creditItems, setCreditItems] = useState<PaymentCreditDraft[]>([]);
 
   const loadLookups = async () => {
     setLookupLoading(true);
@@ -428,17 +439,31 @@ export function PagosManager() {
       (total, item) => total + (item.montoCentavos ?? 0),
       0,
     );
+    const parsedCreditItems = creditItems.map((item) => ({
+      ...item,
+      montoCentavos: parseMoneyInputToCents(item.monto),
+      observacion: item.observacion.trim(),
+    }));
+    const invalidCreditItem = parsedCreditItems.find(
+      (item) => !item.montoCentavos || item.montoCentavos <= 0 || !item.observacion,
+    );
+    const totalCreditosCentavos = parsedCreditItems.reduce(
+      (total, item) => total + (item.montoCentavos ?? 0),
+      0,
+    );
 
     return {
       totalDebitosCentavos,
+      totalCreditosCentavos,
       totalNetoPagarCentavos:
-        selectedSummary.totalHonorariosCentavos - totalDebitosCentavos,
+        selectedSummary.totalHonorariosCentavos + totalCreditosCentavos - totalDebitosCentavos,
       debitItems: parsedItems,
-      validationMessage: invalidItem
-        ? "Cada debito debe tener un importe mayor que cero y una observacion."
+      creditItems: parsedCreditItems,
+      validationMessage: invalidItem || invalidCreditItem
+        ? "Cada debito o credito debe tener un importe mayor que cero y una observacion."
         : "",
     };
-  }, [debitItems, selectedSummary.totalHonorariosCentavos]);
+  }, [creditItems, debitItems, selectedSummary.totalHonorariosCentavos]);
 
   const toggleSelection = (
     line: PaymentCandidateLineDto,
@@ -545,6 +570,23 @@ export function PagosManager() {
     );
   };
 
+  const updateCreditItem = (
+    id: string,
+    field: "monto" | "observacion",
+    value: string,
+  ) => {
+    setCreditItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              [field]: field === "monto" ? formatMoneyMaskedInput(value) : value,
+            }
+          : item,
+      ),
+    );
+  };
+
   const openPaymentConfirmation = () => {
     if (debitSummary.validationMessage) {
       setError(debitSummary.validationMessage);
@@ -552,7 +594,7 @@ export function PagosManager() {
     }
 
     if (debitSummary.totalNetoPagarCentavos < 0) {
-      setError("Los debitos no pueden superar el total bruto de la liquidacion.");
+      setError("Los debitos no pueden superar el total de la liquidacion incluyendo creditos.");
       return;
     }
 
@@ -580,6 +622,10 @@ export function PagosManager() {
             montoCentavos: item.montoCentavos,
             observacion: item.observacion,
           })),
+          creditItems: debitSummary.creditItems.map((item) => ({
+            montoCentavos: item.montoCentavos,
+            observacion: item.observacion,
+          })),
         }),
       });
       const payload = await response.json();
@@ -591,6 +637,7 @@ export function PagosManager() {
       setSelection({});
       setCandidateCache({});
       setDebitItems([]);
+      setCreditItems([]);
       setPaymentConfirmationOpen(false);
       setSuccessMessage("El pago se genero correctamente.");
       await Promise.all([loadCandidates(), loadPayments()]);
@@ -620,6 +667,7 @@ export function PagosManager() {
             setCandidatePage(1);
             setPaymentPage(1);
             setDebitItems([]);
+            setCreditItems([]);
             setPaymentConfirmationOpen(false);
             setUserId(event.target.value);
           }}
@@ -638,6 +686,7 @@ export function PagosManager() {
             setCandidatePage(1);
             setPaymentPage(1);
             setDebitItems([]);
+            setCreditItems([]);
             setPaymentConfirmationOpen(false);
             setAttentionMonth(event.target.value);
           }}
@@ -675,7 +724,7 @@ export function PagosManager() {
         />
       </Card>
 
-      <Card className="grid gap-3 p-3 xl:grid-cols-7">
+      <Card className="grid gap-3 p-3 xl:grid-cols-8">
         <div>
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
           <p className="mt-1 text-lg font-semibold">{selectedSummary.quantityConceptsPaid}</p>
@@ -696,6 +745,12 @@ export function PagosManager() {
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
           <p className="mt-1 text-lg font-semibold">
             {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Creditos</p>
+          <p className="mt-1 text-lg font-semibold text-emerald-700">
+            + {formatCurrencyFromCents(debitSummary.totalCreditosCentavos)}
           </p>
         </div>
         <div>
@@ -743,25 +798,38 @@ export function PagosManager() {
       <Card className="space-y-3 p-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-medium">Debitos de la liquidacion</p>
+            <p className="font-medium">Ajustes de la liquidacion</p>
             <p className="text-sm text-muted-foreground">
-              Registra retiros u otros descuentos que se aplicaran solo al confirmar este pago.
+              Registra descuentos o adicionales que se aplicaran solo al confirmar este pago.
             </p>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            onClick={() => setDebitItems((current) => [...current, createPaymentDebitDraft()])}
-            disabled={!userId || selectedItems.length === 0 || submitting}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Agregar debito
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setDebitItems((current) => [...current, createPaymentDebitDraft()])}
+              disabled={!userId || selectedItems.length === 0 || submitting}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Agregar debito
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setCreditItems((current) => [...current, createPaymentCreditDraft()])}
+              disabled={!userId || selectedItems.length === 0 || submitting}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Agregar credito
+            </Button>
+          </div>
         </div>
 
         {debitItems.length > 0 ? (
           <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-sm font-medium text-destructive">Debitos</p>
             {debitItems.map((item, index) => (
               <div
                 key={item.id}
@@ -807,12 +875,60 @@ export function PagosManager() {
           </div>
         ) : null}
 
+        {creditItems.length > 0 ? (
+          <div className="space-y-2 border-t border-border pt-3">
+            <p className="text-sm font-medium text-emerald-700">Creditos</p>
+            {creditItems.map((item, index) => (
+              <div
+                key={item.id}
+                className="grid items-end gap-2 md:grid-cols-[160px_1fr_auto]"
+              >
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Importe #{index + 1}
+                  </label>
+                  <Input
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={item.monto}
+                    onChange={(event) => updateCreditItem(item.id, "monto", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                    Observacion
+                  </label>
+                  <Input
+                    placeholder="Ej. Adicional"
+                    value={item.observacion}
+                    onChange={(event) =>
+                      updateCreditItem(item.id, "observacion", event.target.value)
+                    }
+                  />
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive"
+                  onClick={() =>
+                    setCreditItems((current) => current.filter((credit) => credit.id !== item.id))
+                  }
+                  aria-label={`Quitar credito ${index + 1}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         {debitSummary.validationMessage ? (
           <p className="text-sm text-destructive">{debitSummary.validationMessage}</p>
         ) : null}
         {debitSummary.totalNetoPagarCentavos < 0 ? (
           <p className="text-sm text-destructive">
-            Los debitos superan el total bruto de la liquidacion.
+            Los debitos superan el total de la liquidacion incluyendo creditos.
           </p>
         ) : null}
       </Card>
@@ -1002,6 +1118,7 @@ export function PagosManager() {
                   <th className="px-3 py-2 text-right">Codigos</th>
                   <th className="px-3 py-2 text-right">Coseguro odonto</th>
                   <th className="px-3 py-2 text-right">Ortodoncia</th>
+                  <th className="px-3 py-2 text-right">Creditos</th>
                   <th className="px-3 py-2 text-right">Debitos</th>
                   <th className="px-3 py-2 text-right">Neto pagado</th>
                   <th className="px-3 py-2 text-right">Acciones</th>
@@ -1024,6 +1141,9 @@ export function PagosManager() {
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {formatCurrencyFromCents(payment.totalOrtodonciaCentavos)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-emerald-700">
+                      + {formatCurrencyFromCents(payment.totalCreditosCentavos)}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums text-destructive">
                       - {formatCurrencyFromCents(payment.totalDebitosCentavos)}
@@ -1101,6 +1221,12 @@ export function PagosManager() {
                 {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
               </span>
             </div>
+            <div className="flex items-center justify-between gap-4 py-2 text-emerald-700">
+              <span>Total creditos</span>
+              <span className="font-medium tabular-nums">
+                + {formatCurrencyFromCents(debitSummary.totalCreditosCentavos)}
+              </span>
+            </div>
             <div className="flex items-center justify-between gap-4 py-2 text-destructive">
               <span>Total debitos</span>
               <span className="font-medium tabular-nums">
@@ -1126,6 +1252,23 @@ export function PagosManager() {
                   <span>{item.observacion}</span>
                   <span className="font-medium tabular-nums">
                     {formatCurrencyFromCents(item.montoCentavos ?? 0)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {debitSummary.creditItems.length > 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Creditos aplicados</p>
+              {debitSummary.creditItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 border border-border px-3 py-2 text-sm"
+                >
+                  <span>{item.observacion}</span>
+                  <span className="font-medium tabular-nums text-emerald-700">
+                    + {formatCurrencyFromCents(item.montoCentavos ?? 0)}
                   </span>
                 </div>
               ))}
@@ -1161,7 +1304,7 @@ export function PagosManager() {
       >
         {paymentDetailDialog ? (
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-6">
+            <div className="grid gap-3 md:grid-cols-7">
               <Card className="p-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
                 <p className="mt-1 text-lg font-semibold">
@@ -1184,6 +1327,12 @@ export function PagosManager() {
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
                 <p className="mt-1 text-lg font-semibold">
                   {formatCurrencyFromCents(paymentDetailDialog.totalOrtodonciaCentavos)}
+                </p>
+              </Card>
+              <Card className="p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Creditos</p>
+                <p className="mt-1 text-lg font-semibold text-emerald-700">
+                  + {formatCurrencyFromCents(paymentDetailDialog.totalCreditosCentavos)}
                 </p>
               </Card>
               <Card className="p-3">
@@ -1217,6 +1366,32 @@ export function PagosManager() {
                           <td className="px-3 py-2">{item.observacion}</td>
                           <td className="px-3 py-2 text-right font-medium tabular-nums">
                             - {formatCurrencyFromCents(item.montoCentavos)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {paymentDetailDialog.creditItems.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Creditos aplicados</p>
+                <div className="overflow-x-auto border border-border">
+                  <table className="w-full min-w-[480px] text-sm">
+                    <thead className="bg-muted/70 text-left">
+                      <tr>
+                        <th className="px-3 py-2">Observacion</th>
+                        <th className="px-3 py-2 text-right">Importe</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paymentDetailDialog.creditItems.map((item, index) => (
+                        <tr key={`${item.observacion}-${index}`} className="border-t border-border">
+                          <td className="px-3 py-2">{item.observacion}</td>
+                          <td className="px-3 py-2 text-right font-medium tabular-nums text-emerald-700">
+                            + {formatCurrencyFromCents(item.montoCentavos)}
                           </td>
                         </tr>
                       ))}

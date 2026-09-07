@@ -17,6 +17,7 @@ import {
   OrthodonticPaymentLineItemDto,
   PaymentCandidateLineDto,
   PaymentCandidateSelectionDto,
+  PaymentCreditItemDto,
   PaymentDto,
   PaymentDebitItemDto,
   PaymentLineItemDto,
@@ -40,6 +41,7 @@ type PaymentCreateInput = {
   attentionMonth?: string;
   selectedItems: PaymentCandidateSelectionDto[];
   debitItems?: PaymentDebitItemDto[];
+  creditItems?: PaymentCreditItemDto[];
 };
 
 type PaymentHistoryQuery = {
@@ -159,11 +161,13 @@ function toPaymentDto(payment: {
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
   totalHonorariosCentavos: number;
+  totalCreditosCentavos: number;
   totalDebitosCentavos: number;
   totalNetoPagarCentavos: number;
   quantityConceptsPaid: number;
   lineItems: PaymentLineItemDto[];
   debitItems: PaymentDebitItemDto[];
+  creditItems: PaymentCreditItemDto[];
   createdAt: Date;
   updatedAt: Date;
 }): PaymentDto {
@@ -182,11 +186,13 @@ function toPaymentDto(payment: {
     totalCoseguroOdontoCentavos: payment.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos,
     totalHonorariosCentavos: payment.totalHonorariosCentavos,
+    totalCreditosCentavos: payment.totalCreditosCentavos,
     totalDebitosCentavos: payment.totalDebitosCentavos,
     totalNetoPagarCentavos: payment.totalNetoPagarCentavos,
     quantityConceptsPaid: payment.quantityConceptsPaid,
     lineItems: payment.lineItems,
     debitItems: payment.debitItems,
+    creditItems: payment.creditItems,
     createdAt: payment.createdAt.toISOString(),
     updatedAt: payment.updatedAt.toISOString(),
   };
@@ -570,6 +576,7 @@ function buildPaymentSummary(
   userId: string,
   attentionMonth: string,
   debitItems: PaymentDebitItemDto[],
+  creditItems: PaymentCreditItemDto[],
 ) {
   const selectedByKey = new Map(
     selectedItems.map((item) => [`${item.sourceType}:${item.lineId}`, item]),
@@ -580,6 +587,10 @@ function buildPaymentSummary(
   let totalOrtodonciaCentavos = 0;
   let quantityConceptsPaid = 0;
   const totalDebitosCentavos = debitItems.reduce(
+    (total, item) => total + item.montoCentavos,
+    0,
+  );
+  const totalCreditosCentavos = creditItems.reduce(
     (total, item) => total + item.montoCentavos,
     0,
   );
@@ -621,11 +632,13 @@ function buildPaymentSummary(
       totalPagoCodigosCentavos +
       totalCoseguroOdontoCentavos +
       totalOrtodonciaCentavos,
+    totalCreditosCentavos,
     totalDebitosCentavos,
     totalNetoPagarCentavos:
       totalPagoCodigosCentavos +
       totalCoseguroOdontoCentavos +
-      totalOrtodonciaCentavos -
+      totalOrtodonciaCentavos +
+      totalCreditosCentavos -
       totalDebitosCentavos,
     quantityConceptsPaid,
   } satisfies PaymentSummaryDto;
@@ -782,10 +795,12 @@ export async function listPayments(query: PaymentHistoryQuery) {
           mapPersistedLineItem(lineItem as Record<string, unknown>),
         ),
         totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos ?? 0,
+        totalCreditosCentavos: payment.totalCreditosCentavos ?? 0,
         totalDebitosCentavos: payment.totalDebitosCentavos ?? 0,
         totalNetoPagarCentavos:
           payment.totalNetoPagarCentavos ?? payment.totalHonorariosCentavos,
         debitItems: payment.debitItems ?? [],
+        creditItems: payment.creditItems ?? [],
       }),
     ),
     pagination: {
@@ -878,6 +893,10 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     montoCentavos: item.montoCentavos,
     observacion: normalizeWhitespace(item.observacion),
   }));
+  const creditItems = (input.creditItems ?? []).map((item) => ({
+    montoCentavos: item.montoCentavos,
+    observacion: normalizeWhitespace(item.observacion),
+  }));
 
   if (
     debitItems.some(
@@ -890,6 +909,21 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     throw new AppError(
       "VALIDATION_ERROR",
       "Cada debito debe tener un importe valido y una observacion",
+      400,
+    );
+  }
+
+  if (
+    creditItems.some(
+      (item) =>
+        !Number.isInteger(item.montoCentavos) ||
+        item.montoCentavos <= 0 ||
+        !item.observacion,
+    )
+  ) {
+    throw new AppError(
+      "VALIDATION_ERROR",
+      "Cada credito debe tener un importe valido y una observacion",
       400,
     );
   }
@@ -954,6 +988,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     input.userId,
     primaryAttentionMonth,
     debitItems,
+    creditItems,
   );
 
   if (summary.quantityConceptsPaid === 0) {
@@ -967,7 +1002,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
   if (summary.totalNetoPagarCentavos < 0) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "Los debitos no pueden superar el total bruto de la liquidacion",
+      "Los debitos no pueden superar el total de la liquidacion incluyendo creditos",
       400,
     );
   }
@@ -1045,10 +1080,12 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,
     totalHonorariosCentavos: summary.totalHonorariosCentavos,
+    totalCreditosCentavos: summary.totalCreditosCentavos,
     totalDebitosCentavos: summary.totalDebitosCentavos,
     totalNetoPagarCentavos: summary.totalNetoPagarCentavos,
     quantityConceptsPaid: summary.quantityConceptsPaid,
     debitItems,
+    creditItems,
   });
 
   try {
@@ -1129,10 +1166,12 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
       totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
       totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,
       totalHonorariosCentavos: summary.totalHonorariosCentavos,
+      totalCreditosCentavos: summary.totalCreditosCentavos,
       totalDebitosCentavos: summary.totalDebitosCentavos,
       totalNetoPagarCentavos: summary.totalNetoPagarCentavos,
       quantityConceptsPaid: summary.quantityConceptsPaid,
       debitItems,
+      creditItems,
       createdByUserId: currentUserId,
     });
   } catch (error) {
@@ -1152,9 +1191,11 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
       mapPersistedLineItem(lineItem as Record<string, unknown>),
     ),
     totalOrtodonciaCentavos: created.totalOrtodonciaCentavos ?? 0,
+    totalCreditosCentavos: created.totalCreditosCentavos ?? 0,
     totalDebitosCentavos: created.totalDebitosCentavos ?? 0,
     totalNetoPagarCentavos:
       created.totalNetoPagarCentavos ?? created.totalHonorariosCentavos,
     debitItems: created.debitItems ?? [],
+    creditItems: created.creditItems ?? [],
   });
 }

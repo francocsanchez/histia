@@ -278,6 +278,7 @@ async function main() {
           { montoCentavos: 10000, observacion: "Retiro de dinero" },
           { montoCentavos: 5000, observacion: "Anticipo" },
         ],
+        creditItems: [{ montoCentavos: 7500, observacion: "Adicional" }],
       },
       adminId,
     );
@@ -286,11 +287,13 @@ async function main() {
 
     if (
       payment3.totalDebitosCentavos !== 15000 ||
-      payment3.totalNetoPagarCentavos !== 106200 ||
+      payment3.totalCreditosCentavos !== 7500 ||
+      payment3.totalNetoPagarCentavos !== 113700 ||
       payment3.debitItems.length !== 2 ||
+      payment3.creditItems.length !== 1 ||
       payment3.attentionMonths.join(",") !== "2026-08,2026-07"
     ) {
-      throw new Error("El pago con debitos no persistio los totales esperados");
+      throw new Error("El pago con ajustes no persistio los totales esperados");
     }
 
     const movement = await movementCollection.findOne({
@@ -298,7 +301,7 @@ async function main() {
       origenId: new mongoose.Types.ObjectId(payment3.id),
     });
 
-    if (movement?.montoCentavos !== 106200) {
+    if (movement?.montoCentavos !== 113700) {
       throw new Error("El movimiento no uso el total neto del pago");
     }
 
