@@ -20,6 +20,7 @@ export default async function EditarAtencionPage({
     obraSocialId?: string;
     userId?: string;
     attentionStatus?: string;
+    from?: string;
     page?: string;
   }>;
 }) {
@@ -38,6 +39,7 @@ export default async function EditarAtencionPage({
     obraSocialId,
     userId,
     attentionStatus,
+    from,
     page,
   } = await searchParams;
   const isAdministrative = admin === "1" && isAdmin(user);
@@ -67,7 +69,9 @@ export default async function EditarAtencionPage({
   if (attentionStatus) returnParams.set("attentionStatus", attentionStatus);
   if (page) returnParams.set("page", page);
 
-  const returnPath = isAdministrative
+  const returnPath = from === "status-control"
+    ? `/atenciones/codigos-por-estado${returnParams.size > 0 ? `?${returnParams.toString()}` : ""}`
+    : isAdministrative
     ? `/liquidaciones${returnParams.size > 0 ? `?${returnParams.toString()}` : ""}`
     : "/atenciones";
 

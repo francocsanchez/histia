@@ -15,6 +15,7 @@ import { PacienteModel } from "@/models/paciente";
 import { UserModel } from "@/models/user";
 import {
   AttentionCodeLineDto,
+  AttentionCodeControlDto,
   AttentionCodeStatus,
   AttentionDto,
   PaymentStatus,
@@ -926,6 +927,22 @@ export async function listAttentions(query: QueryParams, currentUser: SessionUse
 
   const pipeline = buildAttentionPipeline(match);
 
+  if (query.attentionStatus) {
+    pipeline.push(
+      {
+        $set: {
+          codigos: {
+            $filter: {
+              input: "$codigos",
+              as: "codigo",
+              cond: { $eq: ["$$codigo.estado", query.attentionStatus] },
+            },
+          },
+        },
+      } as unknown as (typeof pipeline)[number],
+    );
+  }
+
   if (search) {
     pipeline.push({
       $match: {
@@ -957,6 +974,105 @@ export async function listAttentions(query: QueryParams, currentUser: SessionUse
 
   return {
     data: await enrichAttentionDtosWithMonthlyLimitObservation(rows),
+    pagination: {
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / query.limit)),
+    },
+  };
+}
+
+export async function listAttentionCodeLines(query: QueryParams, currentUser: SessionUser) {
+  await connectToDatabase();
+
+  if (!query.attentionStatus) {
+    throw new AppError("VALIDATION_ERROR", "Debes indicar un estado de codigo", 400);
+  }
+
+  const match: Record<string, unknown> = {};
+  const dateMatch = buildDateMatch(query);
+
+  if (dateMatch) match.fecha = dateMatch;
+  if (!hasAdministrativeAccess(currentUser)) {
+    match.usuarioCargaId = new Types.ObjectId(currentUser.id);
+  } else if (query.userId) {
+    match.usuarioCargaId = new Types.ObjectId(query.userId);
+  }
+
+  const pipeline = [
+    { $match: match },
+    { $unwind: "$codigos" },
+    { $match: { "codigos.estado": query.attentionStatus } },
+    {
+      $lookup: {
+        from: "pacientes",
+        localField: "pacienteId",
+        foreignField: "_id",
+        as: "paciente",
+      },
+    },
+    { $unwind: "$paciente" },
+    {
+      $lookup: {
+        from: "obras_sociales",
+        localField: "obraSocialId",
+        foreignField: "_id",
+        as: "obraSocial",
+      },
+    },
+    { $unwind: "$obraSocial" },
+    {
+      $lookup: {
+        from: "users",
+        localField: "usuarioCargaId",
+        foreignField: "_id",
+        as: "usuarioCarga",
+      },
+    },
+    { $unwind: "$usuarioCarga" },
+    {
+      $lookup: {
+        from: "codigos_obras_sociales",
+        localField: "codigos.codigoObraSocialId",
+        foreignField: "_id",
+        as: "codigoDetalle",
+      },
+    },
+    { $unwind: { path: "$codigoDetalle", preserveNullAndEmptyArrays: true } },
+  ];
+  const skip = (query.page - 1) * query.limit;
+  const [rows, totalRows] = await Promise.all([
+    AttentionModel.aggregate([
+      ...pipeline,
+      { $sort: { fecha: -1, createdAt: -1 } },
+      { $skip: skip },
+      { $limit: query.limit },
+    ]),
+    AttentionModel.aggregate([...pipeline, { $count: "total" }]),
+  ]);
+  const total = totalRows[0]?.total ?? 0;
+
+  return {
+    data: rows.map((row): AttentionCodeControlDto => ({
+      attentionId: String(row._id),
+      fecha: formatDateOnlyValue(row.fecha),
+      pacienteNombreCompleto: `${row.paciente.apellido}, ${row.paciente.nombre}`,
+      pacienteDni: row.paciente.dni,
+      obraSocialNombre: row.obraSocial.nombre,
+      usuarioCargaId: String(row.usuarioCargaId),
+      usuarioCargaNombre: normalizeWhitespace(
+        `${row.usuarioCarga.apellido ?? ""}, ${row.usuarioCarga.name}`,
+      ),
+      lineId: String(row.codigos._id),
+      codigoNombre: row.codigoDetalle?.nombre ?? "Codigo sin datos",
+      codigo: row.codigoDetalle?.codigo ?? "",
+      pieza: row.codigos.pieza,
+      coseguroCentavos: row.codigos.coseguroCentavos,
+      coseguroOdontoCentavos: row.codigos.coseguroOdontoCentavos,
+      observacion: row.codigos.observacion,
+      estado: row.codigos.estado,
+    })),
     pagination: {
       page: query.page,
       limit: query.limit,

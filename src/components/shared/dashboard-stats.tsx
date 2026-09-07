@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useEffectEvent, useState } from "react";
+import Link from "next/link";
 
 import { ErrorState, LoadingState } from "@/components/shared/states";
 import { StatCard } from "@/components/shared/stat-card";
@@ -52,6 +53,12 @@ function formatMonthLabel(month: string) {
     month: "long",
     year: "numeric",
   }).format(date);
+}
+
+function getMonthDateRange(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  return { dateFrom: `${month}-01`, dateTo: `${month}-${String(lastDay).padStart(2, "0")}` };
 }
 
 function EmptyChart({ label }: { label: string }) {
@@ -242,6 +249,7 @@ export function DashboardStats() {
     (sum, item) => sum + item.pagadoCentavos,
     0,
   );
+  const monthDateRange = getMonthDateRange(data.month);
 
   return (
     <div className="space-y-6">
@@ -400,9 +408,18 @@ export function DashboardStats() {
                 {data.statusSummary.map((item) => (
                   <tr key={item.status} className="border-t border-border">
                     <td className="px-4 py-3">
-                      <Badge className={getAttentionStatusBadgeClassName(item.status)}>
-                        {item.label}
-                      </Badge>
+                      <Link
+                        href={`/atenciones/codigos-por-estado?${new URLSearchParams({
+                          attentionStatus: item.status,
+                          ...monthDateRange,
+                          userId: data.selectedUser.id,
+                        })}`}
+                        className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <Badge className={getAttentionStatusBadgeClassName(item.status)}>
+                          {item.label}
+                        </Badge>
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{item.total}</td>
                   </tr>

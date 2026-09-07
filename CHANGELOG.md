@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-07
+
+### Added
+
+- En `/inicio`, cada estado del resumen mensual de códigos abre una vista de control con las líneas de ese estado, mes y profesional, incluyendo pieza, coseguros, estado y observación sin exponer el valor de atención.
+- La vista de control permite abrir la atención desde un código `pendiente` y conserva los filtros al guardar o cancelar; los códigos auditados quedan sin acción de edición.
+
 ## 2026-09-06
 
 ### Removed

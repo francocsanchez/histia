@@ -10,6 +10,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- En `/inicio`, los badges del resumen mensual `Codigos por estado` deben llevar a `/atenciones/codigos-por-estado` preservando mes y profesional; la grilla es por línea de código, omite `valor atencion`, muestra coseguros/estado/observación y sólo ofrece editar para `pendiente`, retornando al mismo control.
 - Se elimino la integracion de Mercado Pago: `Movimientos` solo conserva ingresos/egresos manuales y los egresos automaticos de liquidaciones generadas desde `Pagos`; no se deben reintroducir schedulers, endpoints, variables ni tipos de sistema de proveedores de pago externos sin una decision explicita.
 - El gráfico `Honorarios anualizados` de `/inicio` debe agrupar `pagoOdontologoCentavos + coseguroOdontoCentavos` por estado de cada código (`pendiente`, `ok`, `diferido`, `denegado`, `no-cargado`), para reflejar los importes no cobrables; no debe volver a usar los estados de pago como segmentos del gráfico.
 - `Pagos` permite incluir conceptos pendientes de meses distintos en una única liquidación. El filtro de mes es sólo de búsqueda; el documento y el movimiento deben persistir `attentionMonths`, y el historial debe encontrar un pago al filtrar cualquiera de esos períodos, sin perder `attentionMonth` por compatibilidad.
@@ -73,7 +74,9 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 # This is NOT the Next.js you know
 
-This version has breaking changes. Before changing routes, pages, layouts, route handlers, or framework behavior, read the relevant guide in `node_modules/next/dist/docs/`.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
 

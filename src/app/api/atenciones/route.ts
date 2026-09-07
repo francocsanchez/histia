@@ -9,6 +9,7 @@ import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { attentionSchema } from "@/lib/validations/schemas";
 import { createAttention, listAttentions } from "@/services/atenciones";
+import { attentionCodeStatusValues, AttentionCodeStatus } from "@/types/domain";
 
 export async function GET(request: Request) {
   try {
@@ -27,6 +28,14 @@ export async function GET(request: Request) {
     const userId = searchParams.get("userId") ?? undefined;
     const obraSocialId = searchParams.get("obraSocialId") ?? undefined;
     const patientId = searchParams.get("patientId") ?? undefined;
+    const attentionStatus = searchParams.get("attentionStatus") ?? undefined;
+
+    if (
+      attentionStatus &&
+      !attentionCodeStatusValues.includes(attentionStatus as AttentionCodeStatus)
+    ) {
+      throw new AppError("VALIDATION_ERROR", "El estado de codigo no es valido", 400);
+    }
 
     const result = await listAttentions({
       page,
@@ -37,6 +46,7 @@ export async function GET(request: Request) {
       userId,
       obraSocialId,
       patientId,
+      attentionStatus: attentionStatus as AttentionCodeStatus | undefined,
     }, user);
 
     return okWithPagination(result.data, result.pagination);

@@ -483,6 +483,24 @@ export interface PaymentCandidateLineDto {
   orthodonticPaymentPercentage: number | null;
 }
 
+export interface AttentionCodeControlDto {
+  attentionId: string;
+  fecha: string;
+  pacienteNombreCompleto: string;
+  pacienteDni: string;
+  obraSocialNombre: string;
+  usuarioCargaId: string;
+  usuarioCargaNombre: string;
+  lineId: string;
+  codigoNombre: string;
+  codigo: string;
+  pieza: string | null;
+  coseguroCentavos: number | null;
+  coseguroOdontoCentavos: number | null;
+  observacion: string | null;
+  estado: AttentionCodeStatus;
+}
+
 export interface PaymentCandidateSelectionDto {
   sourceType: "attention" | "orthodontic-payment";
   lineId: string;
