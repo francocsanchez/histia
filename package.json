@@ -15,7 +15,10 @@
     "test:issn": "tsx scripts/tests/issn.test.ts",
     "lint": "eslint .",
     "seed:admin": "tsx scripts/seed-admin.ts",
-    "seed:admin:prod": "node dist/scripts/seed-admin.js"
+    "seed:admin:prod": "node dist/scripts/seed-admin.js",
+    "migrate:pacientes": "tsx scripts/migrate-paciente-names.ts",
+    "migrate:pacientes:prod": "node dist/scripts/migrate-paciente-names.js",
+    "test:pacientes": "tsx --test scripts/tests/pacientes-normalization.test.ts"
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.6.25",

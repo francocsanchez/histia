@@ -1,5 +1,11 @@
 import { Model, Schema, Types, model, models } from "mongoose";
 
+import { normalizeName } from "@/lib/utils";
+
+function normalizePacienteName(value: string) {
+  return normalizeName(value).toLocaleLowerCase("es-AR");
+}
+
 export interface PacienteDocument {
   _id: string;
   nombre: string;
@@ -13,8 +19,8 @@ export interface PacienteDocument {
 
 const pacienteSchema = new Schema<PacienteDocument>(
   {
-    nombre: { type: String, required: true, trim: true },
-    apellido: { type: String, required: true, trim: true },
+    nombre: { type: String, required: true, trim: true, set: normalizePacienteName },
+    apellido: { type: String, required: true, trim: true, set: normalizePacienteName },
     dni: { type: String, required: true },
     obraSocialId: {
       type: Schema.Types.ObjectId,

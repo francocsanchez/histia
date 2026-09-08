@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Download, Upload } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +33,34 @@ type ListPayload = {
   error?: { message?: string };
 };
 
+type ImportPreviewRow = {
+  previewId: string;
+  rowNumber: number;
+  id: string;
+  nombre: string;
+  apellido: string;
+  dni: string;
+  obraSocialId: string;
+  obraSocial: string;
+  activo: string;
+  operation: "create" | "update" | null;
+  selected: boolean;
+  valid: boolean;
+  errors: string[];
+};
+
+type PreviewPayload = {
+  success: boolean;
+  data: {
+    fileName: string;
+    rows: ImportPreviewRow[];
+    summary: { totalRows: number; validRows: number; invalidRows: number; createRows: number; updateRows: number };
+  };
+  error?: { message?: string };
+};
+
+type ImportPayload = { success: boolean; data: { created: number; updated: number; processed: number }; error?: { message?: string } };
+
 export function PacientesManager({
   canCreateAttention,
   canManage,
@@ -54,6 +83,13 @@ export function PacientesManager({
   const [selected, setSelected] = useState<PacienteDto | null>(null);
   const [statusDialogItem, setStatusDialogItem] = useState<PacienteDto | null>(null);
   const [statusSubmitting, setStatusSubmitting] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<PreviewPayload["data"] | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(pacienteSchema),
     defaultValues: { nombre: "", apellido: "", dni: "", obraSocialId: "" },
@@ -194,11 +230,108 @@ export function PacientesManager({
     }
   };
 
+  const clearImportDialog = () => {
+    setImportDialogOpen(false);
+    setSelectedFile(null);
+    setPreview(null);
+    setPreviewError("");
+    setPreviewLoading(false);
+    setImporting(false);
+  };
+
+  const downloadWorkbook = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/pacientes/export", { cache: "no-store" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error?.message || "No se pudo descargar el Excel");
+      }
+      const blob = await response.blob();
+      const fileName = response.headers.get("content-disposition")?.match(/filename="(.+)"/i)?.[1] ?? "pacientes.xlsx";
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "Error inesperado al descargar");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const uploadPreview = async () => {
+    if (!selectedFile) {
+      setPreviewError("Debes seleccionar un archivo Excel");
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError("");
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const response = await fetch("/api/pacientes/preview", { method: "POST", body: formData });
+      const payload = (await response.json()) as PreviewPayload;
+      if (!response.ok || !payload.success) throw new Error(payload.error?.message || "No se pudo procesar el archivo");
+      setPreview(payload.data);
+    } catch (previewLoadError) {
+      setPreviewError(previewLoadError instanceof Error ? previewLoadError.message : "Error inesperado");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const togglePreviewRow = (previewId: string) => setPreview((current) => current ? {
+    ...current,
+    rows: current.rows.map((row) => row.previewId === previewId && row.valid ? { ...row, selected: !row.selected } : row),
+  } : current);
+
+  const includeAllValidPreviewRows = () => setPreview((current) => current ? {
+    ...current,
+    rows: current.rows.map((row) => row.valid ? { ...row, selected: true } : row),
+  } : current);
+
+  const importWorkbook = async () => {
+    if (!preview) return;
+    setImporting(true);
+    setPreviewError("");
+    try {
+      const response = await fetch("/api/pacientes/import", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ rows: preview.rows }),
+      });
+      const payload = (await response.json()) as ImportPayload;
+      if (!response.ok || !payload.success) throw new Error(payload.error?.message || "No se pudo importar el archivo");
+      clearImportDialog();
+      await load();
+    } catch (importError) {
+      setPreviewError(importError instanceof Error ? importError.message : "Error inesperado");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const selectedValidRows = preview?.rows.filter((row) => row.selected && row.valid).length ?? 0;
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Pacientes"
         description="Administra pacientes y su cobertura asociada."
+        actions={canManage ? <>
+          <Button type="button" variant="secondary" onClick={() => void downloadWorkbook()} disabled={downloading}>
+            <Download className="size-4" aria-hidden="true" />
+            {downloading ? "Descargando..." : "Descargar Excel"}
+          </Button>
+          <Button type="button" variant="secondary" onClick={() => setImportDialogOpen(true)}>
+            <Upload className="size-4" aria-hidden="true" />
+            Importar Excel
+          </Button>
+        </> : null}
         actionLabel={canManage ? "Nuevo paciente" : undefined}
         onAction={canManage ? openCreate : undefined}
       />
@@ -325,6 +458,47 @@ export function PacientesManager({
           </div>
         </Card>
       ) : null}
+
+      <Dialog
+        open={importDialogOpen}
+        onClose={clearImportDialog}
+        title="Importar pacientes"
+        description="Carga el Excel exportado, valida las filas y aplica altas o actualizaciones sin tocar los pacientes ausentes."
+        className="max-w-6xl"
+      >
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end">
+            <div className="flex-1">
+              <label className="mb-2 block text-sm font-medium">Archivo Excel</label>
+              <Input type="file" accept=".xlsx,.xls" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} />
+            </div>
+            <Button type="button" onClick={() => void uploadPreview()} disabled={previewLoading}>
+              {previewLoading ? "Validando..." : "Validar archivo"}
+            </Button>
+          </div>
+          {selectedFile ? <p className="text-sm text-muted-foreground">Archivo seleccionado: {selectedFile.name}</p> : null}
+          {previewError ? <p className="text-sm text-destructive">{previewError}</p> : null}
+          {preview ? <div className="space-y-4">
+            <Card className="grid gap-3 p-4 md:grid-cols-5">
+              {[
+                ["Filas", preview.summary.totalRows], ["Validas", preview.summary.validRows],
+                ["A crear", preview.summary.createRows], ["A actualizar", preview.summary.updateRows], ["Invalidas", preview.summary.invalidRows],
+              ].map(([label, value]) => <div key={String(label)}><p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold">{value}</p></div>)}
+            </Card>
+            <div className="max-h-[420px] overflow-auto border border-border">
+              <table className="min-w-full text-sm"><thead className="bg-muted/70 text-left"><tr>
+                <th className="px-3 py-2">Incluir</th><th className="px-3 py-2">Fila</th><th className="px-3 py-2">Accion</th><th className="px-3 py-2">Paciente</th><th className="px-3 py-2">DNI</th><th className="px-3 py-2">Obra social</th><th className="px-3 py-2">Activo</th><th className="px-3 py-2">Estado</th>
+              </tr></thead><tbody>{preview.rows.map((row) => <tr key={row.previewId} className="border-t border-border align-top">
+                <td className="px-3 py-2"><input type="checkbox" checked={row.selected} disabled={!row.valid} onChange={() => togglePreviewRow(row.previewId)} /></td>
+                <td className="px-3 py-2">{row.rowNumber}</td><td className="px-3 py-2">{row.operation === "update" ? <Badge variant="muted">Actualizar</Badge> : row.operation === "create" ? <Badge variant="default">Crear</Badge> : "-"}</td>
+                <td className="px-3 py-2">{row.apellido || "-"}, {row.nombre || "-"}</td><td className="px-3 py-2">{row.dni || "-"}</td><td className="px-3 py-2"><div>{row.obraSocial || "Particular"}</div><p className="text-xs text-muted-foreground">{row.obraSocialId || "-"}</p></td><td className="px-3 py-2">{row.activo || "-"}</td>
+                <td className="px-3 py-2">{row.valid ? <Badge variant="success">Valida</Badge> : <div className="space-y-1 text-xs text-destructive">{row.errors.map((message) => <p key={message}>{message}</p>)}</div>}</td>
+              </tr>)}</tbody></table>
+            </div>
+            <div className="flex items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><p className="text-sm text-muted-foreground">{selectedValidRows} filas validas seleccionadas para importar.</p><Button type="button" variant="secondary" size="sm" onClick={includeAllValidPreviewRows} disabled={preview.summary.validRows === 0}>Incluir todos los validos</Button></div><div className="flex gap-2"><Button type="button" variant="secondary" onClick={clearImportDialog}>Cancelar</Button><Button type="button" onClick={() => void importWorkbook()} disabled={importing || selectedValidRows === 0}>{importing ? "Importando..." : "Aplicar importacion"}</Button></div></div>
+          </div> : null}
+        </div>
+      </Dialog>
 
       <Dialog
         open={dialogOpen}

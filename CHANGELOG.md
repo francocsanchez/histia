@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `Pacientes` ahora permite descargar e importar un Excel editable con preview validado, altas o actualizaciones por `id`, control de DNI/cobertura/estado y seleccion de filas validas sin modificar registros ausentes.
+- Los nombres y apellidos de pacientes se fuerzan a minusculas tambien desde el esquema de persistencia, y se agrega `npm run migrate:pacientes` para normalizar de forma idempotente los registros historicos.
 - El dashboard administrativo reorganiza sus graficos en tres filas operativas, elimina el grafico de RX realizadas y suma la distribucion mensual de codigos por obra social. Las tarjetas de codigos por estado y tipos de movimiento usan menos ancho para dar espacio suficiente a los graficos anualizados de atenciones e ingresos versus egresos; sus lienzos ahora se adaptan al ancho disponible para evitar el desplazamiento horizontal.
 - Las barras de `Atenciones anualizadas` ahora usan un ancho visual reducido para mejorar la lectura del comparativo mensual.
 - Las leyendas de los graficos circulares del dashboard ahora se muestran debajo de cada grafico con tipografia compacta, evitando que se recorten en las tarjetas angostas.

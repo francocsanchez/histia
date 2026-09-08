@@ -11,7 +11,6 @@ const attention_1 = require("@/models/attention");
 const movement_1 = require("@/models/movement");
 const paciente_1 = require("@/models/paciente");
 const payment_1 = require("@/models/payment");
-const rx_attention_1 = require("@/models/rx-attention");
 const user_1 = require("@/models/user");
 const atenciones_1 = require("@/services/atenciones");
 const domain_1 = require("@/types/domain");
@@ -419,7 +418,7 @@ async function getAdminDashboardStats(params) {
     const year = parseYear(params.year);
     const month = parseMonth(params.month);
     const monthLabels = getMonthLabels();
-    const [pacientesActivos, odontologosActivos, dolarOficialVenta, balanceRows, patientsByObraSocialRows, attentionsByMonthRows, rxByMonthRows, movementsByMonthRows, incomeByTypeRows, expenseByTypeRows, codesByStatusRows, dentistPerformanceRows, attentionYearRows, movementYearRows, attentionMonthRows,] = await Promise.all([
+    const [pacientesActivos, odontologosActivos, dolarOficialVenta, balanceRows, patientsByObraSocialRows, attentionsByMonthRows, movementsByMonthRows, incomeByTypeRows, expenseByTypeRows, codesByStatusRows, dentistPerformanceRows, attentionYearRows, movementYearRows, attentionMonthRows, codesByObraSocialByMonthRows,] = await Promise.all([
         paciente_1.PacienteModel.countDocuments({ activo: true }),
         user_1.UserModel.countDocuments({
             activo: true,
@@ -497,28 +496,6 @@ async function getAdminDashboardStats(params) {
                 },
             },
             { $sort: { "_id.month": 1, obraSocialNombre: 1 } },
-        ]),
-        rx_attention_1.RxAttentionModel.aggregate([
-            {
-                $match: {
-                    fecha: {
-                        $gte: year.start,
-                        $lte: year.end,
-                    },
-                },
-            },
-            {
-                $group: {
-                    _id: {
-                        $month: {
-                            date: "$fecha",
-                            timezone: BUSINESS_TIMEZONE,
-                        },
-                    },
-                    total: { $sum: 1 },
-                },
-            },
-            { $sort: { _id: 1 } },
         ]),
         movement_1.MovementModel.aggregate([
             {
@@ -685,10 +662,42 @@ async function getAdminDashboardStats(params) {
             { $group: { _id: "$month" } },
             { $sort: { _id: -1 } },
         ]),
+        attention_1.AttentionModel.aggregate([
+            {
+                $match: {
+                    fecha: {
+                        $gte: month.start,
+                        $lte: month.end,
+                    },
+                },
+            },
+            { $unwind: "$codigos" },
+            {
+                $lookup: {
+                    from: "obras_sociales",
+                    localField: "obraSocialId",
+                    foreignField: "_id",
+                    as: "obraSocial",
+                },
+            },
+            {
+                $unwind: {
+                    path: "$obraSocial",
+                    preserveNullAndEmptyArrays: true,
+                },
+            },
+            {
+                $group: {
+                    _id: "$obraSocialId",
+                    total: { $sum: 1 },
+                    obraSocialNombre: { $first: "$obraSocial.nombre" },
+                },
+            },
+            { $sort: { total: -1, obraSocialNombre: 1 } },
+        ]),
     ]);
     const balanceMap = new Map(balanceRows.map((row) => [row._id, row.total]));
     const balanceTotalCentavos = (balanceMap.get("ingreso") ?? 0) - (balanceMap.get("egreso") ?? 0);
-    const rxMonthMap = new Map(rxByMonthRows.map((row) => [row._id, row.total]));
     const codeStatusMap = new Map(codesByStatusRows.map((row) => [row._id, row.total]));
     const movementMonthMap = new Map(movementsByMonthRows.map((row) => [`${row._id.month}-${row._id.direction}`, row.total]));
     const availableYears = Array.from(new Set([...attentionYearRows, ...movementYearRows]
@@ -754,11 +763,6 @@ async function getAdminDashboardStats(params) {
                 segments,
             };
         }),
-        rxByMonth: monthLabels.map((label, index) => ({
-            month: index + 1,
-            label,
-            total: rxMonthMap.get(index + 1) ?? 0,
-        })),
         movementsByMonth: monthLabels.map((label, index) => ({
             month: index + 1,
             label,
@@ -792,5 +796,10 @@ async function getAdminDashboardStats(params) {
             })),
         }))
             .sort((left, right) => right.total - left.total),
+        codesByObraSocialByMonth: codesByObraSocialByMonthRows.map((row) => ({
+            id: row._id ? String(row._id) : "sin-obra-social",
+            label: row.obraSocialNombre?.trim() || "Sin obra social",
+            total: row.total,
+        })),
     };
 }

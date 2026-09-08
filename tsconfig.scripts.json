@@ -20,9 +20,11 @@
   },
   "include": [
     "scripts/seed-admin.ts",
+    "scripts/migrate-paciente-names.ts",
     "scripts/start-prod.ts",
     "scripts/issn-worker.ts",
     "scripts/tests/issn.test.ts",
+    "scripts/tests/pacientes-normalization.test.ts",
     "scripts/lib/**/*.ts",
     "src/lib/**/*.ts",
     "src/models/**/*.ts",

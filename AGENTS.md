@@ -4,9 +4,6 @@
 
 Este modulo no se utilizando (Encuestas) por lo cual evitar corroborar y revisar SIEMPRE, no hace falta comprobar nada de todo lo que tenga que ver con whatsapp y encuestas.
 
-# npm cli
-Siempre correr el npm ci localmente para evitar inconvenientes en el build de la imagen en github
-
 # Sugerencia commit
 
 Siempre debes actualizar el CHANGELOG.md de este proyecto y una vez de hacer eso debes sugerir el commit mostrando el mensaje en pantalla para que el usuario tenga una opcion para crear el commit. Y tambien deberas actualizar este archivo (AGENTS.md) para tener contexto.
@@ -14,6 +11,8 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `Pacientes` permite descargar e importar un Excel editable (`id`, nombre, apellido, DNI, obra social y activo) con preview validado; las filas con `id` actualizan, las restantes crean, y las filas ausentes no se modifican. La importacion/exportacion queda solo para administradores.
+- Los nombres y apellidos de `Pacientes` siempre se persisten en minusculas desde el esquema Mongoose; ejecutar una unica vez `npm run migrate:pacientes` para normalizar registros historicos de forma idempotente.
 - El dashboard administrativo organiza sus graficos en tres filas: pacientes/atenciones/codigos por estado; movimientos anualizados por tipo; odontologos y codigos por obra social del mes. En desktop, la primera fila reparte 4/12, 5/12 y 3/12; la segunda 6/12, 3/12 y 3/12. Los lienzos anualizados usan el ancho disponible, evitando desplazamiento horizontal. Las barras de Atenciones anualizadas se muestran mas angostas para no dominar la lectura de la fila. Las leyendas de los graficos circulares se ubican debajo y usan tipografia compacta para evitar recortes en tarjetas angostas. RX realizadas no forma parte de este dashboard y los codigos mensuales se agrupan por la obra social de la atencion.
 - WhatsApp esta desactivado operativamente: no debe iniciarse ni compilarse desde `npm run dev`, Docker Compose, el script de actualizacion o `build:scripts`. Mantener el codigo del modulo sin ejecutarlo, salvo que se pida reactivarlo expresamente.
 - Las actualizaciones `findOneAndUpdate` de Encuestas/WhatsApp deben usar `returnDocument` (`"after"` o `"before"` según corresponda) y no `new`, porque Mongoose actual muestra un warning deprecado continuo en el worker.

@@ -2,9 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PacienteModel = void 0;
 const mongoose_1 = require("mongoose");
+const utils_1 = require("@/lib/utils");
+function normalizePacienteName(value) {
+    return (0, utils_1.normalizeName)(value).toLocaleLowerCase("es-AR");
+}
 const pacienteSchema = new mongoose_1.Schema({
-    nombre: { type: String, required: true, trim: true },
-    apellido: { type: String, required: true, trim: true },
+    nombre: { type: String, required: true, trim: true, set: normalizePacienteName },
+    apellido: { type: String, required: true, trim: true, set: normalizePacienteName },
     dni: { type: String, required: true },
     obraSocialId: {
         type: mongoose_1.Schema.Types.ObjectId,
