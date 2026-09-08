@@ -7,13 +7,15 @@
   },
   "scripts": {
     "postinstall": "node scripts/patch-baileys.js",
-    "dev": "concurrently -k -n app,worker -c blue,green \"next dev\" \"tsx scripts/whatsapp-worker.ts\"",
+    "dev": "concurrently -k -n app,whatsapp,issn -c blue,green,magenta \"next dev\" \"tsx scripts/whatsapp-worker.ts\" \"tsx scripts/issn-worker.ts\"",
     "build": "next build",
     "build:scripts": "node -e \"require('node:fs').rmSync('dist/scripts',{ recursive: true, force: true })\" && tsc -p tsconfig.scripts.json",
     "start": "next start",
     "start:prod": "node dist/scripts/start-prod.js",
     "start:worker": "node dist/scripts/whatsapp-worker.js",
     "dev:worker": "tsx scripts/whatsapp-worker.ts",
+    "dev:issn-worker": "tsx scripts/issn-worker.ts",
+    "test:issn": "tsx scripts/tests/issn.test.ts",
     "lint": "eslint .",
     "seed:admin": "tsx scripts/seed-admin.ts",
     "seed:admin:prod": "node dist/scripts/seed-admin.js"

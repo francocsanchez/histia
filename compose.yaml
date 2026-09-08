@@ -32,6 +32,15 @@ services:
       start_period: 30s
     networks:
       - histia_network
+  histia-issn-worker:
+    container_name: histia-issn-worker
+    image: ghcr.io/francocsanchez/histia:latest
+    env_file:
+      - .env.production
+    command: ["node", "dist/scripts/issn-worker.js"]
+    restart: unless-stopped
+    networks:
+      - histia_network
 
 networks:
   histia_network:

@@ -29,36 +29,6 @@ const defaultMovementTypes = [
         nombre: "Otro egreso",
         direccion: "egreso",
     },
-    {
-        systemKey: "mercadopago-income",
-        nombre: "Mercado Pago ingreso",
-        direccion: "ingreso",
-    },
-    {
-        systemKey: "mercadopago-expense",
-        nombre: "Mercado Pago egreso",
-        direccion: "egreso",
-    },
-    {
-        systemKey: "mercadopago-tax-income",
-        nombre: "Impuestos Mercado Pago ingreso",
-        direccion: "ingreso",
-    },
-    {
-        systemKey: "mercadopago-tax-expense",
-        nombre: "Impuestos Mercado Pago egreso",
-        direccion: "egreso",
-    },
-    {
-        systemKey: "mercadopago-fee-income",
-        nombre: "Comision Mercado Pago ingreso",
-        direccion: "ingreso",
-    },
-    {
-        systemKey: "mercadopago-fee-expense",
-        nombre: "Comision Mercado Pago egreso",
-        direccion: "egreso",
-    },
 ];
 let movementTypeIndexesPromise = null;
 function toDto(document) {

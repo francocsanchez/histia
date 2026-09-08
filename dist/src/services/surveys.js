@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getWhatsAppConnectionControlState = getWhatsAppConnectionControlState;
 exports.appendWhatsAppConnectionEvent = appendWhatsAppConnectionEvent;
 exports.listRecentWhatsAppConnectionEvents = listRecentWhatsAppConnectionEvents;
+exports.clearWhatsAppConnectionEvents = clearWhatsAppConnectionEvents;
 exports.acquireWhatsAppWorkerLease = acquireWhatsAppWorkerLease;
 exports.releaseWhatsAppWorkerLease = releaseWhatsAppWorkerLease;
 exports.previewSurveyWorkbook = previewSurveyWorkbook;
@@ -62,8 +63,11 @@ exports.upsertWhatsAppAuthRecord = upsertWhatsAppAuthRecord;
 exports.removeWhatsAppAuthRecord = removeWhatsAppAuthRecord;
 exports.expireNoResponseSurveys = expireNoResponseSurveys;
 exports.takeNextSurveyLease = takeNextSurveyLease;
+exports.claimSurveyForManualSend = claimSurveyForManualSend;
+exports.releaseManualSurveyLease = releaseManualSurveyLease;
 exports.markSurveySendSuccess = markSurveySendSuccess;
 exports.markSurveySendFailure = markSurveySendFailure;
+exports.sendLeasedSurvey = sendLeasedSurvey;
 exports.markLeasesAsDeliveryUnknown = markLeasesAsDeliveryUnknown;
 exports.maybeCompleteCampaign = maybeCompleteCampaign;
 exports.processIncomingWhatsAppMessage = processIncomingWhatsAppMessage;
@@ -228,7 +232,7 @@ async function ensureSurveySettingsDocument() {
             ...defaults,
         },
     }, {
-        new: true,
+        returnDocument: "after",
         upsert: true,
         setDefaultsOnInsert: true,
     });
@@ -241,7 +245,7 @@ async function ensureWhatsAppConnectionDocument() {
             resetNonce: 0,
             status: "disconnected",
         },
-    }, { new: true, upsert: true, setDefaultsOnInsert: true });
+    }, { returnDocument: "after", upsert: true, setDefaultsOnInsert: true });
 }
 async function getWhatsAppConnectionControlState() {
     await (0, mongoose_2.connectToDatabase)();
@@ -293,6 +297,11 @@ async function listRecentWhatsAppConnectionEvents(limit = 20) {
         .limit(limit)
         .lean();
     return events.map((event) => toWhatsAppConnectionEventDto(event));
+}
+async function clearWhatsAppConnectionEvents() {
+    await (0, mongoose_2.connectToDatabase)();
+    await WhatsAppConnectionEventModel.deleteMany({});
+    return getWhatsAppConnectionStatus();
 }
 async function acquireWhatsAppWorkerLease(input) {
     await (0, mongoose_2.connectToDatabase)();
@@ -878,13 +887,69 @@ async function takeNextSurveyLease() {
         },
     }, {
         sort: { createdAt: 1 },
-        new: true,
+        returnDocument: "after",
     }).lean();
     return leased;
 }
+async function claimSurveyForManualSend(surveyId) {
+    await (0, mongoose_2.connectToDatabase)();
+    const [settings, connection] = await Promise.all([
+        ensureSurveySettingsDocument(),
+        ensureWhatsAppConnectionDocument(),
+    ]);
+    if (!settings.surveysEnabled) {
+        throw new api_1.AppError("VALIDATION_ERROR", "Los envios de encuestas estan deshabilitados", 409);
+    }
+    if (settings.globalPause) {
+        throw new api_1.AppError("VALIDATION_ERROR", "Los envios estan pausados globalmente", 409);
+    }
+    if (connection.status !== "connected") {
+        throw new api_1.AppError("VALIDATION_ERROR", "WhatsApp no esta vinculado", 409);
+    }
+    const now = new Date();
+    const leaseUntil = new Date(now.getTime() + 5 * 60 * 1000);
+    const survey = await survey_1.SurveyModel.findOneAndUpdate({
+        _id: surveyId,
+        status: { $in: ["queued", "send_failed"] },
+        $or: [{ leaseUntil: null }, { leaseUntil: { $lt: now } }],
+    }, {
+        $set: {
+            status: "leased_for_send",
+            leaseUntil,
+            technicalError: null,
+        },
+        $inc: {
+            sendAttemptCount: 1,
+        },
+    }, { returnDocument: "before" }).lean();
+    if (survey) {
+        return survey;
+    }
+    const existingSurvey = await survey_1.SurveyModel.findById(surveyId).select("status").lean();
+    if (!existingSurvey) {
+        throw new api_1.AppError("NOT_FOUND", "La encuesta no existe", 404);
+    }
+    throw new api_1.AppError("VALIDATION_ERROR", "La encuesta ya no esta disponible para enviar", 409);
+}
+async function releaseManualSurveyLease(input) {
+    await (0, mongoose_2.connectToDatabase)();
+    await survey_1.SurveyModel.findOneAndUpdate({
+        _id: input.surveyId,
+        status: "leased_for_send",
+    }, {
+        $set: {
+            status: input.previousStatus,
+            leaseUntil: null,
+            technicalError: input.errorMessage,
+        },
+        $inc: {
+            sendAttemptCount: -1,
+        },
+    });
+}
 async function markSurveySendSuccess(input) {
     await (0, mongoose_2.connectToDatabase)();
-    await survey_1.SurveyModel.findByIdAndUpdate(input.surveyId, {
+    await survey_1.SurveyModel.findOneAndUpdate({ _id: input.surveyId, status: "leased_for_send" }, {
         $set: {
             status: "waiting_rating",
             providerMessageId: input.providerMessageId,
@@ -899,7 +964,7 @@ async function markSurveySendSuccess(input) {
 async function markSurveySendFailure(input) {
     await (0, mongoose_2.connectToDatabase)();
     const settings = await ensureSurveySettingsDocument();
-    const survey = await survey_1.SurveyModel.findById(input.surveyId);
+    const survey = await survey_1.SurveyModel.findOne({ _id: input.surveyId, status: "leased_for_send" });
     if (!survey) {
         return;
     }
@@ -909,6 +974,60 @@ async function markSurveySendFailure(input) {
     survey.technicalError = input.errorMessage;
     survey.deliveryResolution = exhausted ? "failed_after_retries" : "retry_pending";
     await survey.save();
+}
+async function sendLeasedSurvey(input) {
+    await (0, mongoose_2.connectToDatabase)();
+    const survey = await survey_1.SurveyModel.findOne({
+        _id: input.surveyId,
+        status: "leased_for_send",
+    }).lean();
+    if (!survey) {
+        throw new api_1.AppError("VALIDATION_ERROR", "La encuesta no esta reservada para envio", 409);
+    }
+    const details = {
+        trigger: input.trigger,
+        surveyId: String(survey._id),
+        campaignId: String(survey.campaignId),
+        phoneE164: survey.phoneE164,
+    };
+    await appendWhatsAppConnectionEvent({
+        source: "worker",
+        eventType: "survey_send_started",
+        message: `Se inicia el envio de la encuesta ${String(survey._id)}.`,
+        status: "connected",
+        phoneNumber: survey.phoneE164,
+        details,
+    });
+    try {
+        const text = await buildSurveyIntroMessage(String(survey._id));
+        const sent = await input.messenger.sendText((0, surveys_1.getWhatsappJid)(survey.phoneE164), text);
+        await markSurveySendSuccess({
+            surveyId: String(survey._id),
+            providerMessageId: sent.id,
+        });
+        await appendWhatsAppConnectionEvent({
+            source: "worker",
+            eventType: "survey_send_succeeded",
+            message: `La encuesta ${String(survey._id)} se envio correctamente.`,
+            status: "connected",
+            phoneNumber: survey.phoneE164,
+            details: { ...details, providerMessageId: sent.id },
+        });
+        return { surveyId: String(survey._id), providerMessageId: sent.id };
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        await markSurveySendFailure({ surveyId: String(survey._id), errorMessage });
+        await appendWhatsAppConnectionEvent({
+            source: "worker",
+            eventType: "survey_send_failed",
+            message: `Fallo el envio de la encuesta ${String(survey._id)}.`,
+            status: "error",
+            phoneNumber: survey.phoneE164,
+            details: { ...details, error: errorMessage },
+        });
+        throw error;
+    }
 }
 async function markLeasesAsDeliveryUnknown() {
     await (0, mongoose_2.connectToDatabase)();

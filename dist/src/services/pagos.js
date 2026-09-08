@@ -9,6 +9,7 @@ const api_1 = require("@/lib/api");
 const mongoose_2 = require("@/lib/db/mongoose");
 const utils_1 = require("@/lib/utils");
 const attention_1 = require("@/models/attention");
+const orthodontic_treatment_1 = require("@/models/orthodontic-treatment");
 const payment_1 = require("@/models/payment");
 const user_1 = require("@/models/user");
 const movimientos_1 = require("@/services/movimientos");
@@ -24,6 +25,11 @@ function getMonthRangeFromKey(monthKey) {
     const end = new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
     return { start, end };
 }
+function getMonthKey(date) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+}
 function canPayCode(line) {
     return line.estado === "ok" && line.codePaymentStatus === "pendiente";
 }
@@ -31,8 +37,10 @@ function canPayCoseguroOdonto(line) {
     return ((line.coseguroOdontoCentavos ?? 0) > 0 &&
         line.coseguroOdontoPaymentStatus === "pendiente");
 }
-function toPaymentCandidateDto(row) {
+function toAttentionCandidateDto(row) {
     return {
+        sourceType: "attention",
+        sourceLabel: "Atenciones",
         attentionId: String(row.attentionId),
         attentionFecha: row.attentionFecha.toISOString(),
         attentionMonth: row.attentionMonth,
@@ -55,6 +63,12 @@ function toPaymentCandidateDto(row) {
         coseguroOdontoPaymentStatus: row.coseguroOdontoPaymentStatus,
         canPayCode: canPayCode(row),
         canPayCoseguroOdonto: canPayCoseguroOdonto(row),
+        orthodonticTreatmentId: null,
+        orthodonticTreatmentType: null,
+        orthodonticPaymentId: null,
+        orthodonticPaymentDate: null,
+        orthodonticPaymentAmountCentavos: null,
+        orthodonticPaymentPercentage: null,
     };
 }
 function toPaymentDto(payment) {
@@ -63,13 +77,22 @@ function toPaymentDto(payment) {
         usuarioId: String(payment.usuarioId),
         usuarioNombreSnapshot: payment.usuarioNombreSnapshot,
         attentionMonth: payment.attentionMonth,
+        attentionMonths: payment.attentionMonths && payment.attentionMonths.length > 0
+            ? payment.attentionMonths
+            : [payment.attentionMonth],
         paidAt: payment.paidAt.toISOString(),
         createdByUserId: String(payment.createdByUserId),
         totalPagoCodigosCentavos: payment.totalPagoCodigosCentavos,
         totalCoseguroOdontoCentavos: payment.totalCoseguroOdontoCentavos,
+        totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos,
         totalHonorariosCentavos: payment.totalHonorariosCentavos,
+        totalCreditosCentavos: payment.totalCreditosCentavos,
+        totalDebitosCentavos: payment.totalDebitosCentavos,
+        totalNetoPagarCentavos: payment.totalNetoPagarCentavos,
         quantityConceptsPaid: payment.quantityConceptsPaid,
         lineItems: payment.lineItems,
+        debitItems: payment.debitItems,
+        creditItems: payment.creditItems,
         createdAt: payment.createdAt.toISOString(),
         updatedAt: payment.updatedAt.toISOString(),
     };
@@ -103,7 +126,7 @@ async function ensureLineIdsForPayments(match) {
         }
     }
 }
-function buildCandidateBaseMatch(query) {
+function buildAttentionCandidateBaseMatch(query) {
     const match = {};
     if (query.userId) {
         match.usuarioCargaId = new mongoose_1.Types.ObjectId(query.userId);
@@ -117,8 +140,8 @@ function buildCandidateBaseMatch(query) {
     }
     return match;
 }
-function buildCandidatePipeline(query) {
-    const baseMatch = buildCandidateBaseMatch(query);
+function buildAttentionCandidatePipeline(query) {
+    const baseMatch = buildAttentionCandidateBaseMatch(query);
     const search = query.search?.trim();
     const pipeline = [
         { $match: baseMatch },
@@ -239,50 +262,156 @@ function buildCandidatePipeline(query) {
     });
     return pipeline;
 }
-async function getCandidateRows(query) {
-    await ensureLineIdsForPayments(buildCandidateBaseMatch(query));
-    const skip = (query.page - 1) * query.limit;
-    const pipeline = buildCandidatePipeline(query);
-    const [rows, totalRows] = await Promise.all([
-        attention_1.AttentionModel.aggregate([
-            ...pipeline,
-            { $sort: { attentionFecha: -1, pacienteNombreCompleto: 1, codigo: 1 } },
-            { $skip: skip },
-            { $limit: query.limit },
-        ]),
-        attention_1.AttentionModel.aggregate([...pipeline, { $count: "total" }]),
+async function getAttentionCandidates(query) {
+    await ensureLineIdsForPayments(buildAttentionCandidateBaseMatch(query));
+    const rows = await attention_1.AttentionModel.aggregate([
+        ...buildAttentionCandidatePipeline(query),
+        { $sort: { attentionFecha: -1, pacienteNombreCompleto: 1, codigo: 1 } },
     ]);
-    return {
-        rows: rows,
-        total: totalRows[0]?.total ?? 0,
-    };
+    return rows.map(toAttentionCandidateDto);
+}
+async function getOrthodonticCandidates(query) {
+    const match = {};
+    if (query.userId) {
+        match.usuarioOrtodoncistaId = new mongoose_1.Types.ObjectId(query.userId);
+    }
+    const treatments = await orthodontic_treatment_1.OrthodonticTreatmentModel.find(match)
+        .populate("pacienteId", "nombre apellido dni")
+        .populate("usuarioOrtodoncistaId", "name apellido")
+        .sort({ fechaInicio: -1, createdAt: -1 })
+        .lean();
+    const search = query.search?.trim().toLowerCase();
+    const month = query.attentionMonth ?? null;
+    const candidates = [];
+    treatments.forEach((treatment) => {
+        const patient = treatment.pacienteId;
+        const orthodontist = treatment.usuarioOrtodoncistaId;
+        treatment.payments.forEach((payment) => {
+            const paymentMonth = getMonthKey(payment.fecha);
+            if (month && paymentMonth !== month) {
+                return;
+            }
+            const patientName = `${patient.apellido}, ${patient.nombre}`;
+            const userName = (0, utils_1.normalizeWhitespace)(`${orthodontist.apellido ?? ""}, ${orthodontist.name}`);
+            const searchHaystack = [
+                patient.dni,
+                patient.nombre,
+                patient.apellido,
+                patientName,
+                userName,
+                treatment.tratamientoTipo,
+            ]
+                .join(" ")
+                .toLowerCase();
+            if (search && !searchHaystack.includes(search)) {
+                return;
+            }
+            candidates.push({
+                sourceType: "orthodontic-payment",
+                sourceLabel: "Ortodoncia",
+                attentionId: String(treatment._id),
+                attentionFecha: treatment.fechaInicio.toISOString(),
+                attentionMonth: paymentMonth,
+                userId: String(orthodontist._id),
+                userName,
+                pacienteId: String(patient._id),
+                pacienteNombreCompleto: patientName,
+                pacienteDni: patient.dni,
+                obraSocialId: "",
+                obraSocialNombre: "-",
+                lineId: String(payment._id),
+                codigoObraSocialId: "",
+                codigo: treatment.tratamientoTipo.toUpperCase(),
+                codigoNombre: "Pago parcial de ortodoncia",
+                pieza: null,
+                estado: "ok",
+                pagoOdontologoCentavos: payment.montoOrtodoncistaCentavos,
+                coseguroOdontoCentavos: null,
+                codePaymentStatus: payment.paymentStatus,
+                coseguroOdontoPaymentStatus: "pendiente",
+                canPayCode: payment.paymentStatus === "pendiente",
+                canPayCoseguroOdonto: false,
+                orthodonticTreatmentId: String(treatment._id),
+                orthodonticTreatmentType: treatment.tratamientoTipo,
+                orthodonticPaymentId: String(payment._id),
+                orthodonticPaymentDate: payment.fecha.toISOString(),
+                orthodonticPaymentAmountCentavos: payment.montoCentavos,
+                orthodonticPaymentPercentage: payment.porcentajeOrtodoncista,
+            });
+        });
+    });
+    return candidates.sort((left, right) => {
+        const dateDiff = new Date(right.orthodonticPaymentDate ?? right.attentionFecha).getTime() -
+            new Date(left.orthodonticPaymentDate ?? left.attentionFecha).getTime();
+        if (dateDiff !== 0) {
+            return dateDiff;
+        }
+        return left.pacienteNombreCompleto.localeCompare(right.pacienteNombreCompleto);
+    });
+}
+async function getAllCandidates(query) {
+    const [attentionCandidates, orthodonticCandidates] = await Promise.all([
+        getAttentionCandidates(query),
+        getOrthodonticCandidates(query),
+    ]);
+    return [...attentionCandidates, ...orthodonticCandidates].sort((left, right) => {
+        const rightDate = right.sourceType === "orthodontic-payment"
+            ? right.orthodonticPaymentDate ?? right.attentionFecha
+            : right.attentionFecha;
+        const leftDate = left.sourceType === "orthodontic-payment"
+            ? left.orthodonticPaymentDate ?? left.attentionFecha
+            : left.attentionFecha;
+        const dateDiff = new Date(rightDate).getTime() - new Date(leftDate).getTime();
+        if (dateDiff !== 0) {
+            return dateDiff;
+        }
+        return left.pacienteNombreCompleto.localeCompare(right.pacienteNombreCompleto);
+    });
+}
+function normalizeSelection(selectedItems) {
+    const selectedByLineId = new Map();
+    selectedItems
+        .filter((item) => item.payCode || item.payCoseguroOdonto)
+        .forEach((item) => {
+        const key = `${item.sourceType}:${item.lineId}`;
+        const existing = selectedByLineId.get(key);
+        if (existing) {
+            existing.payCode = existing.payCode || item.payCode;
+            existing.payCoseguroOdonto =
+                existing.payCoseguroOdonto || item.payCoseguroOdonto;
+            return;
+        }
+        selectedByLineId.set(key, { ...item });
+    });
+    return Array.from(selectedByLineId.values());
 }
 async function getFreshSelectedCandidates(input) {
-    await ensureLineIdsForPayments(buildCandidateBaseMatch(input));
-    const pipeline = buildCandidatePipeline({
+    const allCandidates = await getAllCandidates({
         page: 1,
         limit: Math.max(input.selectedItems.length, 1),
         userId: input.userId,
-        attentionMonth: input.attentionMonth,
     });
-    pipeline.push({
-        $match: {
-            lineId: {
-                $in: input.selectedItems.map((item) => new mongoose_1.Types.ObjectId(item.lineId)),
-            },
-        },
-    });
-    const rows = await attention_1.AttentionModel.aggregate(pipeline);
-    return rows.map(toPaymentCandidateDto);
+    const selectedKeys = new Set(input.selectedItems.map((item) => `${item.sourceType}:${item.lineId}`));
+    return allCandidates.filter((candidate) => selectedKeys.has(`${candidate.sourceType}:${candidate.lineId}`));
 }
-function buildPaymentSummary(candidates, selectedItems, userId, attentionMonth) {
-    const selectedByLineId = new Map(selectedItems.map((item) => [item.lineId, item]));
+function buildPaymentSummary(candidates, selectedItems, userId, attentionMonth, debitItems, creditItems) {
+    const selectedByKey = new Map(selectedItems.map((item) => [`${item.sourceType}:${item.lineId}`, item]));
     let totalPagoCodigosCentavos = 0;
     let totalCoseguroOdontoCentavos = 0;
+    let totalOrtodonciaCentavos = 0;
     let quantityConceptsPaid = 0;
+    const totalDebitosCentavos = debitItems.reduce((total, item) => total + item.montoCentavos, 0);
+    const totalCreditosCentavos = creditItems.reduce((total, item) => total + item.montoCentavos, 0);
     candidates.forEach((candidate) => {
-        const selection = selectedByLineId.get(candidate.lineId);
+        const selection = selectedByKey.get(`${candidate.sourceType}:${candidate.lineId}`);
         if (!selection) {
+            return;
+        }
+        if (candidate.sourceType === "orthodontic-payment") {
+            if (selection.payCode) {
+                totalOrtodonciaCentavos += candidate.pagoOdontologoCentavos;
+                quantityConceptsPaid += 1;
+            }
             return;
         }
         if (selection.payCode) {
@@ -300,54 +429,120 @@ function buildPaymentSummary(candidates, selectedItems, userId, attentionMonth) 
         selectedItems,
         totalPagoCodigosCentavos,
         totalCoseguroOdontoCentavos,
-        totalHonorariosCentavos: totalPagoCodigosCentavos + totalCoseguroOdontoCentavos,
+        totalOrtodonciaCentavos,
+        totalHonorariosCentavos: totalPagoCodigosCentavos +
+            totalCoseguroOdontoCentavos +
+            totalOrtodonciaCentavos,
+        totalCreditosCentavos,
+        totalDebitosCentavos,
+        totalNetoPagarCentavos: totalPagoCodigosCentavos +
+            totalCoseguroOdontoCentavos +
+            totalOrtodonciaCentavos +
+            totalCreditosCentavos -
+            totalDebitosCentavos,
         quantityConceptsPaid,
+    };
+}
+function mapPersistedLineItem(lineItem) {
+    if (lineItem.sourceType === "orthodontic-payment") {
+        return {
+            sourceType: "orthodontic-payment",
+            orthodonticTreatmentId: String(lineItem.orthodonticTreatmentId),
+            orthodonticPaymentId: String(lineItem.orthodonticPaymentId),
+            treatmentStartDate: new Date(String(lineItem.treatmentStartDate)).toISOString(),
+            paymentDate: new Date(String(lineItem.paymentDate)).toISOString(),
+            treatmentType: String(lineItem.treatmentType),
+            patientId: String(lineItem.patientId),
+            patientName: String(lineItem.patientName),
+            patientDni: String(lineItem.patientDni),
+            paymentAmountCentavos: Number(lineItem.paymentAmountCentavos ?? 0),
+            percentageToOrthodontist: Number(lineItem.percentageToOrthodontist ?? 0),
+            orthodontistAmountCentavos: Number(lineItem.orthodontistAmountCentavos ?? 0),
+            totalLineaCentavos: Number(lineItem.totalLineaCentavos ?? 0),
+        };
+    }
+    return {
+        sourceType: "attention",
+        attentionId: String(lineItem.attentionId),
+        attentionFecha: new Date(String(lineItem.attentionFecha)).toISOString(),
+        pacienteId: String(lineItem.pacienteId),
+        pacienteNombre: String(lineItem.pacienteNombre),
+        pacienteDni: String(lineItem.pacienteDni),
+        obraSocialId: String(lineItem.obraSocialId),
+        obraSocialNombre: String(lineItem.obraSocialNombre),
+        codigoObraSocialId: String(lineItem.codigoObraSocialId),
+        codigo: String(lineItem.codigo),
+        codigoNombre: String(lineItem.codigoNombre),
+        pieza: lineItem.pieza ? String(lineItem.pieza) : null,
+        estadoAtencionSnapshot: String(lineItem.estadoAtencionSnapshot),
+        pagoOdontologoCentavos: Number(lineItem.pagoOdontologoCentavos ?? 0),
+        coseguroOdontoCentavos: lineItem.coseguroOdontoCentavos === null ||
+            lineItem.coseguroOdontoCentavos === undefined
+            ? null
+            : Number(lineItem.coseguroOdontoCentavos),
+        includesCodePayment: Boolean(lineItem.includesCodePayment),
+        includesCoseguroOdontoPayment: Boolean(lineItem.includesCoseguroOdontoPayment),
+        totalLineaCentavos: Number(lineItem.totalLineaCentavos ?? 0),
     };
 }
 async function listPaymentCandidates(query) {
     await (0, mongoose_2.connectToDatabase)();
-    const { rows, total } = await getCandidateRows(query);
+    const allCandidates = await getAllCandidates(query);
+    const skip = (query.page - 1) * query.limit;
+    const data = query.all ? allCandidates : allCandidates.slice(skip, skip + query.limit);
     return {
-        data: rows.map(toPaymentCandidateDto),
+        data,
         pagination: {
             page: query.page,
             limit: query.limit,
-            total,
-            totalPages: Math.max(1, Math.ceil(total / query.limit)),
+            total: allCandidates.length,
+            totalPages: Math.max(1, Math.ceil(allCandidates.length / query.limit)),
         },
     };
 }
 async function listPaymentLookups() {
     await (0, mongoose_2.connectToDatabase)();
-    const users = (await user_1.UserModel.find({ activo: true })
+    const activeUsers = await user_1.UserModel.find({ activo: true })
         .sort({ apellido: 1, name: 1 })
-        .lean())
+        .lean();
+    const users = activeUsers
         .filter((user) => {
         const roles = String(user.roles ?? "");
-        return roles.includes("odontologo") || roles.includes("administrador");
+        return (roles.includes("odontologo") ||
+            roles.includes("ortodoncista") ||
+            roles.includes("administrador"));
     })
         .map((user) => ({
         id: String(user._id),
         label: (0, utils_1.normalizeWhitespace)(`${user.apellido ?? ""}, ${user.name}`),
     }));
-    const monthRows = await attention_1.AttentionModel.aggregate([
-        {
-            $project: {
-                month: {
-                    $dateToString: {
-                        format: "%Y-%m",
-                        date: "$fecha",
-                        timezone: APP_TIMEZONE,
+    const [attentionMonths, orthodonticTreatments] = await Promise.all([
+        attention_1.AttentionModel.aggregate([
+            {
+                $project: {
+                    month: {
+                        $dateToString: {
+                            format: "%Y-%m",
+                            date: "$fecha",
+                            timezone: APP_TIMEZONE,
+                        },
                     },
                 },
             },
-        },
-        { $group: { _id: "$month" } },
-        { $sort: { _id: -1 } },
+            { $group: { _id: "$month" } },
+            { $sort: { _id: -1 } },
+        ]),
+        orthodontic_treatment_1.OrthodonticTreatmentModel.find({}, { payments: 1 }).lean(),
     ]);
+    const months = new Set(attentionMonths.map((row) => row._id));
+    orthodonticTreatments.forEach((treatment) => {
+        treatment.payments.forEach((payment) => {
+            months.add(getMonthKey(payment.fecha));
+        });
+    });
     return {
         users,
-        months: monthRows.map((row) => row._id),
+        months: Array.from(months).sort((left, right) => right.localeCompare(left)),
     };
 }
 async function listPayments(query) {
@@ -357,7 +552,10 @@ async function listPayments(query) {
         match.usuarioId = new mongoose_1.Types.ObjectId(query.userId);
     }
     if (query.attentionMonth) {
-        match.attentionMonth = query.attentionMonth;
+        match.$or = [
+            { attentionMonth: query.attentionMonth },
+            { attentionMonths: query.attentionMonth },
+        ];
     }
     const skip = (query.page - 1) * query.limit;
     const [payments, total] = await Promise.all([
@@ -371,25 +569,13 @@ async function listPayments(query) {
     return {
         data: payments.map((payment) => toPaymentDto({
             ...payment,
-            lineItems: payment.lineItems.map((lineItem) => ({
-                attentionId: String(lineItem.attentionId),
-                attentionFecha: lineItem.attentionFecha.toISOString(),
-                pacienteId: String(lineItem.pacienteId),
-                pacienteNombre: lineItem.pacienteNombre,
-                pacienteDni: lineItem.pacienteDni,
-                obraSocialId: String(lineItem.obraSocialId),
-                obraSocialNombre: lineItem.obraSocialNombre,
-                codigoObraSocialId: String(lineItem.codigoObraSocialId),
-                codigo: lineItem.codigo,
-                codigoNombre: lineItem.codigoNombre,
-                pieza: lineItem.pieza,
-                estadoAtencionSnapshot: lineItem.estadoAtencionSnapshot,
-                pagoOdontologoCentavos: lineItem.pagoOdontologoCentavos,
-                coseguroOdontoCentavos: lineItem.coseguroOdontoCentavos,
-                includesCodePayment: lineItem.includesCodePayment,
-                includesCoseguroOdontoPayment: lineItem.includesCoseguroOdontoPayment,
-                totalLineaCentavos: lineItem.totalLineaCentavos,
-            })),
+            lineItems: (payment.lineItems ?? []).map((lineItem) => mapPersistedLineItem(lineItem)),
+            totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos ?? 0,
+            totalCreditosCentavos: payment.totalCreditosCentavos ?? 0,
+            totalDebitosCentavos: payment.totalDebitosCentavos ?? 0,
+            totalNetoPagarCentavos: payment.totalNetoPagarCentavos ?? payment.totalHonorariosCentavos,
+            debitItems: payment.debitItems ?? [],
+            creditItems: payment.creditItems ?? [],
         })),
         pagination: {
             page: query.page,
@@ -401,95 +587,142 @@ async function listPayments(query) {
 }
 async function rollbackPaymentOperation(paymentId, selectedItems) {
     const connection = await (0, mongoose_2.connectToDatabase)();
-    const collection = connection.connection.db.collection("attentions");
+    const attentionCollection = connection.connection.db.collection("attentions");
     for (const selection of selectedItems) {
         const lineId = new mongoose_1.Types.ObjectId(selection.lineId);
-        if (selection.payCode) {
-            await collection.updateOne({
-                codigos: {
-                    $elemMatch: {
-                        _id: lineId,
-                        codePaymentId: paymentId,
+        if (selection.sourceType === "attention") {
+            if (selection.payCode) {
+                await attentionCollection.updateOne({
+                    codigos: {
+                        $elemMatch: {
+                            _id: lineId,
+                            codePaymentId: paymentId,
+                        },
                     },
-                },
-            }, {
-                $set: {
-                    "codigos.$.codePaymentStatus": "pendiente",
-                    "codigos.$.codePaymentId": null,
-                    "codigos.$.codePaidAt": null,
-                },
-            });
-        }
-        if (selection.payCoseguroOdonto) {
-            await collection.updateOne({
-                codigos: {
-                    $elemMatch: {
-                        _id: lineId,
-                        coseguroOdontoPaymentId: paymentId,
+                }, {
+                    $set: {
+                        "codigos.$.codePaymentStatus": "pendiente",
+                        "codigos.$.codePaymentId": null,
+                        "codigos.$.codePaidAt": null,
                     },
-                },
-            }, {
-                $set: {
-                    "codigos.$.coseguroOdontoPaymentStatus": "pendiente",
-                    "codigos.$.coseguroOdontoPaymentId": null,
-                    "codigos.$.coseguroOdontoPaidAt": null,
-                },
-            });
+                });
+            }
+            if (selection.payCoseguroOdonto) {
+                await attentionCollection.updateOne({
+                    codigos: {
+                        $elemMatch: {
+                            _id: lineId,
+                            coseguroOdontoPaymentId: paymentId,
+                        },
+                    },
+                }, {
+                    $set: {
+                        "codigos.$.coseguroOdontoPaymentStatus": "pendiente",
+                        "codigos.$.coseguroOdontoPaymentId": null,
+                        "codigos.$.coseguroOdontoPaidAt": null,
+                    },
+                });
+            }
+            continue;
         }
+        await orthodontic_treatment_1.OrthodonticTreatmentModel.updateOne({
+            "payments._id": lineId,
+            "payments.paymentId": paymentId,
+        }, {
+            $set: {
+                "payments.$.paymentStatus": "pendiente",
+                "payments.$.paymentId": null,
+                "payments.$.paidAt": null,
+                "payments.$.updatedAt": new Date(),
+            },
+        });
     }
     await (0, movimientos_1.deleteMovementByOrigin)("payment", paymentId);
     await payment_1.PaymentModel.deleteOne({ _id: String(paymentId) });
 }
 async function createPayment(input, currentUserId) {
     await (0, mongoose_2.connectToDatabase)();
-    const selectedItems = input.selectedItems.filter((item) => item.payCode || item.payCoseguroOdonto);
-    if (selectedItems.length === 0) {
+    const debitItems = (input.debitItems ?? []).map((item) => ({
+        montoCentavos: item.montoCentavos,
+        observacion: (0, utils_1.normalizeWhitespace)(item.observacion),
+    }));
+    const creditItems = (input.creditItems ?? []).map((item) => ({
+        montoCentavos: item.montoCentavos,
+        observacion: (0, utils_1.normalizeWhitespace)(item.observacion),
+    }));
+    if (debitItems.some((item) => !Number.isInteger(item.montoCentavos) ||
+        item.montoCentavos <= 0 ||
+        !item.observacion)) {
+        throw new api_1.AppError("VALIDATION_ERROR", "Cada debito debe tener un importe valido y una observacion", 400);
+    }
+    if (creditItems.some((item) => !Number.isInteger(item.montoCentavos) ||
+        item.montoCentavos <= 0 ||
+        !item.observacion)) {
+        throw new api_1.AppError("VALIDATION_ERROR", "Cada credito debe tener un importe valido y una observacion", 400);
+    }
+    const normalizedSelection = normalizeSelection(input.selectedItems);
+    if (normalizedSelection.length === 0) {
         throw new api_1.AppError("VALIDATION_ERROR", "Debes seleccionar al menos un concepto para liquidar", 400);
     }
-    const selectedByLineId = new Map();
-    selectedItems.forEach((item) => {
-        const existing = selectedByLineId.get(item.lineId);
-        if (existing) {
-            existing.payCode = existing.payCode || item.payCode;
-            existing.payCoseguroOdonto =
-                existing.payCoseguroOdonto || item.payCoseguroOdonto;
-            return;
-        }
-        selectedByLineId.set(item.lineId, { ...item });
-    });
-    const normalizedSelection = Array.from(selectedByLineId.values());
     const candidates = await getFreshSelectedCandidates({
         ...input,
         selectedItems: normalizedSelection,
     });
-    const candidatesByLineId = new Map(candidates.map((item) => [item.lineId, item]));
-    if (candidatesByLineId.size !== normalizedSelection.length) {
-        throw new api_1.AppError("NOT_FOUND", "Una o mas lineas seleccionadas ya no estan disponibles para este usuario o mes", 404);
+    const candidatesByKey = new Map(candidates.map((item) => [`${item.sourceType}:${item.lineId}`, item]));
+    if (candidatesByKey.size !== normalizedSelection.length) {
+        throw new api_1.AppError("NOT_FOUND", "Uno o mas conceptos seleccionados ya no estan disponibles para este usuario", 404);
     }
     normalizedSelection.forEach((selection) => {
-        const candidate = candidatesByLineId.get(selection.lineId);
+        const candidate = candidatesByKey.get(`${selection.sourceType}:${selection.lineId}`);
         if (!candidate) {
-            throw new api_1.AppError("NOT_FOUND", "Una linea seleccionada ya no existe", 404);
+            throw new api_1.AppError("NOT_FOUND", "Un concepto seleccionado ya no existe", 404);
         }
         if (selection.payCode && !candidate.canPayCode) {
-            throw new api_1.AppError("VALIDATION_ERROR", "Uno de los codigos seleccionados ya no puede liquidarse", 409);
+            throw new api_1.AppError("VALIDATION_ERROR", "Uno de los conceptos seleccionados ya no puede liquidarse", 409);
         }
         if (selection.payCoseguroOdonto && !candidate.canPayCoseguroOdonto) {
             throw new api_1.AppError("VALIDATION_ERROR", "Uno de los coseguros odonto seleccionados ya no puede liquidarse", 409);
         }
     });
-    const summary = buildPaymentSummary(candidates, normalizedSelection, input.userId, input.attentionMonth);
+    const attentionMonths = Array.from(new Set(candidates.map((candidate) => candidate.attentionMonth))).sort((left, right) => right.localeCompare(left));
+    const primaryAttentionMonth = attentionMonths[0];
+    const summary = buildPaymentSummary(candidates, normalizedSelection, input.userId, primaryAttentionMonth, debitItems, creditItems);
     if (summary.quantityConceptsPaid === 0) {
         throw new api_1.AppError("VALIDATION_ERROR", "No hay conceptos validos para liquidar", 400);
+    }
+    if (summary.totalNetoPagarCentavos < 0) {
+        throw new api_1.AppError("VALIDATION_ERROR", "Los debitos no pueden superar el total de la liquidacion incluyendo creditos", 400);
     }
     const firstCandidate = candidates[0];
     const paymentId = new mongoose_1.Types.ObjectId();
     const paidAt = new Date();
     const lineItems = candidates.map((candidate) => {
-        const selection = selectedByLineId.get(candidate.lineId);
+        const selection = candidatesByKey.get(`${candidate.sourceType}:${candidate.lineId}`) &&
+            normalizedSelection.find((item) => item.sourceType === candidate.sourceType && item.lineId === candidate.lineId);
+        if (!selection) {
+            throw new api_1.AppError("INTERNAL_ERROR", "No se pudo resolver la seleccion", 500);
+        }
+        if (candidate.sourceType === "orthodontic-payment") {
+            return {
+                sourceType: "orthodontic-payment",
+                orthodonticTreatmentId: candidate.orthodonticTreatmentId,
+                orthodonticPaymentId: candidate.orthodonticPaymentId,
+                treatmentStartDate: candidate.attentionFecha,
+                paymentDate: candidate.orthodonticPaymentDate,
+                treatmentType: candidate.orthodonticTreatmentType,
+                patientId: candidate.pacienteId,
+                patientName: candidate.pacienteNombreCompleto,
+                patientDni: candidate.pacienteDni,
+                paymentAmountCentavos: candidate.orthodonticPaymentAmountCentavos ?? 0,
+                percentageToOrthodontist: candidate.orthodonticPaymentPercentage ?? 0,
+                orthodontistAmountCentavos: candidate.pagoOdontologoCentavos,
+                totalLineaCentavos: candidate.pagoOdontologoCentavos,
+            };
+        }
         const totalLineaCentavos = (selection.payCode ? candidate.pagoOdontologoCentavos : 0) +
             (selection.payCoseguroOdonto ? candidate.coseguroOdontoCentavos ?? 0 : 0);
         return {
+            sourceType: "attention",
             attentionId: candidate.attentionId,
             attentionFecha: candidate.attentionFecha,
             pacienteId: candidate.pacienteId,
@@ -513,116 +746,110 @@ async function createPayment(input, currentUserId) {
         _id: paymentId,
         usuarioId: new mongoose_1.Types.ObjectId(input.userId),
         usuarioNombreSnapshot: firstCandidate.userName,
-        attentionMonth: input.attentionMonth,
+        attentionMonth: primaryAttentionMonth,
+        attentionMonths,
         paidAt,
         createdByUserId: new mongoose_1.Types.ObjectId(currentUserId),
-        lineItems: lineItems.map((lineItem) => ({
-            ...lineItem,
-            attentionId: new mongoose_1.Types.ObjectId(lineItem.attentionId),
-            attentionFecha: new Date(lineItem.attentionFecha),
-            pacienteId: new mongoose_1.Types.ObjectId(lineItem.pacienteId),
-            obraSocialId: new mongoose_1.Types.ObjectId(lineItem.obraSocialId),
-            codigoObraSocialId: new mongoose_1.Types.ObjectId(lineItem.codigoObraSocialId),
-        })),
+        lineItems,
         totalPagoCodigosCentavos: summary.totalPagoCodigosCentavos,
         totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
+        totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,
         totalHonorariosCentavos: summary.totalHonorariosCentavos,
+        totalCreditosCentavos: summary.totalCreditosCentavos,
+        totalDebitosCentavos: summary.totalDebitosCentavos,
+        totalNetoPagarCentavos: summary.totalNetoPagarCentavos,
         quantityConceptsPaid: summary.quantityConceptsPaid,
+        debitItems,
+        creditItems,
     });
     try {
+        const attentionCollection = (await (0, mongoose_2.connectToDatabase)()).connection.db.collection("attentions");
+        for (const selection of normalizedSelection) {
+            const candidate = candidatesByKey.get(`${selection.sourceType}:${selection.lineId}`);
+            if (selection.sourceType === "attention") {
+                if (selection.payCode) {
+                    await attentionCollection.updateOne({
+                        codigos: {
+                            $elemMatch: {
+                                _id: new mongoose_1.Types.ObjectId(selection.lineId),
+                                codePaymentStatus: "pendiente",
+                            },
+                        },
+                    }, {
+                        $set: {
+                            "codigos.$.codePaymentStatus": "pagado",
+                            "codigos.$.codePaymentId": paymentId,
+                            "codigos.$.codePaidAt": paidAt,
+                        },
+                    });
+                }
+                if (selection.payCoseguroOdonto) {
+                    await attentionCollection.updateOne({
+                        codigos: {
+                            $elemMatch: {
+                                _id: new mongoose_1.Types.ObjectId(selection.lineId),
+                                coseguroOdontoPaymentStatus: "pendiente",
+                            },
+                        },
+                    }, {
+                        $set: {
+                            "codigos.$.coseguroOdontoPaymentStatus": "pagado",
+                            "codigos.$.coseguroOdontoPaymentId": paymentId,
+                            "codigos.$.coseguroOdontoPaidAt": paidAt,
+                        },
+                    });
+                }
+                continue;
+            }
+            await orthodontic_treatment_1.OrthodonticTreatmentModel.updateOne({
+                _id: new mongoose_1.Types.ObjectId(candidate.orthodonticTreatmentId),
+                "payments._id": new mongoose_1.Types.ObjectId(selection.lineId),
+                "payments.paymentStatus": "pendiente",
+            }, {
+                $set: {
+                    "payments.$.paymentStatus": "pagado",
+                    "payments.$.paymentId": paymentId,
+                    "payments.$.paidAt": paidAt,
+                    "payments.$.updatedAt": new Date(),
+                },
+            });
+        }
         await (0, movimientos_1.createPaymentMovement)({
             paymentId,
             paidAt,
             usuarioId: input.userId,
             usuarioNombreSnapshot: firstCandidate.userName,
-            attentionMonth: input.attentionMonth,
+            attentionMonth: primaryAttentionMonth,
+            attentionMonths,
             totalPagoCodigosCentavos: summary.totalPagoCodigosCentavos,
             totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
+            totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,
             totalHonorariosCentavos: summary.totalHonorariosCentavos,
+            totalCreditosCentavos: summary.totalCreditosCentavos,
+            totalDebitosCentavos: summary.totalDebitosCentavos,
+            totalNetoPagarCentavos: summary.totalNetoPagarCentavos,
             quantityConceptsPaid: summary.quantityConceptsPaid,
+            debitItems,
+            creditItems,
             createdByUserId: currentUserId,
         });
-        const connection = await (0, mongoose_2.connectToDatabase)();
-        const collection = connection.connection.db.collection("attentions");
-        for (const selection of normalizedSelection) {
-            const candidate = candidatesByLineId.get(selection.lineId);
-            if (!candidate) {
-                throw new api_1.AppError("NOT_FOUND", "Una linea seleccionada ya no existe", 404);
-            }
-            const lineId = new mongoose_1.Types.ObjectId(selection.lineId);
-            const attentionId = new mongoose_1.Types.ObjectId(candidate.attentionId);
-            if (selection.payCode) {
-                const result = await collection.updateOne({
-                    _id: attentionId,
-                    codigos: {
-                        $elemMatch: {
-                            _id: lineId,
-                            estado: "ok",
-                            codePaymentStatus: { $ne: "pagado" },
-                        },
-                    },
-                }, {
-                    $set: {
-                        "codigos.$.codePaymentStatus": "pagado",
-                        "codigos.$.codePaymentId": paymentId,
-                        "codigos.$.codePaidAt": paidAt,
-                    },
-                });
-                if (result.modifiedCount !== 1) {
-                    throw new api_1.AppError("DUPLICATE_RECORD", "Uno de los codigos seleccionados ya fue liquidado o dejo de estar en OK", 409);
-                }
-            }
-            if (selection.payCoseguroOdonto) {
-                const result = await collection.updateOne({
-                    _id: attentionId,
-                    codigos: {
-                        $elemMatch: {
-                            _id: lineId,
-                            coseguroOdontoCentavos: { $gt: 0 },
-                            coseguroOdontoPaymentStatus: { $ne: "pagado" },
-                        },
-                    },
-                }, {
-                    $set: {
-                        "codigos.$.coseguroOdontoPaymentStatus": "pagado",
-                        "codigos.$.coseguroOdontoPaymentId": paymentId,
-                        "codigos.$.coseguroOdontoPaidAt": paidAt,
-                    },
-                });
-                if (result.modifiedCount !== 1) {
-                    throw new api_1.AppError("DUPLICATE_RECORD", "Uno de los coseguros odonto seleccionados ya fue liquidado o no tiene importe", 409);
-                }
-            }
-        }
     }
     catch (error) {
         await rollbackPaymentOperation(paymentId, normalizedSelection);
         throw error;
     }
-    const payment = await payment_1.PaymentModel.findById(paymentId).lean();
-    if (!payment) {
-        throw new api_1.AppError("INTERNAL_ERROR", "No se pudo recuperar el pago generado", 500);
+    const created = await payment_1.PaymentModel.findById(paymentId).lean();
+    if (!created) {
+        throw new api_1.AppError("INTERNAL_ERROR", "No se pudo recuperar el pago creado", 500);
     }
     return toPaymentDto({
-        ...payment,
-        lineItems: payment.lineItems.map((lineItem) => ({
-            attentionId: String(lineItem.attentionId),
-            attentionFecha: lineItem.attentionFecha.toISOString(),
-            pacienteId: String(lineItem.pacienteId),
-            pacienteNombre: lineItem.pacienteNombre,
-            pacienteDni: lineItem.pacienteDni,
-            obraSocialId: String(lineItem.obraSocialId),
-            obraSocialNombre: lineItem.obraSocialNombre,
-            codigoObraSocialId: String(lineItem.codigoObraSocialId),
-            codigo: lineItem.codigo,
-            codigoNombre: lineItem.codigoNombre,
-            pieza: lineItem.pieza,
-            estadoAtencionSnapshot: lineItem.estadoAtencionSnapshot,
-            pagoOdontologoCentavos: lineItem.pagoOdontologoCentavos,
-            coseguroOdontoCentavos: lineItem.coseguroOdontoCentavos,
-            includesCodePayment: lineItem.includesCodePayment,
-            includesCoseguroOdontoPayment: lineItem.includesCoseguroOdontoPayment,
-            totalLineaCentavos: lineItem.totalLineaCentavos,
-        })),
+        ...created,
+        lineItems: (created.lineItems ?? []).map((lineItem) => mapPersistedLineItem(lineItem)),
+        totalOrtodonciaCentavos: created.totalOrtodonciaCentavos ?? 0,
+        totalCreditosCentavos: created.totalCreditosCentavos ?? 0,
+        totalDebitosCentavos: created.totalDebitosCentavos ?? 0,
+        totalNetoPagarCentavos: created.totalNetoPagarCentavos ?? created.totalHonorariosCentavos,
+        debitItems: created.debitItems ?? [],
+        creditItems: created.creditItems ?? [],
     });
 }

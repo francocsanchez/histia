@@ -10,6 +10,7 @@ const utils_1 = require("@/lib/utils");
 const attention_1 = require("@/models/attention");
 const movement_1 = require("@/models/movement");
 const paciente_1 = require("@/models/paciente");
+const payment_1 = require("@/models/payment");
 const rx_attention_1 = require("@/models/rx-attention");
 const user_1 = require("@/models/user");
 const atenciones_1 = require("@/services/atenciones");
@@ -135,7 +136,8 @@ async function getDashboardMonthlyStats(params) {
             $lte: month.end,
         },
     };
-    const [dailyRows, statusRows, totalRows] = await Promise.all([
+    const yearRange = parseYear(String(month.year));
+    const [dailyRows, statusRows, totalRows, annualHonorariumRows, annualPaymentRows] = await Promise.all([
         attention_1.AttentionModel.aggregate([
             { $match: match },
             {
@@ -176,10 +178,208 @@ async function getDashboardMonthlyStats(params) {
                 },
             },
         ]),
+        attention_1.AttentionModel.aggregate([
+            {
+                $match: {
+                    usuarioCargaId: new mongoose_1.Types.ObjectId(selectedUser.id),
+                    fecha: {
+                        $gte: yearRange.start,
+                        $lte: yearRange.end,
+                    },
+                },
+            },
+            { $unwind: "$codigos" },
+            {
+                $group: {
+                    _id: {
+                        $month: {
+                            date: "$fecha",
+                            timezone: BUSINESS_TIMEZONE,
+                        },
+                    },
+                    pendingAttentionCodeCentavos: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$codigos.estado", "pendiente"] },
+                                { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                                0,
+                            ],
+                        },
+                    },
+                    pagadoPagoCodigosCentavos: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $eq: [
+                                        { $ifNull: ["$codigos.codePaymentStatus", "pendiente"] },
+                                        "pagado",
+                                    ],
+                                },
+                                "$codigos.pagoOdontologoCentavos",
+                                0,
+                            ],
+                        },
+                    },
+                    pagadoCoseguroOdontoCentavos: {
+                        $sum: {
+                            $cond: [
+                                {
+                                    $and: [
+                                        {
+                                            $gt: [{ $ifNull: ["$codigos.coseguroOdontoCentavos", 0] }, 0],
+                                        },
+                                        {
+                                            $eq: [
+                                                {
+                                                    $ifNull: ["$codigos.coseguroOdontoPaymentStatus", "pendiente"],
+                                                },
+                                                "pagado",
+                                            ],
+                                        },
+                                    ],
+                                },
+                                { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                                0,
+                            ],
+                        },
+                    },
+                    noCargadoCentavos: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$codigos.estado", "no-cargado"] },
+                                {
+                                    $add: [
+                                        { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                                        { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                                    ],
+                                },
+                                0,
+                            ],
+                        },
+                    },
+                    pendienteCentavos: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$codigos.estado", "pendiente"] },
+                                {
+                                    $add: [
+                                        { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                                        { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                                    ],
+                                },
+                                0,
+                            ],
+                        },
+                    },
+                    okCentavos: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$codigos.estado", "ok"] },
+                                {
+                                    $add: [
+                                        { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                                        { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                                    ],
+                                },
+                                0,
+                            ],
+                        },
+                    },
+                    diferidoCentavos: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$codigos.estado", "diferido"] },
+                                {
+                                    $add: [
+                                        { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                                        { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                                    ],
+                                },
+                                0,
+                            ],
+                        },
+                    },
+                    denegadoCentavos: {
+                        $sum: {
+                            $cond: [
+                                { $eq: ["$codigos.estado", "denegado"] },
+                                {
+                                    $add: [
+                                        { $ifNull: ["$codigos.pagoOdontologoCentavos", 0] },
+                                        { $ifNull: ["$codigos.coseguroOdontoCentavos", 0] },
+                                    ],
+                                },
+                                0,
+                            ],
+                        },
+                    },
+                },
+            },
+            { $sort: { _id: 1 } },
+        ]),
+        payment_1.PaymentModel.aggregate([
+            {
+                $match: {
+                    usuarioId: new mongoose_1.Types.ObjectId(selectedUser.id),
+                    paidAt: {
+                        $gte: yearRange.start,
+                        $lte: yearRange.end,
+                    },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalNetoPagarCentavos: {
+                        $sum: {
+                            $ifNull: ["$totalNetoPagarCentavos", "$totalHonorariosCentavos"],
+                        },
+                    },
+                },
+            },
+        ]),
     ]);
     const dailyMap = new Map(dailyRows.map((row) => [row._id, row.total]));
     const statusMap = new Map(statusRows.map((row) => [row._id, row.total]));
     const totals = totalRows[0] ?? { _id: null, atenciones: 0, codigos: 0 };
+    const annualPaidToUserCentavos = annualPaymentRows[0]?.totalNetoPagarCentavos ?? 0;
+    const annualHonorariumMap = new Map(annualHonorariumRows.map((row) => [
+        row._id,
+        {
+            pendingAttentionCodeCentavos: row.pendingAttentionCodeCentavos,
+            pagadoCentavos: row.pagadoPagoCodigosCentavos + row.pagadoCoseguroOdontoCentavos,
+            honorariosPorEstadoCentavos: {
+                "no-cargado": row.noCargadoCentavos,
+                pendiente: row.pendienteCentavos,
+                ok: row.okCentavos,
+                diferido: row.diferidoCentavos,
+                denegado: row.denegadoCentavos,
+            },
+        },
+    ]));
+    const monthLabels = getMonthLabels();
+    const annualHonorariumByMonth = monthLabels.map((label, index) => {
+        const monthNumber = index + 1;
+        const item = annualHonorariumMap.get(monthNumber);
+        const pendingAttentionCodeCentavos = item?.pendingAttentionCodeCentavos ?? 0;
+        const pagadoCentavos = item?.pagadoCentavos ?? 0;
+        const honorariosPorEstadoCentavos = item?.honorariosPorEstadoCentavos ?? {
+            "no-cargado": 0,
+            pendiente: 0,
+            ok: 0,
+            diferido: 0,
+            denegado: 0,
+        };
+        const totalCentavos = Object.values(honorariosPorEstadoCentavos).reduce((total, amount) => total + amount, 0);
+        return {
+            month: monthNumber,
+            label,
+            pendingAttentionCodeCentavos,
+            honorariosPorEstadoCentavos,
+            pagadoCentavos,
+            totalCentavos,
+        };
+    });
     return {
         month: month.value,
         selectedUser: {
@@ -203,6 +403,8 @@ async function getDashboardMonthlyStats(params) {
             label: attention_status_1.attentionStatusLabels[status],
             total: statusMap.get(status) ?? 0,
         })),
+        annualHonorariumByMonth,
+        annualPaidToUserCentavos,
         totals: {
             atenciones: totals.atenciones,
             codigos: totals.codigos,

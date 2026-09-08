@@ -10,6 +10,12 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- Las actualizaciones `findOneAndUpdate` de Encuestas/WhatsApp deben usar `returnDocument` (`"after"` o `"before"` según corresponda) y no `new`, porque Mongoose actual muestra un warning deprecado continuo en el worker.
+- Los workers TypeScript ejecutados con `tsx` no deben registrar el alias de produccion `@ -> dist/src`; deben cargar sus modulos con rutas a `src` y reservar `module-alias/register` para los artefactos compilados.
+- Los imports que usan los workers deben ser resolubles tanto desde `src` en desarrollo como desde `dist` despues de `build:scripts`; no dejar imports dinamicos `@/` dentro de workers compilados.
+- `Configuracion > Automatizaciones` permite disparar y seguir la verificacion ISSN; el worker consulta pacientes ISSN de forma secuencial cada 3 segundos y solo desactiva ante un estado que comience con `BAJA`.
+- `src/app/globals.css` limita el source de Tailwind a `src`; no volver a ampliar el escaneo a `scripts` porque Turbopack puede fallar al interpretar expresiones de los workers como patrones de archivos.
+
 - En `Pagos`, las acciones `Seleccionar todos los conceptos`, `Seleccionar todos los coseguros` y `Generar pago` deben mantenerse en una misma fila; las dos acciones de selección van inmediatamente a la izquierda de generar, sin ocupar una columna propia de la grilla de métricas.
 - `Pagos` permite agregar créditos manuales además de débitos. Ambos requieren importe y observación y se persisten como snapshots (`creditItems`/`debitItems`); el neto del movimiento es `honorarios + créditos - débitos`, y el historial/detalle debe exponer ambos ajustes.
 - En `/inicio`, los badges del resumen mensual `Codigos por estado` deben llevar a `/atenciones/codigos-por-estado` preservando mes y profesional; la grilla es por línea de código, omite `valor atencion`, muestra coseguros/estado/observación y sólo ofrece editar para `pendiente`, retornando al mismo control.

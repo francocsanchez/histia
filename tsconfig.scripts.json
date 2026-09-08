@@ -22,6 +22,8 @@
     "scripts/seed-admin.ts",
     "scripts/start-prod.ts",
     "scripts/whatsapp-worker.ts",
+    "scripts/issn-worker.ts",
+    "scripts/tests/issn.test.ts",
     "scripts/lib/**/*.ts",
     "src/lib/**/*.ts",
     "src/models/**/*.ts",

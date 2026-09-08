@@ -33,29 +33,17 @@ const movementSchema = new mongoose_1.Schema({
     montoCentavos: {
         type: Number,
         required: true,
-        min: 1,
+        min: 0,
     },
     origenTipo: {
         type: String,
-        enum: ["manual", "payment", "mercadopago"],
+        enum: ["manual", "payment"],
         required: true,
         index: true,
     },
     origenId: {
         type: mongoose_1.Schema.Types.ObjectId,
         default: null,
-    },
-    externalId: {
-        type: String,
-        default: null,
-        trim: true,
-        index: true,
-    },
-    externalComponent: {
-        type: String,
-        enum: ["TRANSACTION", "TAX", "FEE", null],
-        default: null,
-        index: true,
     },
     creadoAutomaticamente: {
         type: Boolean,
@@ -82,14 +70,6 @@ movementSchema.index({ origenTipo: 1, origenId: 1 }, {
     partialFilterExpression: {
         origenTipo: { $ne: "manual" },
         origenId: { $type: "objectId" },
-    },
-});
-movementSchema.index({ origenTipo: 1, externalId: 1, externalComponent: 1 }, {
-    unique: true,
-    partialFilterExpression: {
-        origenTipo: "mercadopago",
-        externalId: { $type: "string" },
-        externalComponent: { $type: "string" },
     },
 });
 if (mongoose_1.models.Movement) {

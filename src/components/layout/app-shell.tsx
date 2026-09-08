@@ -52,6 +52,11 @@ const settingsLinks = [
     label: "Mensajes encuestas",
     resource: "encuestas" as const,
   },
+  {
+    href: "/automatizaciones",
+    label: "Automatizaciones",
+    resource: "automatizaciones" as const,
+  },
   { href: "/usuarios", label: "Usuarios", resource: "usuarios" as const },
 ];
 

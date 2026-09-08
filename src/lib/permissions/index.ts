@@ -14,7 +14,8 @@ export type ResourceKey =
   | "obras-sociales"
   | "codigos-obras-sociales"
   | "pacientes"
-  | "usuarios";
+  | "usuarios"
+  | "automatizaciones";
 
 export type PermissionAction = "read" | "write";
 
@@ -58,7 +59,8 @@ export function can(
     resource === "tipos-movimientos" ||
     resource === "obras-sociales" ||
     resource === "codigos-obras-sociales" ||
-    resource === "usuarios"
+    resource === "usuarios" ||
+    resource === "automatizaciones"
   ) {
     return false;
   }

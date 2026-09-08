@@ -3,53 +3,58 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentModel = void 0;
 const mongoose_1 = require("mongoose");
 const paymentLineItemSchema = new mongoose_1.Schema({
+    sourceType: {
+        type: String,
+        enum: ["attention", "orthodontic-payment"],
+        required: true,
+    },
     attentionId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Attention",
-        required: true,
+        default: null,
     },
     attentionFecha: {
         type: Date,
-        required: true,
+        default: null,
     },
     pacienteId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "Paciente",
-        required: true,
+        default: null,
     },
     pacienteNombre: {
         type: String,
-        required: true,
+        default: null,
         trim: true,
     },
     pacienteDni: {
         type: String,
-        required: true,
+        default: null,
         trim: true,
     },
     obraSocialId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "ObraSocial",
-        required: true,
+        default: null,
     },
     obraSocialNombre: {
         type: String,
-        required: true,
+        default: null,
         trim: true,
     },
     codigoObraSocialId: {
         type: mongoose_1.Schema.Types.ObjectId,
         ref: "CodigoObraSocial",
-        required: true,
+        default: null,
     },
     codigo: {
         type: String,
-        required: true,
+        default: null,
         trim: true,
     },
     codigoNombre: {
         type: String,
-        required: true,
+        default: null,
         trim: true,
     },
     pieza: {
@@ -59,12 +64,12 @@ const paymentLineItemSchema = new mongoose_1.Schema({
     },
     estadoAtencionSnapshot: {
         type: String,
-        enum: ["no-cargado", "pendiente", "ok", "diferido", "denegado"],
-        required: true,
+        enum: ["no-cargado", "pendiente", "ok", "diferido", "denegado", null],
+        default: null,
     },
     pagoOdontologoCentavos: {
         type: Number,
-        required: true,
+        default: null,
         min: 0,
     },
     coseguroOdontoCentavos: {
@@ -74,13 +79,54 @@ const paymentLineItemSchema = new mongoose_1.Schema({
     },
     includesCodePayment: {
         type: Boolean,
-        required: true,
         default: false,
     },
     includesCoseguroOdontoPayment: {
         type: Boolean,
-        required: true,
         default: false,
+    },
+    orthodonticTreatmentId: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        ref: "OrthodonticTreatment",
+        default: null,
+    },
+    orthodonticPaymentId: {
+        type: mongoose_1.Schema.Types.ObjectId,
+        default: null,
+    },
+    treatmentStartDate: {
+        type: Date,
+        default: null,
+    },
+    paymentDate: {
+        type: Date,
+        default: null,
+    },
+    treatmentType: {
+        type: String,
+        enum: ["damon-q", "arco-recto", "damon-ultimate", "a-ligable-nac", null],
+        default: null,
+    },
+    patientName: {
+        type: String,
+        default: null,
+        trim: true,
+    },
+    paymentAmountCentavos: {
+        type: Number,
+        default: null,
+        min: 0,
+    },
+    percentageToOrthodontist: {
+        type: Number,
+        default: null,
+        min: 0,
+        max: 100,
+    },
+    orthodontistAmountCentavos: {
+        type: Number,
+        default: null,
+        min: 0,
     },
     totalLineaCentavos: {
         type: Number,
@@ -90,6 +136,14 @@ const paymentLineItemSchema = new mongoose_1.Schema({
 }, {
     _id: false,
 });
+const paymentDebitItemSchema = new mongoose_1.Schema({
+    montoCentavos: { type: Number, required: true, min: 1 },
+    observacion: { type: String, required: true, trim: true },
+}, { _id: false });
+const paymentCreditItemSchema = new mongoose_1.Schema({
+    montoCentavos: { type: Number, required: true, min: 1 },
+    observacion: { type: String, required: true, trim: true },
+}, { _id: false });
 const paymentSchema = new mongoose_1.Schema({
     usuarioId: {
         type: mongoose_1.Schema.Types.ObjectId,
@@ -105,6 +159,11 @@ const paymentSchema = new mongoose_1.Schema({
     attentionMonth: {
         type: String,
         required: true,
+        index: true,
+    },
+    attentionMonths: {
+        type: [String],
+        default: [],
         index: true,
     },
     paidAt: {
@@ -131,9 +190,32 @@ const paymentSchema = new mongoose_1.Schema({
         required: true,
         min: 0,
     },
+    totalOrtodonciaCentavos: {
+        type: Number,
+        required: true,
+        min: 0,
+    },
     totalHonorariosCentavos: {
         type: Number,
         required: true,
+        min: 0,
+    },
+    totalCreditosCentavos: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+    },
+    totalDebitosCentavos: {
+        type: Number,
+        required: true,
+        default: 0,
+        min: 0,
+    },
+    totalNetoPagarCentavos: {
+        type: Number,
+        required: true,
+        default: 0,
         min: 0,
     },
     quantityConceptsPaid: {
@@ -141,10 +223,19 @@ const paymentSchema = new mongoose_1.Schema({
         required: true,
         min: 1,
     },
+    debitItems: {
+        type: [paymentDebitItemSchema],
+        default: [],
+    },
+    creditItems: {
+        type: [paymentCreditItemSchema],
+        default: [],
+    },
 }, {
     collection: "payments",
     timestamps: true,
 });
 paymentSchema.index({ usuarioId: 1, attentionMonth: 1, paidAt: -1 });
+paymentSchema.index({ usuarioId: 1, attentionMonths: 1, paidAt: -1 });
 exports.PaymentModel = mongoose_1.models.Payment ||
     (0, mongoose_1.model)("Payment", paymentSchema);

@@ -10,10 +10,9 @@ exports.movementDirectionLabels = {
 exports.movementOriginLabels = {
     manual: "Manual",
     payment: "Pago",
-    mercadopago: "Mercado Pago",
 };
 function buildPaymentMovementDescription(userName, attentionMonth) {
-    return `Pago honorarios odontologicos - ${userName} - ${attentionMonth}`;
+    return `Pago honorarios profesionales - ${userName} - ${attentionMonth}`;
 }
 function isPaymentMovementMetadata(metadata) {
     return metadata?.kind === "payment";

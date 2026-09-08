@@ -1,9 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.mercadoPagoSyncStatusValues = exports.mercadoPagoSyncTypeValues = exports.mercadoPagoExternalComponentValues = exports.movementOriginTypeValues = exports.movementDirectionValues = exports.paymentStatusValues = exports.attentionCodeStatusValues = exports.referrerTypeValues = exports.rxTypeValues = exports.surveyStatusValues = exports.surveyCampaignStatusValues = exports.userRoleValues = void 0;
+exports.movementOriginTypeValues = exports.movementDirectionValues = exports.paymentStatusValues = exports.attentionCodeStatusValues = exports.orthodonticTreatmentStatusValues = exports.orthodonticTreatmentTypeValues = exports.referrerTypeValues = exports.rxTypeValues = exports.surveyStatusValues = exports.surveyCampaignStatusValues = exports.userRoleValues = void 0;
 exports.userRoleValues = [
     "administrador",
     "odontologo",
+    "ortodoncista",
     "radiologo",
 ];
 exports.surveyCampaignStatusValues = [
@@ -29,6 +30,17 @@ exports.surveyStatusValues = [
 ];
 exports.rxTypeValues = ["carpal", "panoramica"];
 exports.referrerTypeValues = ["interno", "externo"];
+exports.orthodonticTreatmentTypeValues = [
+    "damon-q",
+    "arco-recto",
+    "damon-ultimate",
+    "a-ligable-nac",
+];
+exports.orthodonticTreatmentStatusValues = [
+    "activo",
+    "cerrado",
+    "cancelado",
+];
 exports.attentionCodeStatusValues = [
     "no-cargado",
     "pendiente",
@@ -38,21 +50,4 @@ exports.attentionCodeStatusValues = [
 ];
 exports.paymentStatusValues = ["pendiente", "pagado"];
 exports.movementDirectionValues = ["ingreso", "egreso"];
-exports.movementOriginTypeValues = ["manual", "payment", "mercadopago"];
-exports.mercadoPagoExternalComponentValues = [
-    "TRANSACTION",
-    "TAX",
-    "FEE",
-];
-exports.mercadoPagoSyncTypeValues = [
-    "hourly",
-    "daily_recovery",
-    "manual",
-];
-exports.mercadoPagoSyncStatusValues = [
-    "PENDING",
-    "WAITING_REPORT",
-    "PROCESSING",
-    "PROCESSED",
-    "FAILED",
-];
+exports.movementOriginTypeValues = ["manual", "payment"];

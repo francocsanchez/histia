@@ -4,7 +4,6 @@ exports.listMovements = listMovements;
 exports.createManualMovement = createManualMovement;
 exports.updateMovementDetails = updateMovementDetails;
 exports.createPaymentMovement = createPaymentMovement;
-exports.createMercadoPagoMovement = createMercadoPagoMovement;
 exports.deleteMovementByOrigin = deleteMovementByOrigin;
 const mongoose_1 = require("mongoose");
 const api_1 = require("@/lib/api");
@@ -32,9 +31,6 @@ function buildMovementMatch(query) {
     if (query.typeId) {
         match.tipoMovimientoId = new mongoose_1.Types.ObjectId(query.typeId);
     }
-    if (query.originType) {
-        match.origenTipo = query.originType;
-    }
     return match;
 }
 function toMovementDto(movement) {
@@ -48,8 +44,6 @@ function toMovementDto(movement) {
         montoCentavos: movement.montoCentavos,
         origenTipo: movement.origenTipo,
         origenId: movement.origenId ? String(movement.origenId) : null,
-        externalId: movement.externalId ?? null,
-        externalComponent: movement.externalComponent ?? null,
         creadoAutomaticamente: movement.creadoAutomaticamente,
         metadata: movement.metadata,
         createdByUserId: String(movement.createdByUserId),
@@ -166,23 +160,28 @@ async function createPaymentMovement(input) {
         usuarioId: input.usuarioId,
         usuarioNombreSnapshot: input.usuarioNombreSnapshot,
         attentionMonth: input.attentionMonth,
+        attentionMonths: input.attentionMonths,
         totalPagoCodigosCentavos: input.totalPagoCodigosCentavos,
         totalCoseguroOdontoCentavos: input.totalCoseguroOdontoCentavos,
+        totalOrtodonciaCentavos: input.totalOrtodonciaCentavos,
         totalHonorariosCentavos: input.totalHonorariosCentavos,
+        totalCreditosCentavos: input.totalCreditosCentavos,
+        totalDebitosCentavos: input.totalDebitosCentavos,
+        totalNetoPagarCentavos: input.totalNetoPagarCentavos,
         quantityConceptsPaid: input.quantityConceptsPaid,
+        debitItems: input.debitItems,
+        creditItems: input.creditItems,
     };
     try {
         const movement = await movement_2.MovementModel.create({
             fecha: input.paidAt,
-            descripcion: (0, movement_1.buildPaymentMovementDescription)(input.usuarioNombreSnapshot, input.attentionMonth),
+            descripcion: (0, movement_1.buildPaymentMovementDescription)(input.usuarioNombreSnapshot, input.attentionMonths.join(", ")),
             direccion: movementType.direccion,
             tipoMovimientoId: new mongoose_1.Types.ObjectId(movementType.id),
             tipo: movementType.nombre,
-            montoCentavos: input.totalHonorariosCentavos,
+            montoCentavos: input.totalNetoPagarCentavos,
             origenTipo: "payment",
             origenId: input.paymentId,
-            externalId: null,
-            externalComponent: null,
             creadoAutomaticamente: true,
             metadata,
             createdByUserId: new mongoose_1.Types.ObjectId(input.createdByUserId),
@@ -200,84 +199,6 @@ async function createPaymentMovement(input) {
             }).lean();
             if (existing) {
                 return toMovementDto(existing);
-            }
-        }
-        throw error;
-    }
-}
-async function createMercadoPagoMovement(input) {
-    await (0, mongoose_2.connectToDatabase)();
-    const movementType = await (0, tipos_movimientos_1.getSystemMovementType)(input.externalComponent === "TAX"
-        ? input.direccion === "ingreso"
-            ? "mercadopago-tax-income"
-            : "mercadopago-tax-expense"
-        : input.externalComponent === "FEE"
-            ? input.direccion === "ingreso"
-                ? "mercadopago-fee-income"
-                : "mercadopago-fee-expense"
-            : input.direccion === "ingreso"
-                ? "mercadopago-income"
-                : "mercadopago-expense");
-    const metadata = {
-        kind: "mercadopago",
-        reportId: input.reportId,
-        sourceId: input.sourceId,
-        payerName: input.payerName,
-        externalReference: input.externalReference,
-        paymentMethod: input.paymentMethod,
-        paymentMethodType: input.paymentMethodType,
-        transactionType: input.transactionType,
-        transactionAmountCentavos: input.transactionAmountCentavos,
-        transactionDate: input.transactionDate.toISOString(),
-        feeAmountCentavos: input.feeAmountCentavos,
-        settlementDate: input.settlementDate?.toISOString() ?? null,
-        realAmountCentavos: input.realAmountCentavos,
-        taxesAmountCentavos: input.taxesAmountCentavos,
-        moneyReleaseDate: input.moneyReleaseDate?.toISOString() ?? null,
-        description: input.description,
-        businessUnit: input.businessUnit,
-        subUnit: input.subUnit,
-        externalComponent: input.externalComponent,
-        reconciliationExpectedCentavos: input.reconciliationExpectedCentavos,
-        reconciliationDifferenceCentavos: input.reconciliationDifferenceCentavos,
-        reconciliationMatches: input.reconciliationDifferenceCentavos === 0,
-    };
-    try {
-        const movement = await movement_2.MovementModel.create({
-            fecha: input.fecha,
-            descripcion: input.descripcion,
-            direccion: input.direccion,
-            tipoMovimientoId: new mongoose_1.Types.ObjectId(movementType.id),
-            tipo: movementType.nombre,
-            montoCentavos: input.montoCentavos,
-            origenTipo: "mercadopago",
-            origenId: null,
-            externalId: input.sourceId,
-            externalComponent: input.externalComponent,
-            creadoAutomaticamente: true,
-            metadata,
-            createdByUserId: new mongoose_1.Types.ObjectId(input.createdByUserId),
-        });
-        return {
-            created: true,
-            movement: toMovementDto(movement.toObject()),
-        };
-    }
-    catch (error) {
-        if (error &&
-            typeof error === "object" &&
-            "code" in error &&
-            error.code === 11000) {
-            const existing = await movement_2.MovementModel.findOne({
-                origenTipo: "mercadopago",
-                externalId: input.sourceId,
-                externalComponent: input.externalComponent,
-            }).lean();
-            if (existing) {
-                return {
-                    created: false,
-                    movement: toMovementDto(existing),
-                };
             }
         }
         throw error;

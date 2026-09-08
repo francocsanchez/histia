@@ -294,7 +294,7 @@ async function ensureSurveySettingsDocument() {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
       upsert: true,
       setDefaultsOnInsert: true,
     },
@@ -312,7 +312,7 @@ async function ensureWhatsAppConnectionDocument() {
         status: "disconnected",
       },
     },
-    { new: true, upsert: true, setDefaultsOnInsert: true },
+    { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
   );
 }
 
@@ -1212,7 +1212,7 @@ export async function takeNextSurveyLease() {
     },
     {
       sort: { createdAt: 1 },
-      new: true,
+      returnDocument: "after",
     },
   ).lean();
 
@@ -1257,7 +1257,7 @@ export async function claimSurveyForManualSend(surveyId: string) {
         sendAttemptCount: 1,
       },
     },
-    { new: false },
+    { returnDocument: "before" },
   ).lean();
 
   if (survey) {

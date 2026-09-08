@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Se reemplazo la opcion deprecada de Mongoose `new` por `returnDocument` en las actualizaciones operativas de Encuestas, eliminando los avisos repetidos del worker de WhatsApp.
+- El worker de WhatsApp en desarrollo ahora resuelve los modulos desde `src`, en lugar de cargar artefactos viejos de `dist` y ejecutar comportamiento desactualizado.
+- Se corrigio la resolucion del modelo de control ISSN en el worker compilado para que la construccion de scripts de produccion vuelva a ser valida.
+- Se agrego la automatizacion ISSN con ejecucion manual, corrida diaria a las 02:00 y desactivacion exclusiva ante bajas confirmadas.
+- Se limito el escaneo de Tailwind a `src` para evitar un fallo de glob de Turbopack al iniciar desarrollo con los workers.
+
 ## 2026-09-07
 
 ### Added

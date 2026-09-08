@@ -18,8 +18,8 @@ const serverEnvSchema = zod_1.z.object({
     SEED_ADMIN_PASSWORD: zod_1.z.string().min(8).optional(),
     SEED_ADMIN_NAME: zod_1.z.string().min(1).optional(),
     SEED_ADMIN_LAST_NAME: zod_1.z.string().min(1).optional(),
-    MERCADOPAGO_ACCESS_TOKEN: zod_1.z.string().min(1).optional(),
     WHATSAPP_WORKER_PORT: zod_1.z.coerce.number().int().min(1).max(65535).optional(),
+    WHATSAPP_WORKER_URL: zod_1.z.string().url().optional(),
 });
 exports.publicEnv = publicEnvSchema.parse({
     NEXT_PUBLIC_APP_NAME: process.env.NEXT_PUBLIC_APP_NAME,
@@ -39,8 +39,8 @@ function getServerEnv() {
         SEED_ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD,
         SEED_ADMIN_NAME: process.env.SEED_ADMIN_NAME,
         SEED_ADMIN_LAST_NAME: process.env.SEED_ADMIN_LAST_NAME,
-        MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
         WHATSAPP_WORKER_PORT: process.env.WHATSAPP_WORKER_PORT,
+        WHATSAPP_WORKER_URL: process.env.WHATSAPP_WORKER_URL,
     });
     if (!parsedEnv.success) {
         const issues = parsedEnv.error.issues

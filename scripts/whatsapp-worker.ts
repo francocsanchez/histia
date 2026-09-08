@@ -1,9 +1,16 @@
-import "module-alias/register";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import { hostname } from "node:os";
 import { loadEnvConfig } from "@next/env";
 
-import {
+const runtimeRequire = createRequire(__filename);
+const runningWithTsx = process.execArgv.join(" ").indexOf("tsx") >= 0;
+
+if (!runningWithTsx) {
+  runtimeRequire("module-alias/register");
+}
+
+const {
   acquireWhatsAppWorkerLease,
   appendWhatsAppConnectionEvent,
   clearWhatsAppAuthState,
@@ -21,13 +28,13 @@ import {
   takeNextSurveyLease,
   updateWhatsAppConnectionState,
   upsertWhatsAppAuthRecord,
-} from "@/services/surveys";
-import { getServerEnv } from "@/lib/env";
-import {
+} = runtimeRequire("../src/services/surveys") as typeof import("../src/services/surveys");
+const { getServerEnv } = runtimeRequire("../src/lib/env") as typeof import("../src/lib/env");
+const {
   extractPhoneE164FromWhatsAppKey,
   getWhatsAppReconnectDelayMs,
   getWhatsappJid,
-} from "@/lib/surveys";
+} = runtimeRequire("../src/lib/surveys") as typeof import("../src/lib/surveys");
 
 loadEnvConfig(process.cwd());
 

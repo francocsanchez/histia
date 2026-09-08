@@ -5,6 +5,7 @@ set -euo pipefail
 APP_DIR="/opt/histia"
 APP_SERVICE="histia-app"
 WORKER_SERVICE="histia-whatsapp-worker"
+ISSN_WORKER_SERVICE="histia-issn-worker"
 APP_HEALTH_URL="http://127.0.0.1:3000/api/health"
 WORKER_HEALTH_URL="http://127.0.0.1:3010"
 MAX_ATTEMPTS=20
@@ -13,8 +14,8 @@ SLEEP_SECONDS=3
 cd "$APP_DIR"
 
 git pull origin main
-docker compose pull "$APP_SERVICE" "$WORKER_SERVICE"
-docker compose up -d "$APP_SERVICE" "$WORKER_SERVICE"
+docker compose pull "$APP_SERVICE" "$WORKER_SERVICE" "$ISSN_WORKER_SERVICE"
+docker compose up -d "$APP_SERVICE" "$WORKER_SERVICE" "$ISSN_WORKER_SERVICE"
 
 attempt=1
 until curl --fail --silent --show-error "$APP_HEALTH_URL" >/dev/null; do

@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "dist/**",
+    ".tmp-baileys-pr-*/**",
     "next-env.d.ts",
   ]),
 ]);

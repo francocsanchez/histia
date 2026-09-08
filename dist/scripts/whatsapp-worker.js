@@ -1,12 +1,17 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-require("module-alias/register");
 const node_http_1 = require("node:http");
+const node_module_1 = require("node:module");
 const node_os_1 = require("node:os");
 const env_1 = require("@next/env");
-const surveys_1 = require("@/services/surveys");
-const env_2 = require("@/lib/env");
-const surveys_2 = require("@/lib/surveys");
+const runtimeRequire = (0, node_module_1.createRequire)(__filename);
+const runningWithTsx = process.execArgv.join(" ").indexOf("tsx") >= 0;
+if (!runningWithTsx) {
+    runtimeRequire("module-alias/register");
+}
+const { acquireWhatsAppWorkerLease, appendWhatsAppConnectionEvent, clearWhatsAppAuthState, ensureSurveySettingsForWorker, expireNoResponseSurveys, getWhatsAppConnectionControlState, getStoredWhatsAppAuthRecords, getWorkerHealthSnapshot, markLeasesAsDeliveryUnknown, pauseSurveyDispatchAfterWhatsAppLogout, processIncomingWhatsAppMessage, releaseWhatsAppWorkerLease, removeWhatsAppAuthRecord, sendLeasedSurvey, takeNextSurveyLease, updateWhatsAppConnectionState, upsertWhatsAppAuthRecord, } = runtimeRequire("../src/services/surveys");
+const { getServerEnv } = runtimeRequire("../src/lib/env");
+const { extractPhoneE164FromWhatsAppKey, getWhatsAppReconnectDelayMs, getWhatsappJid, } = runtimeRequire("../src/lib/surveys");
 (0, env_1.loadEnvConfig)(process.cwd());
 let workerActive = true;
 let socketBooting = false;
@@ -20,6 +25,7 @@ let reconnectTimer = null;
 let reconnectAttempt = 0;
 let authWriteQueue = Promise.resolve();
 let authWriteSequence = 0;
+let outboundSendQueue = Promise.resolve();
 let lastOutboundAttempt = null;
 let currentSocket = null;
 const workerInstanceId = `${(0, node_os_1.hostname)()}:${process.pid}`;
@@ -46,10 +52,15 @@ function sanitizeDetails(details) {
         return value;
     }));
 }
+function enqueueOutboundSend(task) {
+    const result = outboundSendQueue.then(task, task);
+    outboundSendQueue = result.then(() => undefined, () => undefined);
+    return result;
+}
 async function traceEvent(input) {
     logger.info(input.message, input.details ?? {});
     try {
-        await (0, surveys_1.appendWhatsAppConnectionEvent)({
+        await appendWhatsAppConnectionEvent({
             source: "worker",
             eventType: input.eventType,
             message: input.message,
@@ -72,7 +83,7 @@ function clearReconnectTimer() {
     }
 }
 function getNextReconnectDelayMs() {
-    const delay = (0, surveys_2.getWhatsAppReconnectDelayMs)(reconnectAttempt);
+    const delay = getWhatsAppReconnectDelayMs(reconnectAttempt);
     reconnectAttempt += 1;
     return delay;
 }
@@ -95,7 +106,7 @@ function invalidateSocketGeneration() {
     socketBooting = false;
 }
 async function createMongoAuthState(baileys) {
-    const records = await (0, surveys_1.getStoredWhatsAppAuthRecords)();
+    const records = await getStoredWhatsAppAuthRecords();
     const recordMap = new Map(records.map((record) => [record.key, record.value]));
     const parseStoredValue = (value) => {
         if (typeof value !== "string") {
@@ -136,11 +147,11 @@ async function createMongoAuthState(baileys) {
                         if (value) {
                             const serialized = serializeValue(value);
                             recordMap.set(storageKey, serialized);
-                            await (0, surveys_1.upsertWhatsAppAuthRecord)(storageKey, serialized);
+                            await upsertWhatsAppAuthRecord(storageKey, serialized);
                         }
                         else {
                             recordMap.delete(storageKey);
-                            await (0, surveys_1.removeWhatsAppAuthRecord)(storageKey);
+                            await removeWhatsAppAuthRecord(storageKey);
                         }
                     }
                 }
@@ -157,7 +168,7 @@ async function createMongoAuthState(baileys) {
             await enqueueAuthWrite("creds.update", async () => {
                 const serialized = serializeValue(authState.creds);
                 recordMap.set("creds", serialized);
-                await (0, surveys_1.upsertWhatsAppAuthRecord)("creds", serialized);
+                await upsertWhatsAppAuthRecord("creds", serialized);
             });
         },
     };
@@ -180,7 +191,7 @@ async function closeSessionAndClearAuth() {
     clearReconnectTimer();
     invalidateSocketGeneration();
     if (!currentSocket) {
-        await (0, surveys_1.clearWhatsAppAuthState)();
+        await clearWhatsAppAuthState();
         socketConnected = false;
         return;
     }
@@ -194,15 +205,15 @@ async function closeSessionAndClearAuth() {
         currentSocket = null;
         socketConnected = false;
     }
-    await (0, surveys_1.clearWhatsAppAuthState)();
+    await clearWhatsAppAuthState();
 }
 async function applyTerminalDisconnect(input) {
     currentDesiredState = "stopped";
     resetReconnectBackoff();
     if (input.lastDisconnectReason === "logged_out") {
-        await (0, surveys_1.pauseSurveyDispatchAfterWhatsAppLogout)();
+        await pauseSurveyDispatchAfterWhatsAppLogout();
     }
-    await (0, surveys_1.clearWhatsAppAuthState)();
+    await clearWhatsAppAuthState();
     await traceEvent({
         eventType: "terminal_disconnect",
         message: input.lastError,
@@ -216,7 +227,7 @@ async function applyTerminalDisconnect(input) {
             lastOutboundAttempt,
         },
     });
-    await (0, surveys_1.updateWhatsAppConnectionState)({
+    await updateWhatsAppConnectionState({
         desiredState: "stopped",
         status: "error",
         phoneNumber: null,
@@ -246,7 +257,7 @@ async function applyRequestedReset(input) {
     });
     try {
         await closeSessionAndClearAuth();
-        await (0, surveys_1.updateWhatsAppConnectionState)({
+        await updateWhatsAppConnectionState({
             desiredState: input.desiredState,
             status: "disconnected",
             phoneNumber: null,
@@ -297,7 +308,7 @@ async function bootSocket() {
         const latest = await (baileys.fetchLatestWaWebVersion?.() ?? baileys.fetchLatestBaileysVersion()).catch(() => ({
             version: [0, 0, 0],
         }));
-        await (0, surveys_1.updateWhatsAppConnectionState)({
+        await updateWhatsAppConnectionState({
             desiredState: "running",
             status: "connecting",
             qr: null,
@@ -368,7 +379,7 @@ async function bootSocket() {
                             connection,
                         },
                     });
-                    await (0, surveys_1.updateWhatsAppConnectionState)({
+                    await updateWhatsAppConnectionState({
                         desiredState: "running",
                         status: "qr_required",
                         qr,
@@ -391,7 +402,7 @@ async function bootSocket() {
                         phoneNumber,
                         generation,
                     });
-                    await (0, surveys_1.updateWhatsAppConnectionState)({
+                    await updateWhatsAppConnectionState({
                         desiredState: "running",
                         status: "connected",
                         phoneNumber,
@@ -438,7 +449,7 @@ async function bootSocket() {
                         });
                         return;
                     }
-                    await (0, surveys_1.updateWhatsAppConnectionState)({
+                    await updateWhatsAppConnectionState({
                         desiredState: "running",
                         status: "error",
                         lastError: `WhatsApp se desconecto (codigo ${statusCode || "desconocido"})`,
@@ -462,12 +473,12 @@ async function bootSocket() {
                     if (message.key?.fromMe) {
                         continue;
                     }
-                    const phoneE164 = (0, surveys_2.extractPhoneE164FromWhatsAppKey)(message.key);
+                    const phoneE164 = extractPhoneE164FromWhatsAppKey(message.key);
                     if (!phoneE164) {
                         logger.debug("mensaje entrante ignorado por no poder resolver telefono", message.key);
                         continue;
                     }
-                    await (0, surveys_1.processIncomingWhatsAppMessage)({
+                    await processIncomingWhatsAppMessage({
                         phoneE164,
                         message: message.message,
                         messenger: {
@@ -489,7 +500,7 @@ async function bootSocket() {
         }
         socketConnected = false;
         currentSocket = null;
-        await (0, surveys_1.updateWhatsAppConnectionState)({
+        await updateWhatsAppConnectionState({
             desiredState: currentDesiredState,
             status: "error",
             lastError: error instanceof Error ? error.message : String(error),
@@ -518,7 +529,7 @@ async function sendPendingSurveyIfPossible() {
     if (!socketConnected || !currentSocket) {
         return;
     }
-    const lease = await (0, surveys_1.takeNextSurveyLease)();
+    const lease = await takeNextSurveyLease();
     if (!lease) {
         return;
     }
@@ -533,45 +544,23 @@ async function sendPendingSurveyIfPossible() {
             outcome: "sending",
             errorMessage: null,
         };
-        await traceEvent({
-            eventType: "survey_send_started",
-            message: `Se inicia el envio de la encuesta ${String(lease._id)}.`,
-            status: "connected",
-            desiredState: currentDesiredState,
-            phoneNumber: lease.phoneE164,
-            details: {
-                surveyId: String(lease._id),
-                campaignId: String(lease.campaignId),
-                phoneE164: lease.phoneE164,
-            },
-        });
-        const text = await (0, surveys_1.buildSurveyIntroMessage)(String(lease._id));
-        const sent = await currentSocket.sendMessage((0, surveys_2.getWhatsappJid)(lease.phoneE164), { text });
-        const providerMessageId = sent.key?.id ?? `sent-${Date.now()}`;
-        await (0, surveys_1.markSurveySendSuccess)({
+        const sent = await enqueueOutboundSend(() => sendLeasedSurvey({
             surveyId: String(lease._id),
-            providerMessageId,
-        });
+            trigger: "worker",
+            messenger: {
+                sendText: async (jid, text) => {
+                    const response = await currentSocket.sendMessage(jid, { text });
+                    return { id: response.key?.id ?? `sent-${Date.now()}` };
+                },
+            },
+        }));
         lastOutboundAttempt = {
             ...lastOutboundAttempt,
-            providerMessageId,
+            providerMessageId: sent.providerMessageId,
             finishedAt: new Date().toISOString(),
             outcome: "sent",
             errorMessage: null,
         };
-        await traceEvent({
-            eventType: "survey_send_succeeded",
-            message: `La encuesta ${String(lease._id)} se envio correctamente.`,
-            status: "connected",
-            desiredState: currentDesiredState,
-            phoneNumber: lease.phoneE164,
-            details: {
-                surveyId: String(lease._id),
-                campaignId: String(lease.campaignId),
-                phoneE164: lease.phoneE164,
-                providerMessageId,
-            },
-        });
     }
     catch (error) {
         lastOutboundAttempt = {
@@ -584,31 +573,14 @@ async function sendPendingSurveyIfPossible() {
             outcome: "failed",
             errorMessage: error instanceof Error ? error.message : String(error),
         };
-        await (0, surveys_1.markSurveySendFailure)({
-            surveyId: String(lease._id),
-            errorMessage: error instanceof Error ? error.message : String(error),
-        });
-        await traceEvent({
-            eventType: "survey_send_failed",
-            message: `Fallo el envio de la encuesta ${String(lease._id)}.`,
-            status: "error",
-            desiredState: currentDesiredState,
-            phoneNumber: lease.phoneE164,
-            details: {
-                surveyId: String(lease._id),
-                campaignId: String(lease.campaignId),
-                phoneE164: lease.phoneE164,
-                error,
-            },
-        });
     }
 }
 async function workerLoop() {
-    await (0, surveys_1.ensureSurveySettingsForWorker)();
-    await (0, surveys_1.markLeasesAsDeliveryUnknown)();
+    await ensureSurveySettingsForWorker();
+    await markLeasesAsDeliveryUnknown();
     while (workerActive) {
         try {
-            workerOwnsLease = await (0, surveys_1.acquireWhatsAppWorkerLease)({
+            workerOwnsLease = await acquireWhatsAppWorkerLease({
                 ownerId: workerInstanceId,
                 ttlMs: WORKER_LEASE_TTL_MS,
             });
@@ -624,7 +596,7 @@ async function workerLoop() {
                 await new Promise((resolve) => setTimeout(resolve, 5_000));
                 continue;
             }
-            const connectionControl = await (0, surveys_1.getWhatsAppConnectionControlState)();
+            const connectionControl = await getWhatsAppConnectionControlState();
             currentDesiredState = connectionControl.desiredState;
             if (appliedResetNonce === null) {
                 appliedResetNonce =
@@ -659,7 +631,7 @@ async function workerLoop() {
             else if (!currentSocket && !socketBooting && !resetInProgress) {
                 await bootSocket();
             }
-            await (0, surveys_1.expireNoResponseSurveys)();
+            await expireNoResponseSurveys();
             await sendPendingSurveyIfPossible();
         }
         catch (error) {
@@ -676,14 +648,85 @@ async function workerLoop() {
         await new Promise((resolve) => setTimeout(resolve, 5_000));
     }
 }
+function readJsonBody(request) {
+    return new Promise((resolve, reject) => {
+        let body = "";
+        request.on("data", (chunk) => {
+            body += chunk.toString();
+        });
+        request.on("end", () => {
+            try {
+                resolve(body ? JSON.parse(body) : {});
+            }
+            catch (error) {
+                reject(error);
+            }
+        });
+        request.on("error", reject);
+    });
+}
+async function dispatchManualSurvey(surveyId) {
+    if (!socketConnected ||
+        !currentSocket ||
+        !workerOwnsLease ||
+        currentDesiredState !== "running") {
+        throw new Error("WhatsApp no esta listo para enviar la encuesta");
+    }
+    const sent = await enqueueOutboundSend(() => sendLeasedSurvey({
+        surveyId,
+        trigger: "manual",
+        messenger: {
+            sendText: async (jid, text) => {
+                const response = await currentSocket.sendMessage(jid, { text });
+                return { id: response.key?.id ?? `sent-${Date.now()}` };
+            },
+        },
+    }));
+    return sent;
+}
 function startHealthServer() {
-    const env = (0, env_2.getServerEnv)();
+    const env = getServerEnv();
     const port = env.WHATSAPP_WORKER_PORT ?? 3010;
     const strictHealthPort = process.env.NODE_ENV === "production";
-    const server = (0, node_http_1.createServer)((_, response) => {
+    const server = (0, node_http_1.createServer)((request, response) => {
         void (async () => {
             try {
-                const snapshot = await (0, surveys_1.getWorkerHealthSnapshot)();
+                if (request.method === "POST" && request.url === "/send-survey") {
+                    if (!socketConnected ||
+                        !currentSocket ||
+                        !workerOwnsLease ||
+                        currentDesiredState !== "running") {
+                        response.writeHead(409, { "Content-Type": "application/json" });
+                        response.end(JSON.stringify({
+                            ok: false,
+                            releaseLease: true,
+                            error: "WhatsApp no esta listo para enviar",
+                        }));
+                        return;
+                    }
+                    const body = await readJsonBody(request);
+                    const surveyId = typeof body.surveyId === "string" ? body.surveyId : "";
+                    if (!surveyId) {
+                        response.writeHead(400, { "Content-Type": "application/json" });
+                        response.end(JSON.stringify({ ok: false, releaseLease: true, error: "surveyId es obligatorio" }));
+                        return;
+                    }
+                    try {
+                        const data = await dispatchManualSurvey(surveyId);
+                        response.writeHead(200, { "Content-Type": "application/json" });
+                        response.end(JSON.stringify({ ok: true, data }));
+                    }
+                    catch (error) {
+                        response.writeHead(500, { "Content-Type": "application/json" });
+                        response.end(JSON.stringify({
+                            ok: false,
+                            releaseLease: false,
+                            error: error instanceof Error ? error.message : String(error),
+                        }));
+                    }
+                    return;
+                }
+                const snapshot = await getWorkerHealthSnapshot();
                 response.writeHead(200, { "Content-Type": "application/json" });
                 response.end(JSON.stringify({ ok: true, ...snapshot }));
             }
@@ -717,7 +760,7 @@ function shutdown(signal) {
     clearReconnectTimer();
     resetReconnectBackoff();
     discardSocket(`shutdown ${signal}`);
-    void (0, surveys_1.releaseWhatsAppWorkerLease)(workerInstanceId);
+    void releaseWhatsAppWorkerLease(workerInstanceId);
     console.log(`[whatsapp-worker] cerrando por ${signal}`);
 }
 process.once("SIGINT", () => shutdown("SIGINT"));

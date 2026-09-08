@@ -50,6 +50,7 @@ function splitRoles(value) {
         .map((role) => role.trim())
         .filter((role) => role === "administrador" ||
         role === "odontologo" ||
+        role === "ortodoncista" ||
         role === "radiologo");
 }
 function joinRoles(roles) {
