@@ -273,6 +273,7 @@ export interface DashboardMonthlyStatsDto {
   dailyAttentions: DashboardDailyAttentionDto[];
   statusSummary: DashboardStatusSummaryItemDto[];
   annualHonorariumByMonth: DashboardAnnualHonorariumItemDto[];
+  annualPaidToUserCentavos: number;
   totals: {
     atenciones: number;
     codigos: number;

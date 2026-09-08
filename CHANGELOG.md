@@ -9,8 +9,10 @@
 
 ### Changed
 
+- En `Pagos`, los botones de selección masiva ahora comparten una única fila con `Generar pago` y quedan ubicados inmediatamente a su izquierda, evitando que se apilen en una columna estrecha.
 - `Pagos` ahora permite registrar créditos manuales, como adicionales, junto a débitos; los créditos incrementan el neto a pagar y quedan auditables en la confirmación, historial, detalle y movimiento automático.
 - En `Pagos`, las acciones masivas ahora seleccionan todos los conceptos o coseguros liquidables que coinciden con los filtros activos, incluso si están en otras páginas de la grilla.
+- En `/inicio`, `Honorarios pagados del año` ahora suma el neto de los pagos efectivamente realizados al profesional durante el año seleccionado, incluyendo créditos y descuentos aplicados.
 
 ## 2026-09-06
 

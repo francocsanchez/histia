@@ -245,10 +245,6 @@ export function DashboardStats() {
     (sum, item) => sum + item.pendingAttentionCodeCentavos,
     0,
   );
-  const annualPaidCentavos = data.annualHonorariumByMonth.reduce(
-    (sum, item) => sum + item.pagadoCentavos,
-    0,
-  );
   const monthDateRange = getMonthDateRange(data.month);
 
   return (
@@ -331,7 +327,7 @@ export function DashboardStats() {
         <div className="xl:col-span-2">
           <StatCard
             label="Honorarios pagados del año"
-            value={formatCurrencyFromCents(annualPaidCentavos)}
+            value={formatCurrencyFromCents(data.annualPaidToUserCentavos)}
           />
         </div>
       </div>

@@ -7,6 +7,7 @@ import { normalizeWhitespace } from "@/lib/utils";
 import { AttentionModel } from "@/models/attention";
 import { MovementModel } from "@/models/movement";
 import { PacienteModel } from "@/models/paciente";
+import { PaymentModel } from "@/models/payment";
 import { RxAttentionModel } from "@/models/rx-attention";
 import { UserModel } from "@/models/user";
 import { listAttentionAssignableUsers } from "@/services/atenciones";
@@ -191,7 +192,7 @@ export async function getDashboardMonthlyStats(params: {
 
   const yearRange = parseYear(String(month.year));
 
-  const [dailyRows, statusRows, totalRows, annualHonorariumRows] = await Promise.all([
+  const [dailyRows, statusRows, totalRows, annualHonorariumRows, annualPaymentRows] = await Promise.all([
     AttentionModel.aggregate<{ _id: number; total: number }>([
       { $match: match },
       {
@@ -381,11 +382,33 @@ export async function getDashboardMonthlyStats(params: {
       },
       { $sort: { _id: 1 } },
     ]),
+    PaymentModel.aggregate<{ _id: null; totalNetoPagarCentavos: number }>([
+      {
+        $match: {
+          usuarioId: new Types.ObjectId(selectedUser.id),
+          paidAt: {
+            $gte: yearRange.start,
+            $lte: yearRange.end,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalNetoPagarCentavos: {
+            $sum: {
+              $ifNull: ["$totalNetoPagarCentavos", "$totalHonorariosCentavos"],
+            },
+          },
+        },
+      },
+    ]),
   ]);
 
   const dailyMap = new Map(dailyRows.map((row) => [row._id, row.total]));
   const statusMap = new Map(statusRows.map((row) => [row._id, row.total]));
   const totals = totalRows[0] ?? { _id: null, atenciones: 0, codigos: 0 };
+  const annualPaidToUserCentavos = annualPaymentRows[0]?.totalNetoPagarCentavos ?? 0;
   const annualHonorariumMap = new Map(
     annualHonorariumRows.map((row) => [
       row._id,
@@ -457,6 +480,7 @@ export async function getDashboardMonthlyStats(params: {
       total: statusMap.get(status) ?? 0,
     })),
     annualHonorariumByMonth,
+    annualPaidToUserCentavos,
     totals: {
       atenciones: totals.atenciones,
       codigos: totals.codigos,

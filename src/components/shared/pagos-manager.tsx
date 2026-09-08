@@ -724,74 +724,78 @@ export function PagosManager() {
         />
       </Card>
 
-      <Card className="grid gap-3 p-3 xl:grid-cols-8">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
-          <p className="mt-1 text-lg font-semibold">{selectedSummary.quantityConceptsPaid}</p>
+      <Card className="space-y-3 p-3">
+        <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-7">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
+            <p className="mt-1 text-lg font-semibold">{selectedSummary.quantityConceptsPaid}</p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Codigos</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatCurrencyFromCents(selectedSummary.totalPagoCodigosCentavos)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Coseguro odonto</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatCurrencyFromCents(selectedSummary.totalCoseguroOdontoCentavos)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Creditos</p>
+            <p className="mt-1 text-lg font-semibold text-emerald-700">
+              + {formatCurrencyFromCents(debitSummary.totalCreditosCentavos)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Debitos</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatCurrencyFromCents(debitSummary.totalDebitosCentavos)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total neto a pagar</p>
+            <p className="mt-1 text-lg font-semibold">
+              {formatCurrencyFromCents(debitSummary.totalNetoPagarCentavos)}
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Codigos</p>
-          <p className="mt-1 text-lg font-semibold">
-            {formatCurrencyFromCents(selectedSummary.totalPagoCodigosCentavos)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Coseguro odonto</p>
-          <p className="mt-1 text-lg font-semibold">
-            {formatCurrencyFromCents(selectedSummary.totalCoseguroOdontoCentavos)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
-          <p className="mt-1 text-lg font-semibold">
-            {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Creditos</p>
-          <p className="mt-1 text-lg font-semibold text-emerald-700">
-            + {formatCurrencyFromCents(debitSummary.totalCreditosCentavos)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Debitos</p>
-          <p className="mt-1 text-lg font-semibold">
-            {formatCurrencyFromCents(debitSummary.totalDebitosCentavos)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Total neto a pagar</p>
-          <p className="mt-1 text-lg font-semibold">
-            {formatCurrencyFromCents(debitSummary.totalNetoPagarCentavos)}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end justify-end gap-2">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void selectAllFilteredConcepts("payCode")}
-            disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
-          >
-            {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los conceptos"}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void selectAllFilteredConcepts("payCoseguroOdonto")}
-            disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
-          >
-            {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los coseguros"}
-          </Button>
-          <Button
-            onClick={openPaymentConfirmation}
-            disabled={
-              submitting ||
-              selectedItems.length === 0 ||
-              !userId
-            }
-          >
-            {submitting ? "Generando..." : "Generar pago"}
-          </Button>
+        <div className="overflow-x-auto">
+          <div className="flex w-full min-w-max items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void selectAllFilteredConcepts("payCode")}
+              disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
+            >
+              {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los conceptos"}
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void selectAllFilteredConcepts("payCoseguroOdonto")}
+              disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
+            >
+              {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los coseguros"}
+            </Button>
+            <Button
+              onClick={openPaymentConfirmation}
+              disabled={
+                submitting ||
+                selectedItems.length === 0 ||
+                !userId
+              }
+            >
+              {submitting ? "Generando..." : "Generar pago"}
+            </Button>
+          </div>
         </div>
       </Card>
 
