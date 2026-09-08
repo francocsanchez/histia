@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- El dashboard administrativo reorganiza sus graficos en tres filas operativas, elimina el grafico de RX realizadas y suma la distribucion mensual de codigos por obra social. Las tarjetas de codigos por estado y tipos de movimiento usan menos ancho para dar espacio suficiente a los graficos anualizados de atenciones e ingresos versus egresos; sus lienzos ahora se adaptan al ancho disponible para evitar el desplazamiento horizontal.
+- Las barras de `Atenciones anualizadas` ahora usan un ancho visual reducido para mejorar la lectura del comparativo mensual.
+- Las leyendas de los graficos circulares del dashboard ahora se muestran debajo de cada grafico con tipografia compacta, evitando que se recorten en las tarjetas angostas.
+- WhatsApp queda desactivado operativamente: desarrollo inicia solo la aplicacion, y el despliegue ya no levanta, espera ni compila su worker.
 - Se reemplazo la opcion deprecada de Mongoose `new` por `returnDocument` en las actualizaciones operativas de Encuestas, eliminando los avisos repetidos del worker de WhatsApp.
 - El worker de WhatsApp en desarrollo ahora resuelve los modulos desde `src`, en lugar de cargar artefactos viejos de `dist` y ejecutar comportamiento desactualizado.
 - Se corrigio la resolucion del modelo de control ISSN en el worker compilado para que la construccion de scripts de produccion vuelva a ser valida.

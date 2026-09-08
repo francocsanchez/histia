@@ -293,12 +293,6 @@ export interface AdminDashboardPieItemDto {
   total: number;
 }
 
-export interface AdminDashboardMonthlyItemDto {
-  month: number;
-  label: string;
-  total: number;
-}
-
 export interface AdminDashboardIncomeExpenseItemDto {
   month: number;
   label: string;
@@ -346,12 +340,12 @@ export interface AdminDashboardDto {
   summary: AdminDashboardSummaryDto;
   patientsByObraSocial: AdminDashboardPieItemDto[];
   attentionsByMonth: AdminDashboardMonthlyStackItemDto[];
-  rxByMonth: AdminDashboardMonthlyItemDto[];
   movementsByMonth: AdminDashboardIncomeExpenseItemDto[];
   incomeByMovementType: AdminDashboardPieItemDto[];
   expenseByMovementType: AdminDashboardPieItemDto[];
   codesByStatus: AdminDashboardCodeStatusItemDto[];
   dentistPerformanceByMonth: AdminDashboardDentistPerformanceDto[];
+  codesByObraSocialByMonth: AdminDashboardPieItemDto[];
 }
 
 export const rxTypeValues = ["carpal", "panoramica"] as const;

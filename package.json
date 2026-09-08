@@ -6,14 +6,11 @@
     "@": "dist/src"
   },
   "scripts": {
-    "postinstall": "node scripts/patch-baileys.js",
-    "dev": "concurrently -k -n app,whatsapp,issn -c blue,green,magenta \"next dev\" \"tsx scripts/whatsapp-worker.ts\" \"tsx scripts/issn-worker.ts\"",
+    "dev": "next dev",
     "build": "next build",
     "build:scripts": "node -e \"require('node:fs').rmSync('dist/scripts',{ recursive: true, force: true })\" && tsc -p tsconfig.scripts.json",
     "start": "next start",
     "start:prod": "node dist/scripts/start-prod.js",
-    "start:worker": "node dist/scripts/whatsapp-worker.js",
-    "dev:worker": "tsx scripts/whatsapp-worker.ts",
     "dev:issn-worker": "tsx scripts/issn-worker.ts",
     "test:issn": "tsx scripts/tests/issn.test.ts",
     "lint": "eslint .",
@@ -47,7 +44,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "concurrently": "^10.0.5",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
     "tailwindcss": "^4",
