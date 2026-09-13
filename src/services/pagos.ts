@@ -12,6 +12,10 @@ import {
   deleteMovementByOrigin,
 } from "@/services/movimientos";
 import {
+  calculateOrthodonticPaymentAmounts,
+  calculateOrthodonticPaymentEligibleAmounts,
+} from "@/services/ortodoncia";
+import {
   AttentionCodeStatus,
   AttentionPaymentLineItemDto,
   OrthodonticPaymentLineItemDto,
@@ -145,6 +149,7 @@ function toAttentionCandidateDto(
     orthodonticPaymentId: null,
     orthodonticPaymentDate: null,
     orthodonticPaymentAmountCentavos: null,
+    orthodonticPaymentEligibleAmountCentavos: null,
     orthodonticPaymentPercentage: null,
   };
 }
@@ -430,6 +435,30 @@ async function getOrthodonticCandidates(
       apellido?: string | null;
     };
 
+    const paymentsByDate = [...treatment.payments].sort(
+      (left, right) => left.fecha.getTime() - right.fecha.getTime(),
+    );
+    const recalculatedAmounts = calculateOrthodonticPaymentAmounts(
+      treatment.valorMaterialesCentavos,
+      paymentsByDate,
+    );
+    const eligibleAmounts = calculateOrthodonticPaymentEligibleAmounts(
+      treatment.valorMaterialesCentavos,
+      paymentsByDate,
+    );
+    const orthodontistAmountsByPaymentId = new Map(
+      paymentsByDate.map((payment, index) => [
+        String(payment._id),
+        recalculatedAmounts[index] ?? 0,
+      ]),
+    );
+    const eligibleAmountsByPaymentId = new Map(
+      paymentsByDate.map((payment, index) => [
+        String(payment._id),
+        eligibleAmounts[index] ?? 0,
+      ]),
+    );
+
     treatment.payments.forEach((payment: (typeof treatment.payments)[number]) => {
       const paymentMonth = getMonthKey(payment.fecha);
 
@@ -456,6 +485,11 @@ async function getOrthodonticCandidates(
         return;
       }
 
+      const orthodontistAmountCentavos =
+        payment.paymentStatus === "pendiente"
+          ? (orthodontistAmountsByPaymentId.get(String(payment._id)) ?? 0)
+          : payment.montoOrtodoncistaCentavos;
+
       candidates.push({
         sourceType: "orthodontic-payment",
         sourceLabel: "Ortodoncia",
@@ -475,17 +509,20 @@ async function getOrthodonticCandidates(
         codigoNombre: "Pago parcial de ortodoncia",
         pieza: null,
         estado: "ok",
-        pagoOdontologoCentavos: payment.montoOrtodoncistaCentavos,
+        pagoOdontologoCentavos: orthodontistAmountCentavos,
         coseguroOdontoCentavos: null,
         codePaymentStatus: payment.paymentStatus,
         coseguroOdontoPaymentStatus: "pendiente",
-        canPayCode: payment.paymentStatus === "pendiente",
+        canPayCode:
+          payment.paymentStatus === "pendiente" && orthodontistAmountCentavos > 0,
         canPayCoseguroOdonto: false,
         orthodonticTreatmentId: String(treatment._id),
         orthodonticTreatmentType: treatment.tratamientoTipo,
         orthodonticPaymentId: String(payment._id),
         orthodonticPaymentDate: payment.fecha.toISOString(),
         orthodonticPaymentAmountCentavos: payment.montoCentavos,
+        orthodonticPaymentEligibleAmountCentavos:
+          eligibleAmountsByPaymentId.get(String(payment._id)) ?? 0,
         orthodonticPaymentPercentage: payment.porcentajeOrtodoncista,
       });
     });
@@ -1177,6 +1214,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
             "payments.$.paymentStatus": "pagado",
             "payments.$.paymentId": paymentId,
             "payments.$.paidAt": paidAt,
+            "payments.$.montoOrtodoncistaCentavos": candidate.pagoOdontologoCentavos,
             "payments.$.updatedAt": new Date(),
           },
         },

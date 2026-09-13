@@ -1,5 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.calculateOrthodonticPaymentEligibleAmounts = calculateOrthodonticPaymentEligibleAmounts;
+exports.calculateOrthodonticPaymentAmounts = calculateOrthodonticPaymentAmounts;
 exports.listOrthodonticTreatments = listOrthodonticTreatments;
 exports.getOrthodonticTreatment = getOrthodonticTreatment;
 exports.getOrthodonticLookups = getOrthodonticLookups;
@@ -58,8 +60,37 @@ function normalizeOptionalText(value) {
 function calculateOrthodontistAmount(montoCentavos, porcentajeOrtodoncista) {
     return Math.round(montoCentavos * (porcentajeOrtodoncista / 100));
 }
+/**
+ * Los materiales se cobran antes de generar honorarios. Cada importe del
+ * resultado corresponde al pago de la misma posición de la entrada, que debe
+ * estar ordenada cronológicamente.
+ */
+function calculateOrthodonticPaymentEligibleAmounts(valorMaterialesCentavos, payments) {
+    let materialesPendientesCentavos = valorMaterialesCentavos;
+    return payments.map((payment) => {
+        const montoAplicableAlTratamientoCentavos = Math.max(payment.montoCentavos - materialesPendientesCentavos, 0);
+        materialesPendientesCentavos = Math.max(materialesPendientesCentavos - payment.montoCentavos, 0);
+        return montoAplicableAlTratamientoCentavos;
+    });
+}
+function calculateOrthodonticPaymentAmounts(valorMaterialesCentavos, payments) {
+    return calculateOrthodonticPaymentEligibleAmounts(valorMaterialesCentavos, payments).map((montoAplicableAlTratamientoCentavos, index) => calculateOrthodontistAmount(montoAplicableAlTratamientoCentavos, payments[index]?.porcentajeOrtodoncista ?? 0));
+}
+function recalculatePendingOrthodonticPaymentAmounts(treatment) {
+    const payments = [...treatment.payments].sort((left, right) => left.fecha.getTime() - right.fecha.getTime());
+    const amounts = calculateOrthodonticPaymentAmounts(treatment.valorMaterialesCentavos, payments);
+    payments.forEach((payment, index) => {
+        // Una liquidación emitida es un snapshot contable y nunca se recalcula.
+        if (payment.paymentStatus === "pendiente") {
+            payment.montoOrtodoncistaCentavos = amounts[index] ?? 0;
+            payment.updatedAt = new Date();
+        }
+    });
+}
 function buildTotals(input) {
-    const totalPresupuestadoCentavos = input.valorTratamientoCentavos + input.valorMaterialesCentavos;
+    // Los materiales se informan por separado y no forman parte del valor del
+    // tratamiento ni del saldo que se usa para medir los pagos del paciente.
+    const totalPresupuestadoCentavos = input.valorTratamientoCentavos;
     const totalPagadoPacienteCentavos = input.payments.reduce((acc, payment) => acc + payment.montoCentavos, 0);
     const totalLiquidableOrtodoncistaCentavos = input.payments.reduce((acc, payment) => acc + payment.montoOrtodoncistaCentavos, 0);
     const totalPagadoOrtodoncistaCentavos = input.payments.reduce((acc, payment) => acc +
@@ -106,6 +137,10 @@ function toTreatmentDto(document) {
     const payments = [...document.payments]
         .sort((left, right) => left.fecha.getTime() - right.fecha.getTime())
         .map(toPaymentDto);
+    const recalculatedAmounts = calculateOrthodonticPaymentAmounts(document.valorMaterialesCentavos, payments);
+    const paymentsWithCurrentAmounts = payments.map((payment, index) => payment.paymentStatus === "pendiente"
+        ? { ...payment, montoOrtodoncistaCentavos: recalculatedAmounts[index] ?? 0 }
+        : payment);
     return {
         id: getObjectIdString(document._id),
         fechaInicio: document.fechaInicio.toISOString(),
@@ -124,11 +159,11 @@ function toTreatmentDto(document) {
         valorTratamientoCentavos: document.valorTratamientoCentavos,
         valorMaterialesCentavos: document.valorMaterialesCentavos,
         estado: document.estado,
-        payments,
+        payments: paymentsWithCurrentAmounts,
         totals: buildTotals({
             valorTratamientoCentavos: document.valorTratamientoCentavos,
             valorMaterialesCentavos: document.valorMaterialesCentavos,
-            payments: payments.map((payment) => ({
+            payments: paymentsWithCurrentAmounts.map((payment) => ({
                 montoCentavos: payment.montoCentavos,
                 montoOrtodoncistaCentavos: payment.montoOrtodoncistaCentavos,
                 paymentStatus: payment.paymentStatus,
@@ -384,6 +419,7 @@ async function updateOrthodonticTreatment(id, input, currentUser) {
     treatment.valorTratamientoCentavos = input.valorTratamientoCentavos;
     treatment.valorMaterialesCentavos = input.valorMaterialesCentavos;
     treatment.estado = input.estado;
+    recalculatePendingOrthodonticPaymentAmounts(treatment);
     await treatment.save();
     return getOrthodonticTreatment(id, currentUser);
 }
@@ -399,13 +435,14 @@ async function addOrthodonticPayment(treatmentId, input, currentUser) {
         fecha: (0, utils_1.parseDateOnlyAsUtc)(input.fecha),
         montoCentavos: input.montoCentavos,
         porcentajeOrtodoncista: input.porcentajeOrtodoncista,
-        montoOrtodoncistaCentavos: calculateOrthodontistAmount(input.montoCentavos, input.porcentajeOrtodoncista),
+        montoOrtodoncistaCentavos: 0,
         paymentStatus: "pendiente",
         paymentId: null,
         paidAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
     });
+    recalculatePendingOrthodonticPaymentAmounts(treatment);
     await treatment.save();
     return getOrthodonticTreatment(treatmentId, currentUser);
 }
@@ -427,8 +464,8 @@ async function updateOrthodonticPayment(treatmentId, paymentId, input, currentUs
     payment.fecha = (0, utils_1.parseDateOnlyAsUtc)(input.fecha);
     payment.montoCentavos = input.montoCentavos;
     payment.porcentajeOrtodoncista = input.porcentajeOrtodoncista;
-    payment.montoOrtodoncistaCentavos = calculateOrthodontistAmount(input.montoCentavos, input.porcentajeOrtodoncista);
     payment.updatedAt = new Date();
+    recalculatePendingOrthodonticPaymentAmounts(treatment);
     await treatment.save();
     return getOrthodonticTreatment(treatmentId, currentUser);
 }
@@ -448,6 +485,7 @@ async function deleteOrthodonticPayment(treatmentId, paymentId, currentUser) {
         throw new api_1.AppError("VALIDATION_ERROR", "No podes eliminar un pago de ortodoncia ya liquidado", 409);
     }
     treatment.payments.splice(paymentIndex, 1);
+    recalculatePendingOrthodonticPaymentAmounts(treatment);
     await treatment.save();
     return getOrthodonticTreatment(treatmentId, currentUser);
 }

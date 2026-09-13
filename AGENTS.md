@@ -11,6 +11,10 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- En `Ortodoncia`, `valorMaterialesCentavos` debe permanecer separado de `valorTratamientoCentavos`: no se suma al presupuesto, saldo ni porcentaje de pago del paciente, pero sí define el tramo inicial de entregas que no genera honorarios.
+- En pagos de `Ortodoncia`, las entregas del paciente cubren primero `valorMaterialesCentavos`; solo el excedente acumulado de cada pago puede generar el porcentaje liquidable al ortodoncista y una entrega sin excedente no es liquidable. Los pagos ya liquidados son snapshots y no deben recalcularse.
+- En `Pagos`, una entrega de Ortodoncia pendiente con importe liquidable cero y porcentaje configurado debe mostrar que todavía está cubriendo materiales, en vez de dejar solamente un checkbox deshabilitado.
+- En `Pagos`, las filas de Ortodoncia deben distinguir `Pago paciente` de la `Base para honorarios`, que es solo el excedente luego de cubrir materiales y evita confundir el total entregado con el importe sujeto al porcentaje.
 - `/inicio` incluye el acceso a `Rendiciones`: cada profesional solo puede ver y descargar sus propios pagos, mientras administración puede filtrar todos. El PDF de cada liquidación usa los snapshots persistidos, lista códigos con estado snapshot `ok` cuando se liquidó el código, coseguros pagados, ortodoncia y ajustes, y reconcilia el neto con el pago registrado.
 - En `/dashboard`, los graficos circulares de pacientes por obra social, ingresos/egresos por tipo de movimiento y codigos por obra social del mes deben mostrar en el centro la suma de sus segmentos, conservando el formato de cantidad o moneda que corresponda.
 - En la edicion administrativa de `Atenciones` (`/atenciones/[id]/editar?admin=1`) debe mostrarse junto a la fecha el odontologo que registro la atencion, usando `usuarioCargaNombre` como dato informativo de solo lectura.

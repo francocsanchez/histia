@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- En `Ortodoncia`, el valor de materiales queda separado del valor del tratamiento: ya no incrementa el presupuesto, saldo ni porcentaje de pago del paciente.
+- Los pagos parciales de `Ortodoncia` ahora absorben primero el costo de materiales; solo el excedente de cada entrega genera el honorario porcentual liquidable al ortodoncista y las entregas sin excedente no se pueden liquidar.
+- En `Pagos`, las entregas de Ortodoncia sin honorarios ahora indican que todavía cubren materiales, tanto en el concepto como en la columna de pago bloqueada.
+- Las entregas de Ortodoncia que superan materiales ahora separan el importe pagado por el paciente de la base exacta sobre la que se calculan los honorarios.
 - Se incorpora `Rendiciones`: desde `/inicio` cada profesional puede consultar sus pagos emitidos y descargar un PDF con códigos OK, coseguros, ortodoncia, ajustes, métricas de pacientes, obras sociales y atenciones diarias; administración puede consultar todos los profesionales.
 - Los graficos circulares de pacientes por obra social, ingresos y egresos por tipo de movimiento, y codigos por obra social del mes ahora muestran su total en el centro, con el formato correspondiente a cantidad o importe.
 - En la edicion administrativa de una atencion ahora se visualiza, junto a la fecha, el odontologo que registro la atencion como dato de solo lectura.

@@ -475,6 +475,7 @@ export interface PaymentCandidateLineDto {
   orthodonticPaymentId: string | null;
   orthodonticPaymentDate: string | null;
   orthodonticPaymentAmountCentavos: number | null;
+  orthodonticPaymentEligibleAmountCentavos: number | null;
   orthodonticPaymentPercentage: number | null;
 }
 

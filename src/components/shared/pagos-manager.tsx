@@ -107,6 +107,11 @@ function formatTableDate(value: string) {
 
 function renderCandidateDescription(line: PaymentCandidateLineDto) {
   if (line.sourceType === "orthodontic-payment") {
+    const materialsStillPending =
+      line.codePaymentStatus === "pendiente" &&
+      line.pagoOdontologoCentavos === 0 &&
+      (line.orthodonticPaymentPercentage ?? 0) > 0;
+
     return (
       <div className="space-y-1">
         <p className="font-medium">{line.codigo}</p>
@@ -114,6 +119,16 @@ function renderCandidateDescription(line: PaymentCandidateLineDto) {
         <p className="text-muted-foreground">
           Pago paciente: {formatCurrencyFromCents(line.orthodonticPaymentAmountCentavos ?? 0)}
         </p>
+        {(line.orthodonticPaymentEligibleAmountCentavos ?? 0) > 0 ? (
+          <p className="font-medium">
+            Base para honorarios: {formatCurrencyFromCents(line.orthodonticPaymentEligibleAmountCentavos ?? 0)}
+          </p>
+        ) : null}
+        {materialsStillPending ? (
+          <p className="font-medium text-amber-700">
+            Sin honorarios: este pago todavía cubre materiales.
+          </p>
+        ) : null}
       </div>
     );
   }
@@ -992,6 +1007,11 @@ export function PagosManager() {
                     selection[selectionKey] ?? getInitialSelection(line);
                   const canToggleCode = line.canPayCode;
                   const canToggleCoseguro = line.canPayCoseguroOdonto;
+                  const materialsStillPending =
+                    line.sourceType === "orthodontic-payment" &&
+                    line.codePaymentStatus === "pendiente" &&
+                    line.pagoOdontologoCentavos === 0 &&
+                    (line.orthodonticPaymentPercentage ?? 0) > 0;
 
                   return (
                     <tr key={selectionKey} className="border-t border-border align-top">
@@ -1026,6 +1046,10 @@ export function PagosManager() {
                         {line.codePaymentStatus === "pagado" ? (
                           <span className="inline-flex items-center justify-center text-emerald-700">
                             <Check className="h-4 w-4" strokeWidth={3} />
+                          </span>
+                        ) : materialsStillPending ? (
+                          <span className="text-[11px] font-medium text-amber-700">
+                            Materiales
                           </span>
                         ) : (
                           <label className="inline-flex cursor-pointer items-center justify-center">

@@ -15,6 +15,7 @@ const orthodontic_treatment_1 = require("@/models/orthodontic-treatment");
 const payment_1 = require("@/models/payment");
 const user_1 = require("@/models/user");
 const movimientos_1 = require("@/services/movimientos");
+const ortodoncia_1 = require("@/services/ortodoncia");
 const APP_TIMEZONE = "America/Argentina/Buenos_Aires";
 function getMonthRangeFromKey(monthKey) {
     const [yearValue, monthValue] = monthKey.split("-");
@@ -70,6 +71,7 @@ function toAttentionCandidateDto(row) {
         orthodonticPaymentId: null,
         orthodonticPaymentDate: null,
         orthodonticPaymentAmountCentavos: null,
+        orthodonticPaymentEligibleAmountCentavos: null,
         orthodonticPaymentPercentage: null,
     };
 }
@@ -288,6 +290,17 @@ async function getOrthodonticCandidates(query) {
     treatments.forEach((treatment) => {
         const patient = treatment.pacienteId;
         const orthodontist = treatment.usuarioOrtodoncistaId;
+        const paymentsByDate = [...treatment.payments].sort((left, right) => left.fecha.getTime() - right.fecha.getTime());
+        const recalculatedAmounts = (0, ortodoncia_1.calculateOrthodonticPaymentAmounts)(treatment.valorMaterialesCentavos, paymentsByDate);
+        const eligibleAmounts = (0, ortodoncia_1.calculateOrthodonticPaymentEligibleAmounts)(treatment.valorMaterialesCentavos, paymentsByDate);
+        const orthodontistAmountsByPaymentId = new Map(paymentsByDate.map((payment, index) => [
+            String(payment._id),
+            recalculatedAmounts[index] ?? 0,
+        ]));
+        const eligibleAmountsByPaymentId = new Map(paymentsByDate.map((payment, index) => [
+            String(payment._id),
+            eligibleAmounts[index] ?? 0,
+        ]));
         treatment.payments.forEach((payment) => {
             const paymentMonth = getMonthKey(payment.fecha);
             if (month && paymentMonth !== month) {
@@ -308,6 +321,9 @@ async function getOrthodonticCandidates(query) {
             if (search && !searchHaystack.includes(search)) {
                 return;
             }
+            const orthodontistAmountCentavos = payment.paymentStatus === "pendiente"
+                ? (orthodontistAmountsByPaymentId.get(String(payment._id)) ?? 0)
+                : payment.montoOrtodoncistaCentavos;
             candidates.push({
                 sourceType: "orthodontic-payment",
                 sourceLabel: "Ortodoncia",
@@ -327,17 +343,18 @@ async function getOrthodonticCandidates(query) {
                 codigoNombre: "Pago parcial de ortodoncia",
                 pieza: null,
                 estado: "ok",
-                pagoOdontologoCentavos: payment.montoOrtodoncistaCentavos,
+                pagoOdontologoCentavos: orthodontistAmountCentavos,
                 coseguroOdontoCentavos: null,
                 codePaymentStatus: payment.paymentStatus,
                 coseguroOdontoPaymentStatus: "pendiente",
-                canPayCode: payment.paymentStatus === "pendiente",
+                canPayCode: payment.paymentStatus === "pendiente" && orthodontistAmountCentavos > 0,
                 canPayCoseguroOdonto: false,
                 orthodonticTreatmentId: String(treatment._id),
                 orthodonticTreatmentType: treatment.tratamientoTipo,
                 orthodonticPaymentId: String(payment._id),
                 orthodonticPaymentDate: payment.fecha.toISOString(),
                 orthodonticPaymentAmountCentavos: payment.montoCentavos,
+                orthodonticPaymentEligibleAmountCentavos: eligibleAmountsByPaymentId.get(String(payment._id)) ?? 0,
                 orthodonticPaymentPercentage: payment.porcentajeOrtodoncista,
             });
         });
@@ -832,6 +849,7 @@ async function createPayment(input, currentUserId) {
                     "payments.$.paymentStatus": "pagado",
                     "payments.$.paymentId": paymentId,
                     "payments.$.paidAt": paidAt,
+                    "payments.$.montoOrtodoncistaCentavos": candidate.pagoOdontologoCentavos,
                     "payments.$.updatedAt": new Date(),
                 },
             });

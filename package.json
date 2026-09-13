@@ -19,7 +19,8 @@
     "migrate:pacientes": "tsx scripts/migrate-paciente-names.ts",
     "migrate:pacientes:prod": "node dist/scripts/migrate-paciente-names.js",
     "test:pacientes": "tsx --test scripts/tests/pacientes-normalization.test.ts",
-    "test:rendiciones": "tsx --test scripts/tests/rendiciones.test.ts"
+    "test:rendiciones": "tsx --test scripts/tests/rendiciones.test.ts",
+    "test:ortodoncia": "tsx --test scripts/tests/ortodoncia-payments.test.ts"
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.6.25",

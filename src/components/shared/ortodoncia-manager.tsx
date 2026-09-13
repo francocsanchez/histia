@@ -523,7 +523,7 @@ export function OrtodonciaManager({
                   <th className="px-4 py-3">Inicio</th>
                   <th className="px-4 py-3">Paciente</th>
                   <th className="px-4 py-3">Sistema</th>
-                  <th className="px-4 py-3 text-right">Presupuesto</th>
+                  <th className="px-4 py-3 text-right">Tratamiento</th>
                   <th className="px-4 py-3 text-right">Pagado</th>
                   <th className="px-4 py-3 text-right">Saldo</th>
                   <th className="px-4 py-3 text-right">% pagado</th>
@@ -726,7 +726,7 @@ export function OrtodonciaManager({
               <div>
                 <h3 className="text-lg font-semibold">Pagos del tratamiento</h3>
                 <p className="text-sm text-muted-foreground">
-                  Registra pagos parciales y controla el saldo del paciente.
+                  Los pagos primero cubren materiales; el excedente genera honorarios para el ortodoncista.
                 </p>
               </div>
               <Button type="button" onClick={openNewPayment}>
@@ -736,8 +736,12 @@ export function OrtodonciaManager({
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               <StatCard
-                label="Total tratamiento + materiales"
+                label="Valor tratamiento"
                 value={formatCurrencyFromCents(selected.totals.totalPresupuestadoCentavos)}
+              />
+              <StatCard
+                label="Valor materiales (no incluido)"
+                value={formatCurrencyFromCents(selected.valorMaterialesCentavos)}
               />
               <StatCard
                 label="Total pagado paciente"
@@ -830,7 +834,7 @@ export function OrtodonciaManager({
         open={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
         title={selectedPayment ? "Editar pago" : "Nuevo pago"}
-        description="Cada pago calcula automaticamente el monto liquidable al ortodoncista."
+        description="Primero se cubren los materiales; solo el excedente de este pago calcula el monto liquidable al ortodoncista."
       >
         <form className="space-y-4" onSubmit={submitPayment}>
           <div>
