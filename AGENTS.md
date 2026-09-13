@@ -11,6 +11,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- En `/dashboard`, los graficos circulares de pacientes por obra social, ingresos/egresos por tipo de movimiento y codigos por obra social del mes deben mostrar en el centro la suma de sus segmentos, conservando el formato de cantidad o moneda que corresponda.
 - En la edicion administrativa de `Atenciones` (`/atenciones/[id]/editar?admin=1`) debe mostrarse junto a la fecha el odontologo que registro la atencion, usando `usuarioCargaNombre` como dato informativo de solo lectura.
 - `Pacientes` permite descargar e importar un Excel editable (`id`, nombre, apellido, DNI, obra social y activo) con preview validado; las filas con `id` actualizan, las restantes crean, y las filas ausentes no se modifican. La importacion/exportacion queda solo para administradores.
 - Los nombres y apellidos de `Pacientes` siempre se persisten en minusculas desde el esquema Mongoose; ejecutar una unica vez `npm run migrate:pacientes` para normalizar registros historicos de forma idempotente.

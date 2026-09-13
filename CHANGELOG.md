@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Los graficos circulares de pacientes por obra social, ingresos y egresos por tipo de movimiento, y codigos por obra social del mes ahora muestran su total en el centro, con el formato correspondiente a cantidad o importe.
 - En la edicion administrativa de una atencion ahora se visualiza, junto a la fecha, el odontologo que registro la atencion como dato de solo lectura.
 - `Pacientes` ahora permite descargar e importar un Excel editable con preview validado, altas o actualizaciones por `id`, control de DNI/cobertura/estado y seleccion de filas validas sin modificar registros ausentes.
 - Los nombres y apellidos de pacientes se fuerzan a minusculas tambien desde el esquema de persistencia, y se agrega `npm run migrate:pacientes` para normalizar de forma idempotente los registros historicos.

@@ -162,6 +162,8 @@ function PieChart({
 }) {
   const [tooltip, setTooltip] = useState<ChartTooltipState | null>(null);
   const total = items.reduce((sum, item) => sum + item.total, 0);
+  const totalLabel = unitFormatter(total);
+  const totalLabelFontSize = totalLabel.length > 12 ? 10 : totalLabel.length > 8 ? 13 : 16;
 
   if (total === 0 || items.length === 0) {
     return <EmptyChart label="No hay datos para mostrar." />;
@@ -217,6 +219,18 @@ function PieChart({
             />
           ))}
           <circle cx="100" cy="100" r="48" fill="white" />
+          <text
+            x="100"
+            y="100"
+            textAnchor="middle"
+            dominantBaseline="middle"
+            transform="rotate(90 100 100)"
+            fontSize={totalLabelFontSize}
+            fontWeight="600"
+            fill="currentColor"
+          >
+            {totalLabel}
+          </text>
         </svg>
       </div>
       <div className="space-y-2 text-xs">
