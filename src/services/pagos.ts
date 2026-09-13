@@ -149,7 +149,7 @@ function toAttentionCandidateDto(
   };
 }
 
-function toPaymentDto(payment: {
+export function toPaymentDto(payment: {
   _id: unknown;
   usuarioId: unknown;
   usuarioNombreSnapshot: string;
@@ -810,6 +810,34 @@ export async function listPayments(query: PaymentHistoryQuery) {
       totalPages: Math.max(1, Math.ceil(total / query.limit)),
     },
   };
+}
+
+export async function getPaymentById(paymentId: string) {
+  await connectToDatabase();
+
+  if (!Types.ObjectId.isValid(paymentId)) {
+    throw new AppError("NOT_FOUND", "Pago no encontrado", 404);
+  }
+
+  const payment = await PaymentModel.findById(paymentId).lean();
+
+  if (!payment) {
+    throw new AppError("NOT_FOUND", "Pago no encontrado", 404);
+  }
+
+  return toPaymentDto({
+    ...payment,
+    lineItems: (payment.lineItems ?? []).map((lineItem: unknown) =>
+      mapPersistedLineItem(lineItem as Record<string, unknown>),
+    ),
+    totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos ?? 0,
+    totalCreditosCentavos: payment.totalCreditosCentavos ?? 0,
+    totalDebitosCentavos: payment.totalDebitosCentavos ?? 0,
+    totalNetoPagarCentavos:
+      payment.totalNetoPagarCentavos ?? payment.totalHonorariosCentavos,
+    debitItems: payment.debitItems ?? [],
+    creditItems: payment.creditItems ?? [],
+  });
 }
 
 async function rollbackPaymentOperation(

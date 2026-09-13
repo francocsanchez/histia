@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Se incorpora `Rendiciones`: desde `/inicio` cada profesional puede consultar sus pagos emitidos y descargar un PDF con códigos OK, coseguros, ortodoncia, ajustes, métricas de pacientes, obras sociales y atenciones diarias; administración puede consultar todos los profesionales.
 - Los graficos circulares de pacientes por obra social, ingresos y egresos por tipo de movimiento, y codigos por obra social del mes ahora muestran su total en el centro, con el formato correspondiente a cantidad o importe.
 - En la edicion administrativa de una atencion ahora se visualiza, junto a la fecha, el odontologo que registro la atencion como dato de solo lectura.
 - `Pacientes` ahora permite descargar e importar un Excel editable con preview validado, altas o actualizaciones por `id`, control de DNI/cobertura/estado y seleccion de filas validas sin modificar registros ausentes.

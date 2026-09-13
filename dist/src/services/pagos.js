@@ -1,8 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.toPaymentDto = toPaymentDto;
 exports.listPaymentCandidates = listPaymentCandidates;
 exports.listPaymentLookups = listPaymentLookups;
 exports.listPayments = listPayments;
+exports.getPaymentById = getPaymentById;
 exports.createPayment = createPayment;
 const mongoose_1 = require("mongoose");
 const api_1 = require("@/lib/api");
@@ -584,6 +586,26 @@ async function listPayments(query) {
             totalPages: Math.max(1, Math.ceil(total / query.limit)),
         },
     };
+}
+async function getPaymentById(paymentId) {
+    await (0, mongoose_2.connectToDatabase)();
+    if (!mongoose_1.Types.ObjectId.isValid(paymentId)) {
+        throw new api_1.AppError("NOT_FOUND", "Pago no encontrado", 404);
+    }
+    const payment = await payment_1.PaymentModel.findById(paymentId).lean();
+    if (!payment) {
+        throw new api_1.AppError("NOT_FOUND", "Pago no encontrado", 404);
+    }
+    return toPaymentDto({
+        ...payment,
+        lineItems: (payment.lineItems ?? []).map((lineItem) => mapPersistedLineItem(lineItem)),
+        totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos ?? 0,
+        totalCreditosCentavos: payment.totalCreditosCentavos ?? 0,
+        totalDebitosCentavos: payment.totalDebitosCentavos ?? 0,
+        totalNetoPagarCentavos: payment.totalNetoPagarCentavos ?? payment.totalHonorariosCentavos,
+        debitItems: payment.debitItems ?? [],
+        creditItems: payment.creditItems ?? [],
+    });
 }
 async function rollbackPaymentOperation(paymentId, selectedItems) {
     const connection = await (0, mongoose_2.connectToDatabase)();

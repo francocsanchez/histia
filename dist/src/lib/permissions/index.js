@@ -37,5 +37,8 @@ function can(user, resource, action) {
     if (resource === "dashboard") {
         return true;
     }
+    if (resource === "rendiciones") {
+        return true;
+    }
     return action === "read" && readOnlyRoles.some((role) => user.roles.includes(role));
 }

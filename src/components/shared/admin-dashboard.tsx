@@ -642,7 +642,7 @@ export function AdminDashboard() {
 
         <ChartShell
           className="xl:col-span-3"
-          title="Codigos por estado"
+          title="Prestaciones por estado"
           description="Distribucion anual de lineas de codigos segun su estado de auditoria."
         >
           <HorizontalBarChart items={data.codesByStatus} />

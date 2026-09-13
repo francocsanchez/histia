@@ -649,6 +649,28 @@ export interface OrthodonticPaymentDto {
   updatedAt: string;
 }
 
+export interface RenditionObraSocialDto {
+  nombre: string;
+  pacientes: number;
+  porcentaje: number;
+}
+
+export interface RenditionDailyAttentionDto {
+  date: string;
+  total: number;
+}
+
+export interface RenditionDto {
+  payment: PaymentDto;
+  pacientesUnicos: number;
+  atencionesUnicas: number;
+  obrasSociales: RenditionObraSocialDto[];
+  atencionesPorDia: RenditionDailyAttentionDto[];
+  codigosPagados: AttentionPaymentLineItemDto[];
+  cosegurosPagados: AttentionPaymentLineItemDto[];
+  ortodonciaPagada: OrthodonticPaymentLineItemDto[];
+}
+
 export interface OrthodonticTreatmentTotalsDto {
   totalPresupuestadoCentavos: number;
   totalPagadoPacienteCentavos: number;

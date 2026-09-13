@@ -11,6 +11,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- `/inicio` incluye el acceso a `Rendiciones`: cada profesional solo puede ver y descargar sus propios pagos, mientras administración puede filtrar todos. El PDF de cada liquidación usa los snapshots persistidos, lista códigos con estado snapshot `ok` cuando se liquidó el código, coseguros pagados, ortodoncia y ajustes, y reconcilia el neto con el pago registrado.
 - En `/dashboard`, los graficos circulares de pacientes por obra social, ingresos/egresos por tipo de movimiento y codigos por obra social del mes deben mostrar en el centro la suma de sus segmentos, conservando el formato de cantidad o moneda que corresponda.
 - En la edicion administrativa de `Atenciones` (`/atenciones/[id]/editar?admin=1`) debe mostrarse junto a la fecha el odontologo que registro la atencion, usando `usuarioCargaNombre` como dato informativo de solo lectura.
 - `Pacientes` permite descargar e importar un Excel editable (`id`, nombre, apellido, DNI, obra social y activo) con preview validado; las filas con `id` actualizan, las restantes crean, y las filas ausentes no se modifican. La importacion/exportacion queda solo para administradores.

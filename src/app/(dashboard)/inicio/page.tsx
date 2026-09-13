@@ -7,6 +7,8 @@ export default function InicioPage() {
       <PageHeader
         title="Inicio"
         description="Seguimiento mensual de atenciones y estados cargados por cada usuario."
+        actionLabel="Ver rendiciones"
+        actionHref="/rendiciones"
       />
 
       <DashboardStats />

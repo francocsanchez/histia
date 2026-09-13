@@ -316,7 +316,7 @@ export function DashboardStats() {
           <StatCard label="Atenciones del mes" value={data.totals.atenciones} />
         </div>
         <div className="xl:col-span-1">
-          <StatCard label="Codigos del mes" value={data.totals.codigos} />
+          <StatCard label="Prestaciones del mes" value={data.totals.codigos} />
         </div>
         <div className="xl:col-span-2">
           <StatCard

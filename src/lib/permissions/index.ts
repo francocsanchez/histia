@@ -9,6 +9,7 @@ export type ResourceKey =
   | "atenciones"
   | "liquidaciones"
   | "pagos"
+  | "rendiciones"
   | "movimientos"
   | "tipos-movimientos"
   | "obras-sociales"
@@ -66,6 +67,10 @@ export function can(
   }
 
   if (resource === "dashboard") {
+    return true;
+  }
+
+  if (resource === "rendiciones") {
     return true;
   }
 
