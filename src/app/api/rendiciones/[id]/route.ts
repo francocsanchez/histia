@@ -3,7 +3,10 @@ import { requireApiSessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { getRenditionForUser } from "@/services/rendiciones";
 
-export async function GET(request: Request, context: RouteContext<"/api/rendiciones/[id]">) {
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
   try {
     const user = await requireApiSessionUser(request.headers);
 
