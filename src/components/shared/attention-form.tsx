@@ -663,6 +663,14 @@ export function AttentionForm({
                 readOnly={isUserEditMode}
               />
             </div>
+            {isAdministrative && initialAttention ? (
+              <div>
+                <label className="mb-2 block text-sm font-medium">
+                  Odontologo
+                </label>
+                <Input value={initialAttention.usuarioCargaNombre} readOnly />
+              </div>
+            ) : null}
             <div className="md:col-span-2">
               <label className="mb-2 block text-sm font-medium">Observacion general</label>
               <textarea

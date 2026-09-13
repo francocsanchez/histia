@@ -224,7 +224,7 @@ export function LiquidacionesManager() {
             updateFilters({ userId: event.target.value }, true);
           }}
         >
-          <option value="">Todos los cargadores</option>
+          <option value="">Todos los usuarios</option>
           {usuariosCarga.map((usuario) => (
             <option key={usuario.id} value={usuario.id}>
               {usuario.label}

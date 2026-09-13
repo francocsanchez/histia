@@ -11,6 +11,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- En la edicion administrativa de `Atenciones` (`/atenciones/[id]/editar?admin=1`) debe mostrarse junto a la fecha el odontologo que registro la atencion, usando `usuarioCargaNombre` como dato informativo de solo lectura.
 - `Pacientes` permite descargar e importar un Excel editable (`id`, nombre, apellido, DNI, obra social y activo) con preview validado; las filas con `id` actualizan, las restantes crean, y las filas ausentes no se modifican. La importacion/exportacion queda solo para administradores.
 - Los nombres y apellidos de `Pacientes` siempre se persisten en minusculas desde el esquema Mongoose; ejecutar una unica vez `npm run migrate:pacientes` para normalizar registros historicos de forma idempotente.
 - El dashboard administrativo organiza sus graficos en tres filas: pacientes/atenciones/codigos por estado; movimientos anualizados por tipo; odontologos y codigos por obra social del mes. En desktop, la primera fila reparte 4/12, 5/12 y 3/12; la segunda 6/12, 3/12 y 3/12. Los lienzos anualizados usan el ancho disponible, evitando desplazamiento horizontal. Las barras de Atenciones anualizadas se muestran mas angostas para no dominar la lectura de la fila. Las leyendas de los graficos circulares se ubican debajo y usan tipografia compacta para evitar recortes en tarjetas angostas. RX realizadas no forma parte de este dashboard y los codigos mensuales se agrupan por la obra social de la atencion.
