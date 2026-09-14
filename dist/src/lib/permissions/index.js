@@ -16,6 +16,9 @@ function can(user, resource, action) {
     if (resource === "ortodoncia") {
         return user.roles.includes("ortodoncista");
     }
+    if (resource === "placas-bruxismo") {
+        return user.roles.includes("odontologo");
+    }
     if (resource === "atenciones") {
         return user.roles.includes("odontologo");
     }

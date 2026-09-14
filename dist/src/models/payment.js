@@ -1,11 +1,12 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PaymentModel = void 0;
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 const mongoose_1 = require("mongoose");
 const paymentLineItemSchema = new mongoose_1.Schema({
     sourceType: {
         type: String,
-        enum: ["attention", "orthodontic-payment"],
+        enum: ["attention", "orthodontic-payment", "bruxism-plate"],
         required: true,
     },
     attentionId: {
@@ -128,6 +129,11 @@ const paymentLineItemSchema = new mongoose_1.Schema({
         default: null,
         min: 0,
     },
+    bruxismPlateId: { type: mongoose_1.Schema.Types.ObjectId, ref: "BruxismPlate", default: null },
+    plateDate: { type: Date, default: null },
+    coverageCentavos: { type: Number, default: null, min: 0 },
+    laboratoryCostCentavos: { type: Number, default: null, min: 0 },
+    dentistAmountCentavos: { type: Number, default: null, min: 0 },
     totalLineaCentavos: {
         type: Number,
         required: true,
@@ -177,7 +183,7 @@ const paymentSchema = new mongoose_1.Schema({
         required: true,
     },
     lineItems: {
-        type: [paymentLineItemSchema],
+        type: [mongoose_1.Schema.Types.Mixed],
         default: [],
     },
     totalPagoCodigosCentavos: {
@@ -195,6 +201,7 @@ const paymentSchema = new mongoose_1.Schema({
         required: true,
         min: 0,
     },
+    totalPlacasBruxismoCentavos: { type: Number, required: true, default: 0, min: 0 },
     totalHonorariosCentavos: {
         type: Number,
         required: true,
@@ -237,5 +244,7 @@ const paymentSchema = new mongoose_1.Schema({
 });
 paymentSchema.index({ usuarioId: 1, attentionMonth: 1, paidAt: -1 });
 paymentSchema.index({ usuarioId: 1, attentionMonths: 1, paidAt: -1 });
-exports.PaymentModel = mongoose_1.models.Payment ||
-    (0, mongoose_1.model)("Payment", paymentSchema);
+if (mongoose_1.models.Payment) {
+    delete mongoose_1.models.Payment;
+}
+exports.PaymentModel = (0, mongoose_1.model)("Payment", paymentSchema);

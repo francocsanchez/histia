@@ -5,6 +5,7 @@ export type ResourceKey =
   | "admin-dashboard"
   | "encuestas"
   | "ortodoncia"
+  | "placas-bruxismo"
   | "rx"
   | "atenciones"
   | "liquidaciones"
@@ -41,6 +42,10 @@ export function can(
 
   if (resource === "ortodoncia") {
     return user.roles.includes("ortodoncista");
+  }
+
+  if (resource === "placas-bruxismo") {
+    return user.roles.includes("odontologo");
   }
 
   if (resource === "atenciones") {

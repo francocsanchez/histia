@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.surveySettingsSchema = exports.surveyCancelSchema = exports.surveyDashboardFilterSchema = exports.surveyCampaignActionSchema = exports.surveyCampaignCreateSchema = exports.surveyPreviewRowSchema = exports.movementTypeSchema = exports.movementUpdateSchema = exports.movementCreateSchema = exports.paymentStatusSchema = exports.orthodonticPaymentSchema = exports.orthodonticTreatmentSchema = exports.paymentCreateSchema = exports.paymentCreditItemSchema = exports.paymentDebitItemSchema = exports.paymentCandidateSelectionSchema = exports.attentionSchema = exports.rxAttentionSchema = exports.userPasswordChangeSchema = exports.userPasswordSchema = exports.userUpdateSchema = exports.userCreateSchema = exports.pacienteSchema = exports.codigoObraSocialSchema = exports.obraSocialSchema = exports.loginSchema = void 0;
+exports.surveySettingsSchema = exports.surveyCancelSchema = exports.surveyDashboardFilterSchema = exports.surveyCampaignActionSchema = exports.surveyCampaignCreateSchema = exports.surveyPreviewRowSchema = exports.movementTypeSchema = exports.movementUpdateSchema = exports.movementCreateSchema = exports.paymentStatusSchema = exports.bruxismPlateReceiveSchema = exports.bruxismPlatePaymentSchema = exports.bruxismPlateCreateSchema = exports.orthodonticPaymentSchema = exports.orthodonticTreatmentSchema = exports.paymentCreateSchema = exports.paymentCreditItemSchema = exports.paymentDebitItemSchema = exports.paymentCandidateSelectionSchema = exports.attentionSchema = exports.rxAttentionSchema = exports.userPasswordChangeSchema = exports.userPasswordSchema = exports.userUpdateSchema = exports.userCreateSchema = exports.pacienteSchema = exports.codigoObraSocialSchema = exports.obraSocialSchema = exports.loginSchema = void 0;
 const zod_1 = require("zod");
 const domain_1 = require("@/types/domain");
 function normalizeIntegerInput(value) {
@@ -178,10 +178,12 @@ exports.attentionSchema = zod_1.z
 });
 exports.paymentCandidateSelectionSchema = zod_1.z
     .object({
-    sourceType: zod_1.z.enum(["attention", "orthodontic-payment"]),
+    sourceType: zod_1.z.enum(["attention", "orthodontic-payment", "bruxism-plate"]),
     lineId: zod_1.z.string().min(1, "La linea es obligatoria"),
     payCode: zod_1.z.boolean(),
     payCoseguroOdonto: zod_1.z.boolean(),
+    bruxismCoverageCentavos: zod_1.z.coerce.number().int().min(0).optional(),
+    bruxismPercentageToDentist: zod_1.z.coerce.number().min(0).max(100).optional(),
 })
     .superRefine((value, ctx) => {
     if (!value.payCode && !value.payCoseguroOdonto) {
@@ -254,6 +256,25 @@ exports.orthodonticPaymentSchema = zod_1.z.object({
         .coerce.number()
         .min(0, "El porcentaje debe ser igual o mayor que cero")
         .max(100, "El porcentaje debe ser igual o menor que 100"),
+});
+const platePatientSchema = zod_1.z.object({
+    nombre: zod_1.z.string().min(1, "El nombre es obligatorio"),
+    apellido: zod_1.z.string().min(1, "El apellido es obligatorio"),
+    dni: zod_1.z.string().min(1, "El DNI es obligatorio"),
+    obraSocialId: zod_1.z.string().optional().nullable(),
+});
+exports.bruxismPlateCreateSchema = zod_1.z.object({
+    fecha: zod_1.z.string().min(1, "La fecha es obligatoria"),
+    pacienteId: zod_1.z.string().optional().nullable(),
+    paciente: platePatientSchema.optional(),
+    montoCentavos: zod_1.z.coerce.number().int().min(1, "El primer pago debe ser mayor que cero"),
+}).refine((value) => Boolean(value.pacienteId || value.paciente), { path: ["pacienteId"], message: "Debes seleccionar un paciente" });
+exports.bruxismPlatePaymentSchema = zod_1.z.object({
+    fecha: zod_1.z.string().min(1, "La fecha es obligatoria"),
+    montoCentavos: zod_1.z.coerce.number().int().min(1, "El pago debe ser mayor que cero"),
+});
+exports.bruxismPlateReceiveSchema = zod_1.z.object({
+    costoLaboratorioCentavos: zod_1.z.coerce.number().int().min(0, "El costo debe ser igual o mayor que cero"),
 });
 exports.paymentStatusSchema = zod_1.z.enum(domain_1.paymentStatusValues);
 exports.movementCreateSchema = zod_1.z.object({

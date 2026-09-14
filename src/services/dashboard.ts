@@ -8,6 +8,7 @@ import { AttentionModel } from "@/models/attention";
 import { MovementModel } from "@/models/movement";
 import { PacienteModel } from "@/models/paciente";
 import { PaymentModel } from "@/models/payment";
+import { BruxismPlateModel } from "@/models/bruxism-plate";
 import { UserModel } from "@/models/user";
 import { listAttentionAssignableUsers } from "@/services/atenciones";
 import {
@@ -191,7 +192,7 @@ export async function getDashboardMonthlyStats(params: {
 
   const yearRange = parseYear(String(month.year));
 
-  const [dailyRows, statusRows, totalRows, annualHonorariumRows, annualPaymentRows] = await Promise.all([
+  const [dailyRows, statusRows, totalRows, annualHonorariumRows, annualPaymentRows, pendingPlates] = await Promise.all([
     AttentionModel.aggregate<{ _id: number; total: number }>([
       { $match: match },
       {
@@ -402,6 +403,7 @@ export async function getDashboardMonthlyStats(params: {
         },
       },
     ]),
+    BruxismPlateModel.countDocuments({ odontologoId: new Types.ObjectId(selectedUser.id), estado: "lista-entrega" }),
   ]);
 
   const dailyMap = new Map(dailyRows.map((row) => [row._id, row.total]));
@@ -483,6 +485,7 @@ export async function getDashboardMonthlyStats(params: {
     totals: {
       atenciones: totals.atenciones,
       codigos: totals.codigos,
+      placasPendientesEntrega: pendingPlates,
     },
   };
 }

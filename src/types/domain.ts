@@ -277,6 +277,7 @@ export interface DashboardMonthlyStatsDto {
   totals: {
     atenciones: number;
     codigos: number;
+    placasPendientesEntrega?: number;
   };
 }
 
@@ -446,7 +447,7 @@ export interface AttentionDto {
 }
 
 export interface PaymentCandidateLineDto {
-  sourceType: "attention" | "orthodontic-payment";
+  sourceType: "attention" | "orthodontic-payment" | "bruxism-plate";
   sourceLabel: string;
   attentionId: string;
   attentionFecha: string;
@@ -477,6 +478,11 @@ export interface PaymentCandidateLineDto {
   orthodonticPaymentAmountCentavos: number | null;
   orthodonticPaymentEligibleAmountCentavos: number | null;
   orthodonticPaymentPercentage: number | null;
+  bruxismPlateId?: string | null;
+  bruxismPatientPaymentsCentavos?: number | null;
+  bruxismLaboratoryCostCentavos?: number | null;
+  bruxismCoverageCentavos?: number | null;
+  bruxismPercentageToDentist?: number | null;
 }
 
 export interface AttentionCodeControlDto {
@@ -498,10 +504,12 @@ export interface AttentionCodeControlDto {
 }
 
 export interface PaymentCandidateSelectionDto {
-  sourceType: "attention" | "orthodontic-payment";
+  sourceType: "attention" | "orthodontic-payment" | "bruxism-plate";
   lineId: string;
   payCode: boolean;
   payCoseguroOdonto: boolean;
+  bruxismCoverageCentavos?: number;
+  bruxismPercentageToDentist?: number;
 }
 
 export interface AttentionPaymentLineItemDto {
@@ -541,9 +549,25 @@ export interface OrthodonticPaymentLineItemDto {
   totalLineaCentavos: number;
 }
 
+export interface BruxismPlatePaymentLineItemDto {
+  sourceType: "bruxism-plate";
+  bruxismPlateId: string;
+  plateDate: string;
+  patientId: string;
+  patientName: string;
+  patientDni: string;
+  patientPaymentsCentavos: number;
+  coverageCentavos: number;
+  laboratoryCostCentavos: number;
+  percentageToDentist: number;
+  dentistAmountCentavos: number;
+  totalLineaCentavos: number;
+}
+
 export type PaymentLineItemDto =
   | AttentionPaymentLineItemDto
-  | OrthodonticPaymentLineItemDto;
+  | OrthodonticPaymentLineItemDto
+  | BruxismPlatePaymentLineItemDto;
 
 export interface PaymentDebitItemDto {
   montoCentavos: number;
@@ -566,6 +590,7 @@ export interface PaymentDto {
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
+  totalPlacasBruxismoCentavos?: number;
   totalHonorariosCentavos: number;
   totalCreditosCentavos: number;
   totalDebitosCentavos: number;
@@ -585,6 +610,7 @@ export interface PaymentSummaryDto {
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
+  totalPlacasBruxismoCentavos?: number;
   totalHonorariosCentavos: number;
   totalCreditosCentavos: number;
   totalDebitosCentavos: number;
@@ -602,6 +628,7 @@ export interface MovementPaymentMetadataDto {
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
+  totalPlacasBruxismoCentavos?: number;
   totalHonorariosCentavos: number;
   totalCreditosCentavos: number;
   totalDebitosCentavos: number;
@@ -670,6 +697,16 @@ export interface RenditionDto {
   codigosPagados: AttentionPaymentLineItemDto[];
   cosegurosPagados: AttentionPaymentLineItemDto[];
   ortodonciaPagada: OrthodonticPaymentLineItemDto[];
+  placasBruxismoPagadas?: BruxismPlatePaymentLineItemDto[];
+}
+
+export type BruxismPlateStatus = "en-laboratorio" | "lista-entrega" | "entregada" | "liquidada";
+export interface BruxismPlatePaymentDto { id: string; fecha: string; montoCentavos: number; createdAt: string; }
+export interface BruxismPlateDto {
+  id: string; fecha: string; pacienteId: string; pacienteNombreCompleto: string; pacienteDni: string;
+  odontologoId: string; odontologoNombre: string; estado: BruxismPlateStatus; payments: BruxismPlatePaymentDto[];
+  totalPagosPacienteCentavos: number; laboratorioRecibidoAt: string | null; costoLaboratorioCentavos: number | null;
+  entregadaAt: string | null; liquidadaAt: string | null; paymentId: string | null; createdAt: string; updatedAt: string;
 }
 
 export interface OrthodonticTreatmentTotalsDto {

@@ -11,6 +11,25 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- El modelo `Payment` debe eliminar su entrada previa de `models` antes de registrarse, igual que `Movement`: durante hot reload de Next, un esquema cacheado sin la línea `bruxism-plate` puede rechazar una liquidación de Placas Bruxismo aunque el código actual la soporte.
+
+- El diálogo de confirmación de `Pagos` debe desglosar también `Total placas Bruxismo`, entre Ortodoncia y créditos, para reconciliar visualmente todos los componentes del neto a pagar.
+
+- El resumen de `Pagos` usa ocho métricas en una única grilla compacta de escritorio (`Conceptos`, códigos, coseguro, ortodoncia, placas, créditos, débitos y neto); el neto se destaca con separador izquierdo y las acciones masivas/generar siguen juntas en la fila inferior.
+
+- En `Pagos`, el campo manual `Valor obra social` de una Placa Bruxismo debe mantener un estado de texto local mientras se edita y convertir a centavos al perder foco; no normalizar ni recalcular la selección con cada tecla porque puede interrumpir el foco.
+
+- En `Placas Bruxismo`, después de la llegada no se permiten pagos parciales independientes: queda solo el pago final junto al check de entrega. El check muestra una confirmación con el historial completo; confirmarla cambia el estado a entregada y el servicio rechaza cualquier nuevo pago.
+
+- La recepcion de `Placas Bruxismo` se confirma con un check de llegada junto al costo de laboratorio; `laboratorioRecibidoAt` se registra automaticamente en servidor y no se expone como campo editable.
+
+- El selector de pacientes de `Placas Bruxismo` debe seguir el patrón de `Atenciones`: búsqueda explícita por DNI, ficha con nombre/DNI/obra social/estados y alta inline solo después de confirmar que no existe. Un paciente inactivo permanece bloqueado también si se intenta crear una placa mediante DNI inline.
+
+- En `Placas Bruxismo`, `costoLaboratorioCentavos` y `laboratorioRecibidoAt` son datos independientes: administracion debe informar ambos al recibir la placa. La entrega registra ademas la fecha indicada por odontologia junto al pago final.
+
+- En `Placas Bruxismo`, las validaciones de titularidad deben comparar el `_id` tambien cuando Mongoose devuelve el odontologo poblado; de otro modo un odontologo puede crear la placa correctamente pero recibir un falso `No tenes permisos para esta placa` al cargar su detalle.
+
+- `Tratamientos` agrupa `Ortodoncia` y `Placas Bruxismo`. Placas permite a odontólogos registrar paciente y pagos, administración recibe la placa con costo de laboratorio y, tras un pago final positivo al entregar, `Pagos` calcula `(pagos paciente + valor obra social - costo laboratorio) × porcentaje`; no se liquida si el resultado es cero o negativo.
 - En `Ortodoncia`, `valorMaterialesCentavos` debe permanecer separado de `valorTratamientoCentavos`: no se suma al presupuesto, saldo ni porcentaje de pago del paciente, pero sí define el tramo inicial de entregas que no genera honorarios.
 - En pagos de `Ortodoncia`, las entregas del paciente cubren primero `valorMaterialesCentavos`; solo el excedente acumulado de cada pago puede generar el porcentaje liquidable al ortodoncista y una entrega sin excedente no es liquidable. Los pagos ya liquidados son snapshots y no deben recalcularse.
 - En `Pagos`, una entrega de Ortodoncia pendiente con importe liquidable cero y porcentaje configurado debe mostrar que todavía está cubriendo materiales, en vez de dejar solamente un checkbox deshabilitado.

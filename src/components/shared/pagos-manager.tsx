@@ -53,10 +53,12 @@ type PaymentsPayload = {
 type SelectionState = Record<
   string,
   {
-    sourceType: "attention" | "orthodontic-payment";
+    sourceType: "attention" | "orthodontic-payment" | "bruxism-plate";
     lineId: string;
     payCode: boolean;
     payCoseguroOdonto: boolean;
+    bruxismCoverageCentavos?: number;
+    bruxismPercentageToDentist?: number;
   }
 >;
 
@@ -170,6 +172,10 @@ function renderPaymentLineItem(lineItem: PaymentLineItemDto) {
     );
   }
 
+  if (lineItem.sourceType === "bruxism-plate") {
+    return <tr key={lineItem.bruxismPlateId} className="border-t border-border"><td className="px-3 py-2">Placas Bruxismo</td><td className="px-3 py-2 whitespace-nowrap">{formatTableDate(lineItem.plateDate)}</td><td className="px-3 py-2 font-medium">{lineItem.patientName}</td><td className="px-3 py-2">{lineItem.patientDni}</td><td className="px-3 py-2">Pagos + obra social − laboratorio</td><td className="px-3 py-2 text-right">{formatCurrencyFromCents(lineItem.patientPaymentsCentavos + lineItem.coverageCentavos - lineItem.laboratoryCostCentavos)}</td><td className="px-3 py-2 text-right">{lineItem.percentageToDentist.toFixed(2)}%</td><td className="px-3 py-2 text-right font-medium">{formatCurrencyFromCents(lineItem.totalLineaCentavos)}</td></tr>;
+  }
+
   return (
     <tr
       key={`${lineItem.attentionId}-${lineItem.codigoObraSocialId}-${lineItem.pieza ?? "na"}-${lineItem.totalLineaCentavos}`}
@@ -204,6 +210,7 @@ export function PagosManager() {
   const [candidates, setCandidates] = useState<PaymentCandidateLineDto[]>([]);
   const [payments, setPayments] = useState<PaymentDto[]>([]);
   const [selection, setSelection] = useState<SelectionState>({});
+  const [bruxismCoverageInputs, setBruxismCoverageInputs] = useState<Record<string, string>>({});
   const [candidateCache, setCandidateCache] = useState<Record<string, PaymentCandidateLineDto>>(
     {},
   );
@@ -294,6 +301,8 @@ export function PagosManager() {
             payCode: line.canPayCode && Boolean(previous?.payCode),
             payCoseguroOdonto:
               line.canPayCoseguroOdonto && Boolean(previous?.payCoseguroOdonto),
+            bruxismCoverageCentavos: previous?.bruxismCoverageCentavos,
+            bruxismPercentageToDentist: previous?.bruxismPercentageToDentist,
           };
         });
 
@@ -370,11 +379,13 @@ export function PagosManager() {
     () =>
       Object.values(selection)
         .filter((line) => line.payCode || line.payCoseguroOdonto)
-        .map(({ sourceType, lineId, payCode, payCoseguroOdonto }) => ({
+        .map(({ sourceType, lineId, payCode, payCoseguroOdonto, bruxismCoverageCentavos, bruxismPercentageToDentist }) => ({
           sourceType,
           lineId,
           payCode,
           payCoseguroOdonto,
+          bruxismCoverageCentavos,
+          bruxismPercentageToDentist,
         })),
     [selection],
   );
@@ -400,6 +411,16 @@ export function PagosManager() {
           return acc;
         }
 
+        if (line.sourceType === "bruxism-plate") {
+          if (item.payCode) {
+            const base = (line.bruxismPatientPaymentsCentavos ?? 0) + (item.bruxismCoverageCentavos ?? 0) - (line.bruxismLaboratoryCostCentavos ?? 0);
+            acc.totalPlacasBruxismoCentavos += Math.max(0, Math.round(base * ((item.bruxismPercentageToDentist ?? 0) / 100)));
+            acc.quantityConceptsPaid += 1;
+          }
+          acc.totalHonorariosCentavos = acc.totalPagoCodigosCentavos + acc.totalCoseguroOdontoCentavos + acc.totalOrtodonciaCentavos + acc.totalPlacasBruxismoCentavos;
+          return acc;
+        }
+
         if (item.payCode) {
           acc.totalPagoCodigosCentavos += line.pagoOdontologoCentavos;
           acc.quantityConceptsPaid += 1;
@@ -420,7 +441,8 @@ export function PagosManager() {
       {
         totalPagoCodigosCentavos: 0,
         totalCoseguroOdontoCentavos: 0,
-        totalOrtodonciaCentavos: 0,
+          totalOrtodonciaCentavos: 0,
+        totalPlacasBruxismoCentavos: 0,
         totalHonorariosCentavos: 0,
         quantityConceptsPaid: 0,
       },
@@ -486,7 +508,11 @@ export function PagosManager() {
     checked: boolean,
   ) => {
     const canToggle =
-      key === "payCode" ? line.canPayCode : line.canPayCoseguroOdonto;
+      key === "payCode"
+        ? line.sourceType === "bruxism-plate"
+          ? true
+          : line.canPayCode
+        : line.canPayCoseguroOdonto;
 
     if (!canToggle) {
       return;
@@ -501,6 +527,21 @@ export function PagosManager() {
         [key]: checked,
       },
     }));
+  };
+
+  const updateBruxismTerms = (line: PaymentCandidateLineDto, values: Partial<SelectionState[string]>) => {
+    const selectionKey = getSelectionKey(line);
+    setSelection((current) => ({ ...current, [selectionKey]: { ...(current[selectionKey] ?? getInitialSelection(line)), ...values } }));
+  };
+
+  const commitBruxismCoverage = (line: PaymentCandidateLineDto, rawValue: string) => {
+    const amountCentavos = parseMoneyInputToCents(formatMoneyMaskedInput(rawValue)) ?? 0;
+
+    setBruxismCoverageInputs((current) => ({
+      ...current,
+      [getSelectionKey(line)]: formatCurrencyFromCents(amountCentavos),
+    }));
+    updateBruxismTerms(line, { bruxismCoverageCentavos: amountCentavos });
   };
 
   const selectAllFilteredConcepts = async (key: "payCode" | "payCoseguroOdonto") => {
@@ -739,50 +780,54 @@ export function PagosManager() {
         />
       </Card>
 
-      <Card className="space-y-3 p-3">
-        <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-7">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Conceptos</p>
-            <p className="mt-1 text-lg font-semibold">{selectedSummary.quantityConceptsPaid}</p>
+      <Card className="p-3">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-8">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Conceptos</p>
+            <p className="mt-0.5 text-base font-semibold">{selectedSummary.quantityConceptsPaid}</p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Codigos</p>
-            <p className="mt-1 text-lg font-semibold">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Códigos</p>
+            <p className="mt-0.5 text-base font-semibold">
               {formatCurrencyFromCents(selectedSummary.totalPagoCodigosCentavos)}
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Coseguro odonto</p>
-            <p className="mt-1 text-lg font-semibold">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Coseg. odonto</p>
+            <p className="mt-0.5 text-base font-semibold">
               {formatCurrencyFromCents(selectedSummary.totalCoseguroOdontoCentavos)}
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
-            <p className="mt-1 text-lg font-semibold">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Ortodoncia</p>
+            <p className="mt-0.5 text-base font-semibold">
               {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Creditos</p>
-            <p className="mt-1 text-lg font-semibold text-emerald-700">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Placas</p>
+            <p className="mt-0.5 text-base font-semibold">{formatCurrencyFromCents(selectedSummary.totalPlacasBruxismoCentavos)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Créditos</p>
+            <p className="mt-0.5 text-base font-semibold text-emerald-700">
               + {formatCurrencyFromCents(debitSummary.totalCreditosCentavos)}
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Debitos</p>
-            <p className="mt-1 text-lg font-semibold">
+          <div className="min-w-0">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Débitos</p>
+            <p className="mt-0.5 text-base font-semibold">
               {formatCurrencyFromCents(debitSummary.totalDebitosCentavos)}
             </p>
           </div>
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total neto a pagar</p>
-            <p className="mt-1 text-lg font-semibold">
+          <div className="min-w-0 border-l border-border pl-3">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Neto a pagar</p>
+            <p className="mt-0.5 whitespace-nowrap text-base font-semibold">
               {formatCurrencyFromCents(debitSummary.totalNetoPagarCentavos)}
             </p>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="mt-3 overflow-x-auto border-t border-border pt-3">
           <div className="flex w-full min-w-max items-center justify-end gap-2">
             <Button
               type="button"
@@ -1005,7 +1050,12 @@ export function PagosManager() {
                   const selectionKey = getSelectionKey(line);
                   const currentSelection =
                     selection[selectionKey] ?? getInitialSelection(line);
-                  const canToggleCode = line.canPayCode;
+                  const bruxismBase = line.sourceType === "bruxism-plate"
+                    ? (line.bruxismPatientPaymentsCentavos ?? 0) + (currentSelection.bruxismCoverageCentavos ?? 0) - (line.bruxismLaboratoryCostCentavos ?? 0)
+                    : 0;
+                  const canToggleCode = line.sourceType === "bruxism-plate"
+                    ? bruxismBase > 0 && (currentSelection.bruxismPercentageToDentist ?? 0) > 0
+                    : line.canPayCode;
                   const canToggleCoseguro = line.canPayCoseguroOdonto;
                   const materialsStillPending =
                     line.sourceType === "orthodontic-payment" &&
@@ -1031,7 +1081,7 @@ export function PagosManager() {
                       <td className="px-3 py-2">
                         {line.sourceType === "orthodontic-payment" ? "-" : line.obraSocialNombre}
                       </td>
-                      <td className="px-3 py-2">{renderCandidateDescription(line)}</td>
+                      <td className="px-3 py-2">{renderCandidateDescription(line)}{line.sourceType === "bruxism-plate" ? <div className="mt-2 grid gap-2 sm:grid-cols-2"><Input value={bruxismCoverageInputs[selectionKey] ?? (currentSelection.bruxismCoverageCentavos !== undefined ? formatCurrencyFromCents(currentSelection.bruxismCoverageCentavos) : "")} onChange={(event) => setBruxismCoverageInputs((current) => ({ ...current, [selectionKey]: event.target.value }))} onBlur={(event) => commitBruxismCoverage(line, event.target.value)} placeholder="Valor obra social" /><Input type="number" min="0" max="100" step="0.01" value={currentSelection.bruxismPercentageToDentist ?? ""} onChange={(event) => updateBruxismTerms(line, { bruxismPercentageToDentist: Number(event.target.value) })} placeholder="% odontólogo" /><p className="sm:col-span-2 text-xs font-medium">Base: {formatCurrencyFromCents(bruxismBase)} · Honorario: {formatCurrencyFromCents(Math.max(0, Math.round(bruxismBase * ((currentSelection.bruxismPercentageToDentist ?? 0) / 100))))}</p></div> : null}</td>
                       <td className="px-3 py-2">
                         {line.sourceType === "orthodontic-payment"
                           ? "Pago ortodoncia"
@@ -1247,6 +1297,12 @@ export function PagosManager() {
               <span>Total ortodoncia</span>
               <span className="font-medium tabular-nums">
                 {formatCurrencyFromCents(selectedSummary.totalOrtodonciaCentavos)}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2">
+              <span>Total placas Bruxismo</span>
+              <span className="font-medium tabular-nums">
+                {formatCurrencyFromCents(selectedSummary.totalPlacasBruxismoCentavos)}
               </span>
             </div>
             <div className="flex items-center justify-between gap-4 py-2 text-emerald-700">

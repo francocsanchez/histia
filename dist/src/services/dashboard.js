@@ -11,6 +11,7 @@ const attention_1 = require("@/models/attention");
 const movement_1 = require("@/models/movement");
 const paciente_1 = require("@/models/paciente");
 const payment_1 = require("@/models/payment");
+const bruxism_plate_1 = require("@/models/bruxism-plate");
 const user_1 = require("@/models/user");
 const atenciones_1 = require("@/services/atenciones");
 const domain_1 = require("@/types/domain");
@@ -136,7 +137,7 @@ async function getDashboardMonthlyStats(params) {
         },
     };
     const yearRange = parseYear(String(month.year));
-    const [dailyRows, statusRows, totalRows, annualHonorariumRows, annualPaymentRows] = await Promise.all([
+    const [dailyRows, statusRows, totalRows, annualHonorariumRows, annualPaymentRows, pendingPlates] = await Promise.all([
         attention_1.AttentionModel.aggregate([
             { $match: match },
             {
@@ -337,6 +338,7 @@ async function getDashboardMonthlyStats(params) {
                 },
             },
         ]),
+        bruxism_plate_1.BruxismPlateModel.countDocuments({ odontologoId: new mongoose_1.Types.ObjectId(selectedUser.id), estado: "lista-entrega" }),
     ]);
     const dailyMap = new Map(dailyRows.map((row) => [row._id, row.total]));
     const statusMap = new Map(statusRows.map((row) => [row._id, row.total]));
@@ -407,6 +409,7 @@ async function getDashboardMonthlyStats(params) {
         totals: {
             atenciones: totals.atenciones,
             codigos: totals.codigos,
+            placasPendientesEntrega: pendingPlates,
         },
     };
 }

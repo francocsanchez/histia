@@ -164,6 +164,7 @@ async function createPaymentMovement(input) {
         totalPagoCodigosCentavos: input.totalPagoCodigosCentavos,
         totalCoseguroOdontoCentavos: input.totalCoseguroOdontoCentavos,
         totalOrtodonciaCentavos: input.totalOrtodonciaCentavos,
+        totalPlacasBruxismoCentavos: input.totalPlacasBruxismoCentavos ?? 0,
         totalHonorariosCentavos: input.totalHonorariosCentavos,
         totalCreditosCentavos: input.totalCreditosCentavos,
         totalDebitosCentavos: input.totalDebitosCentavos,

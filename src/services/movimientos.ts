@@ -65,6 +65,7 @@ type PaymentMovementInput = {
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
+  totalPlacasBruxismoCentavos?: number;
   totalHonorariosCentavos: number;
   totalCreditosCentavos: number;
   totalDebitosCentavos: number;
@@ -258,6 +259,7 @@ export async function createPaymentMovement(input: PaymentMovementInput) {
     totalPagoCodigosCentavos: input.totalPagoCodigosCentavos,
     totalCoseguroOdontoCentavos: input.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: input.totalOrtodonciaCentavos,
+    totalPlacasBruxismoCentavos: input.totalPlacasBruxismoCentavos ?? 0,
     totalHonorariosCentavos: input.totalHonorariosCentavos,
     totalCreditosCentavos: input.totalCreditosCentavos,
     totalDebitosCentavos: input.totalDebitosCentavos,

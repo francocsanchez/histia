@@ -1,10 +1,13 @@
 import { PipelineStage, Types } from "mongoose";
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { AppError } from "@/lib/api";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { normalizeWhitespace } from "@/lib/utils";
 import { AttentionModel } from "@/models/attention";
 import { OrthodonticTreatmentModel } from "@/models/orthodontic-treatment";
+import { BruxismPlateModel } from "@/models/bruxism-plate";
+import { calculateBruxismPlateHonorarium } from "@/services/placas-bruxismo";
 import { PaymentModel } from "@/models/payment";
 import { UserModel } from "@/models/user";
 import {
@@ -154,6 +157,17 @@ function toAttentionCandidateDto(
   };
 }
 
+async function getBruxismPlateCandidates(query: PaymentCandidateQuery): Promise<PaymentCandidateLineDto[]> {
+  const match: Record<string, unknown> = { estado: "entregada" };
+  if (query.userId) match.odontologoId = new Types.ObjectId(query.userId);
+  const plates = await BruxismPlateModel.find(match).populate("pacienteId", "nombre apellido dni").populate("odontologoId", "name apellido").lean();
+  return plates.map((plate: any) => {
+    const patient = plate.pacienteId; const dentist = plate.odontologoId;
+    const patientPayments = plate.payments.reduce((sum: number, payment: any) => sum + payment.montoCentavos, 0);
+    return { sourceType: "bruxism-plate", sourceLabel: "Placas Bruxismo", attentionId: String(plate._id), attentionFecha: plate.fecha.toISOString(), attentionMonth: getMonthKey(plate.fecha), userId: String(dentist._id), userName: normalizeWhitespace(`${dentist.apellido ?? ""}, ${dentist.name}`), pacienteId: String(patient._id), pacienteNombreCompleto: `${patient.apellido}, ${patient.nombre}`, pacienteDni: patient.dni, obraSocialId: "", obraSocialNombre: "-", lineId: String(plate._id), codigoObraSocialId: "", codigo: "PLACA", codigoNombre: "Placa de bruxismo entregada", pieza: null, estado: "ok", pagoOdontologoCentavos: 0, coseguroOdontoCentavos: null, codePaymentStatus: "pendiente", coseguroOdontoPaymentStatus: "pendiente", canPayCode: true, canPayCoseguroOdonto: false, orthodonticTreatmentId: null, orthodonticTreatmentType: null, orthodonticPaymentId: null, orthodonticPaymentDate: null, orthodonticPaymentAmountCentavos: null, orthodonticPaymentEligibleAmountCentavos: null, orthodonticPaymentPercentage: null, bruxismPlateId: String(plate._id), bruxismPatientPaymentsCentavos: patientPayments, bruxismLaboratoryCostCentavos: plate.costoLaboratorioCentavos, bruxismCoverageCentavos: null, bruxismPercentageToDentist: null } satisfies PaymentCandidateLineDto;
+  });
+}
+
 export function toPaymentDto(payment: {
   _id: unknown;
   usuarioId: unknown;
@@ -165,6 +179,7 @@ export function toPaymentDto(payment: {
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
+  totalPlacasBruxismoCentavos?: number;
   totalHonorariosCentavos: number;
   totalCreditosCentavos: number;
   totalDebitosCentavos: number;
@@ -190,6 +205,7 @@ export function toPaymentDto(payment: {
     totalPagoCodigosCentavos: payment.totalPagoCodigosCentavos,
     totalCoseguroOdontoCentavos: payment.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos,
+    totalPlacasBruxismoCentavos: payment.totalPlacasBruxismoCentavos ?? 0,
     totalHonorariosCentavos: payment.totalHonorariosCentavos,
     totalCreditosCentavos: payment.totalCreditosCentavos,
     totalDebitosCentavos: payment.totalDebitosCentavos,
@@ -544,12 +560,13 @@ async function getOrthodonticCandidates(
 async function getAllCandidates(
   query: PaymentCandidateQuery,
 ): Promise<PaymentCandidateLineDto[]> {
-  const [attentionCandidates, orthodonticCandidates] = await Promise.all([
+  const [attentionCandidates, orthodonticCandidates, bruxismCandidates] = await Promise.all([
     getAttentionCandidates(query),
     getOrthodonticCandidates(query),
+    getBruxismPlateCandidates(query),
   ]);
 
-  return [...attentionCandidates, ...orthodonticCandidates].sort((left, right) => {
+  return [...attentionCandidates, ...orthodonticCandidates, ...bruxismCandidates].sort((left, right) => {
     const rightDate =
       right.sourceType === "orthodontic-payment"
         ? right.orthodonticPaymentDate ?? right.attentionFecha
@@ -622,6 +639,7 @@ function buildPaymentSummary(
   let totalPagoCodigosCentavos = 0;
   let totalCoseguroOdontoCentavos = 0;
   let totalOrtodonciaCentavos = 0;
+  let totalPlacasBruxismoCentavos = 0;
   let quantityConceptsPaid = 0;
   const totalDebitosCentavos = debitItems.reduce(
     (total, item) => total + item.montoCentavos,
@@ -646,6 +664,16 @@ function buildPaymentSummary(
       }
       return;
     }
+    if (candidate.sourceType === "bruxism-plate") {
+      if (selection.payCode) {
+        const coverage = selection.bruxismCoverageCentavos ?? 0;
+        const percentage = selection.bruxismPercentageToDentist ?? 0;
+        const calculation = calculateBruxismPlateHonorarium({ patientPaymentsCentavos: candidate.bruxismPatientPaymentsCentavos ?? 0, coverageCentavos: coverage, laboratoryCostCentavos: candidate.bruxismLaboratoryCostCentavos ?? 0, percentageToDentist: percentage });
+        if (calculation.dentistAmountCentavos <= 0) throw new AppError("VALIDATION_ERROR", "La placa no genera honorarios positivos", 400);
+        totalPlacasBruxismoCentavos += calculation.dentistAmountCentavos; quantityConceptsPaid += 1;
+      }
+      return;
+    }
 
     if (selection.payCode) {
       totalPagoCodigosCentavos += candidate.pagoOdontologoCentavos;
@@ -665,16 +693,19 @@ function buildPaymentSummary(
     totalPagoCodigosCentavos,
     totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos,
+    totalPlacasBruxismoCentavos,
     totalHonorariosCentavos:
       totalPagoCodigosCentavos +
       totalCoseguroOdontoCentavos +
-      totalOrtodonciaCentavos,
+      totalOrtodonciaCentavos +
+      totalPlacasBruxismoCentavos,
     totalCreditosCentavos,
     totalDebitosCentavos,
     totalNetoPagarCentavos:
       totalPagoCodigosCentavos +
       totalCoseguroOdontoCentavos +
       totalOrtodonciaCentavos +
+      totalPlacasBruxismoCentavos +
       totalCreditosCentavos -
       totalDebitosCentavos,
     quantityConceptsPaid,
@@ -698,6 +729,9 @@ function mapPersistedLineItem(lineItem: Record<string, unknown>): PaymentLineIte
       orthodontistAmountCentavos: Number(lineItem.orthodontistAmountCentavos ?? 0),
       totalLineaCentavos: Number(lineItem.totalLineaCentavos ?? 0),
     };
+  }
+  if (lineItem.sourceType === "bruxism-plate") {
+    return { sourceType: "bruxism-plate", bruxismPlateId: String(lineItem.bruxismPlateId), plateDate: new Date(String(lineItem.plateDate)).toISOString(), patientId: String(lineItem.patientId), patientName: String(lineItem.patientName), patientDni: String(lineItem.patientDni), patientPaymentsCentavos: Number(lineItem.patientPaymentsCentavos ?? 0), coverageCentavos: Number(lineItem.coverageCentavos ?? 0), laboratoryCostCentavos: Number(lineItem.laboratoryCostCentavos ?? 0), percentageToDentist: Number(lineItem.percentageToDentist ?? 0), dentistAmountCentavos: Number(lineItem.dentistAmountCentavos ?? 0), totalLineaCentavos: Number(lineItem.totalLineaCentavos ?? 0) };
   }
 
   return {
@@ -868,6 +902,7 @@ export async function getPaymentById(paymentId: string) {
       mapPersistedLineItem(lineItem as Record<string, unknown>),
     ),
     totalOrtodonciaCentavos: payment.totalOrtodonciaCentavos ?? 0,
+    totalPlacasBruxismoCentavos: payment.totalPlacasBruxismoCentavos ?? 0,
     totalCreditosCentavos: payment.totalCreditosCentavos ?? 0,
     totalDebitosCentavos: payment.totalDebitosCentavos ?? 0,
     totalNetoPagarCentavos:
@@ -928,6 +963,14 @@ async function rollbackPaymentOperation(
         );
       }
 
+      continue;
+    }
+
+    if (selection.sourceType === "bruxism-plate") {
+      await BruxismPlateModel.updateOne(
+        { _id: lineId, paymentId },
+        { $set: { estado: "entregada", paymentId: null, liquidadaAt: null } },
+      );
       continue;
     }
 
@@ -1105,6 +1148,12 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
         totalLineaCentavos: candidate.pagoOdontologoCentavos,
       } satisfies OrthodonticPaymentLineItemDto;
     }
+    if (candidate.sourceType === "bruxism-plate") {
+      const coverage = selection.bruxismCoverageCentavos ?? 0;
+      const percentage = selection.bruxismPercentageToDentist ?? 0;
+      const dentistAmount = calculateBruxismPlateHonorarium({ patientPaymentsCentavos: candidate.bruxismPatientPaymentsCentavos ?? 0, coverageCentavos: coverage, laboratoryCostCentavos: candidate.bruxismLaboratoryCostCentavos ?? 0, percentageToDentist: percentage }).dentistAmountCentavos;
+      return { sourceType: "bruxism-plate", bruxismPlateId: candidate.bruxismPlateId!, plateDate: candidate.attentionFecha, patientId: candidate.pacienteId, patientName: candidate.pacienteNombreCompleto, patientDni: candidate.pacienteDni, patientPaymentsCentavos: candidate.bruxismPatientPaymentsCentavos ?? 0, coverageCentavos: coverage, laboratoryCostCentavos: candidate.bruxismLaboratoryCostCentavos ?? 0, percentageToDentist: percentage, dentistAmountCentavos: dentistAmount, totalLineaCentavos: dentistAmount };
+    }
 
     const totalLineaCentavos =
       (selection.payCode ? candidate.pagoOdontologoCentavos : 0) +
@@ -1144,6 +1193,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
     totalPagoCodigosCentavos: summary.totalPagoCodigosCentavos,
     totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
     totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,
+    totalPlacasBruxismoCentavos: summary.totalPlacasBruxismoCentavos ?? 0,
     totalHonorariosCentavos: summary.totalHonorariosCentavos,
     totalCreditosCentavos: summary.totalCreditosCentavos,
     totalDebitosCentavos: summary.totalDebitosCentavos,
@@ -1203,6 +1253,11 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
         continue;
       }
 
+      if (selection.sourceType === "bruxism-plate") {
+        await BruxismPlateModel.updateOne({ _id: new Types.ObjectId(candidate.bruxismPlateId!), estado: "entregada" }, { $set: { estado: "liquidada", paymentId, liquidadaAt: paidAt } });
+        continue;
+      }
+
       await OrthodonticTreatmentModel.updateOne(
         {
           _id: new Types.ObjectId(candidate.orthodonticTreatmentId!),
@@ -1231,6 +1286,7 @@ export async function createPayment(input: PaymentCreateInput, currentUserId: st
       totalPagoCodigosCentavos: summary.totalPagoCodigosCentavos,
       totalCoseguroOdontoCentavos: summary.totalCoseguroOdontoCentavos,
       totalOrtodonciaCentavos: summary.totalOrtodonciaCentavos,
+      totalPlacasBruxismoCentavos: summary.totalPlacasBruxismoCentavos ?? 0,
       totalHonorariosCentavos: summary.totalHonorariosCentavos,
       totalCreditosCentavos: summary.totalCreditosCentavos,
       totalDebitosCentavos: summary.totalDebitosCentavos,

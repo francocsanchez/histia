@@ -10,6 +10,7 @@ function buildRendition(payment) {
     const codigosPagados = attentionLines.filter((line) => line.includesCodePayment && line.estadoAtencionSnapshot === "ok");
     const cosegurosPagados = attentionLines.filter((line) => line.includesCoseguroOdontoPayment);
     const ortodonciaPagada = payment.lineItems.filter((line) => line.sourceType === "orthodontic-payment");
+    const placasBruxismoPagadas = payment.lineItems.filter((line) => line.sourceType === "bruxism-plate");
     const pacientesPorObraSocial = new Map();
     const atenciones = new Map();
     attentionLines.forEach((line) => {
@@ -41,6 +42,7 @@ function buildRendition(payment) {
         codigosPagados,
         cosegurosPagados,
         ortodonciaPagada,
+        placasBruxismoPagadas,
     };
 }
 async function getRenditionForUser(paymentId, currentUser) {

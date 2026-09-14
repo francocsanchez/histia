@@ -1,7 +1,27 @@
 # Changelog
 
+- Corregida la recarga del modelo `Payment` en desarrollo: al incorporar líneas de Placas Bruxismo, Mongoose ahora reemplaza el esquema cacheado para evitar errores de validación al generar el pago.
+
+- La confirmación de liquidación en Pagos ahora desglosa el total correspondiente a Placas Bruxismo antes de generar el pago.
+
+- Reordenado el resumen de Pagos: las ocho métricas quedan en una grilla compacta de una fila en escritorio, con el neto destacado y las acciones alineadas debajo sin espacio vertical sobrante.
+
+- Corregida la carga de `Valor obra social` para Placas Bruxismo en Pagos: el campo conserva el foco y el texto durante la escritura, y normaliza el importe al salir del control.
+
+- Tras la llegada de una Placa Bruxismo queda un único pago final asociado a la entrega. La entrega usa un check que abre una confirmación con todos los pagos y bloquea definitivamente nuevos pagos al confirmarse.
+
+- Simplificada la recepcion de Placas Bruxismo: el costo de laboratorio se confirma con un único check de llegada; la fecha queda registrada automaticamente y no se solicita como dato manual.
+
+- El alta de Placas Bruxismo ahora reutiliza el flujo de búsqueda de pacientes de Atenciones: búsqueda explícita por DNI, ficha de paciente encontrado con obra social y estados, y alta inline solo si el DNI no existe.
+
+- `Inicio` compacta sus cinco metricas principales en una sola fila en escritorio. En Placas Bruxismo, la recepcion de laboratorio ahora registra por separado costo y fecha de llegada; la entrega exige su propia fecha junto con el pago final.
+
+- Corregida la validacion de titularidad de Placas Bruxismo: al crear o abrir una placa con sesion de odontologo ya no se rechaza erróneamente el registro cuando el odontologo viene poblado desde MongoDB.
+
 ## Unreleased
 
+- Se incorpora `Placas Bruxismo`: odontólogos registran la placa y los pagos del paciente; administración registra llegada y costo de laboratorio; la entrega exige un pago final y el honorario se liquida desde `Pagos` con valor de obra social y porcentaje, solo si el resultado es positivo.
+- La navegación agrupa `Ortodoncia` y `Placas Bruxismo` dentro de `Tratamientos`, y `/inicio` muestra las placas llegadas pendientes de entrega.
 - En `Ortodoncia`, el valor de materiales queda separado del valor del tratamiento: ya no incrementa el presupuesto, saldo ni porcentaje de pago del paciente.
 - Los pagos parciales de `Ortodoncia` ahora absorben primero el costo de materiales; solo el excedente de cada entrega genera el honorario porcentual liquidable al ortodoncista y las entregas sin excedente no se pueden liquidar.
 - En `Pagos`, las entregas de Ortodoncia sin honorarios ahora indican que todavía cubren materiales, tanto en el concepto como en la columna de pago bloqueada.

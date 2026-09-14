@@ -25,7 +25,6 @@ const primaryLinks = [
   { href: "/dashboard", label: "Dashboard", resource: "admin-dashboard" as const },
   { href: "/inicio", label: "Inicio", resource: "dashboard" as const },
   { href: "/atenciones", label: "Atenciones", resource: "atenciones" as const },
-  { href: "/ortodoncia", label: "Ortodoncia", resource: "ortodoncia" as const },
   { href: "/rx", label: "RX", resource: "rx" as const },
   { href: "/encuestas", label: "Encuestas", resource: "encuestas" as const },
   { href: "/pacientes", label: "Pacientes", resource: "pacientes" as const },
@@ -58,6 +57,11 @@ const settingsLinks = [
     resource: "automatizaciones" as const,
   },
   { href: "/usuarios", label: "Usuarios", resource: "usuarios" as const },
+];
+
+const treatmentLinks = [
+  { href: "/ortodoncia", label: "Ortodoncia", resource: "ortodoncia" as const },
+  { href: "/placas-bruxismo", label: "Placas Bruxismo", resource: "placas-bruxismo" as const },
 ];
 
 const financeLinks = [
@@ -141,7 +145,7 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [openMenu, setOpenMenu] = useState<"settings" | "finance" | "account" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"settings" | "treatments" | "finance" | "account" | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const navRef = useRef<HTMLElement | null>(null);
   const passwordForm = useForm<PasswordChangeValues>({
@@ -157,6 +161,7 @@ export function AppShell({
   const visibleSettingsLinks = settingsLinks.filter((link) =>
     can(user, link.resource, "read"),
   );
+  const visibleTreatmentLinks = treatmentLinks.filter((link) => can(user, link.resource, "read"));
   const visibleFinanceLinks = financeLinks.filter((link) =>
     can(user, link.resource, "read"),
   );
@@ -247,6 +252,10 @@ export function AppShell({
                 }
                 onNavigate={() => setOpenMenu(null)}
               />
+            ) : null}
+
+            {visibleTreatmentLinks.length > 0 ? (
+              <NavDropdown label="Tratamientos" links={visibleTreatmentLinks} pathname={pathname} open={openMenu === "treatments"} onToggle={() => setOpenMenu((current) => current === "treatments" ? null : "treatments")} onNavigate={() => setOpenMenu(null)} />
             ) : null}
 
             {visibleFinanceLinks.length > 0 ? (

@@ -217,10 +217,12 @@ export const attentionSchema = z
 
 export const paymentCandidateSelectionSchema = z
   .object({
-    sourceType: z.enum(["attention", "orthodontic-payment"]),
+    sourceType: z.enum(["attention", "orthodontic-payment", "bruxism-plate"]),
     lineId: z.string().min(1, "La linea es obligatoria"),
     payCode: z.boolean(),
     payCoseguroOdonto: z.boolean(),
+    bruxismCoverageCentavos: z.coerce.number().int().min(0).optional(),
+    bruxismPercentageToDentist: z.coerce.number().min(0).max(100).optional(),
   })
   .superRefine((value, ctx) => {
     if (!value.payCode && !value.payCoseguroOdonto) {
@@ -299,6 +301,29 @@ export const orthodonticPaymentSchema = z.object({
     .coerce.number()
     .min(0, "El porcentaje debe ser igual o mayor que cero")
     .max(100, "El porcentaje debe ser igual o menor que 100"),
+});
+
+const platePatientSchema = z.object({
+  nombre: z.string().min(1, "El nombre es obligatorio"),
+  apellido: z.string().min(1, "El apellido es obligatorio"),
+  dni: z.string().min(1, "El DNI es obligatorio"),
+  obraSocialId: z.string().optional().nullable(),
+});
+
+export const bruxismPlateCreateSchema = z.object({
+  fecha: z.string().min(1, "La fecha es obligatoria"),
+  pacienteId: z.string().optional().nullable(),
+  paciente: platePatientSchema.optional(),
+  montoCentavos: z.coerce.number().int().min(1, "El primer pago debe ser mayor que cero"),
+}).refine((value) => Boolean(value.pacienteId || value.paciente), { path: ["pacienteId"], message: "Debes seleccionar un paciente" });
+
+export const bruxismPlatePaymentSchema = z.object({
+  fecha: z.string().min(1, "La fecha es obligatoria"),
+  montoCentavos: z.coerce.number().int().min(1, "El pago debe ser mayor que cero"),
+});
+
+export const bruxismPlateReceiveSchema = z.object({
+  costoLaboratorioCentavos: z.coerce.number().int().min(0, "El costo debe ser igual o mayor que cero"),
 });
 
 export const paymentStatusSchema = z.enum(paymentStatusValues);

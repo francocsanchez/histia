@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Model, Schema, Types, model, models } from "mongoose";
 
 import {
@@ -44,9 +45,24 @@ export interface OrthodonticPaymentLineItemDocument {
   totalLineaCentavos: number;
 }
 
+export interface BruxismPlatePaymentLineItemDocument {
+  sourceType: "bruxism-plate";
+  bruxismPlateId: Types.ObjectId;
+  plateDate: Date;
+  patientId: Types.ObjectId;
+  patientName: string;
+  patientDni: string;
+  patientPaymentsCentavos: number;
+  coverageCentavos: number;
+  laboratoryCostCentavos: number;
+  percentageToDentist: number;
+  dentistAmountCentavos: number;
+  totalLineaCentavos: number;
+}
 export type PaymentLineItemDocument =
   | AttentionPaymentLineItemDocument
-  | OrthodonticPaymentLineItemDocument;
+  | OrthodonticPaymentLineItemDocument
+  | BruxismPlatePaymentLineItemDocument;
 
 export type PaymentDebitItemDocument = PaymentDebitItemDto;
 export type PaymentCreditItemDocument = PaymentCreditItemDto;
@@ -59,10 +75,11 @@ export interface PaymentDocument {
   attentionMonths: string[];
   paidAt: Date;
   createdByUserId: Types.ObjectId;
-  lineItems: PaymentLineItemDocument[];
+  lineItems: any[];
   totalPagoCodigosCentavos: number;
   totalCoseguroOdontoCentavos: number;
   totalOrtodonciaCentavos: number;
+  totalPlacasBruxismoCentavos: number;
   totalHonorariosCentavos: number;
   totalCreditosCentavos: number;
   totalDebitosCentavos: number;
@@ -78,7 +95,7 @@ const paymentLineItemSchema = new Schema(
   {
     sourceType: {
       type: String,
-      enum: ["attention", "orthodontic-payment"],
+      enum: ["attention", "orthodontic-payment", "bruxism-plate"],
       required: true,
     },
     attentionId: {
@@ -201,6 +218,11 @@ const paymentLineItemSchema = new Schema(
       default: null,
       min: 0,
     },
+    bruxismPlateId: { type: Schema.Types.ObjectId, ref: "BruxismPlate", default: null },
+    plateDate: { type: Date, default: null },
+    coverageCentavos: { type: Number, default: null, min: 0 },
+    laboratoryCostCentavos: { type: Number, default: null, min: 0 },
+    dentistAmountCentavos: { type: Number, default: null, min: 0 },
     totalLineaCentavos: {
       type: Number,
       required: true,
@@ -262,7 +284,7 @@ const paymentSchema = new Schema<PaymentDocument>(
       required: true,
     },
     lineItems: {
-      type: [paymentLineItemSchema],
+      type: [Schema.Types.Mixed] as any,
       default: [],
     },
     totalPagoCodigosCentavos: {
@@ -280,6 +302,7 @@ const paymentSchema = new Schema<PaymentDocument>(
       required: true,
       min: 0,
     },
+    totalPlacasBruxismoCentavos: { type: Number, required: true, default: 0, min: 0 },
     totalHonorariosCentavos: {
       type: Number,
       required: true,
@@ -326,6 +349,8 @@ const paymentSchema = new Schema<PaymentDocument>(
 paymentSchema.index({ usuarioId: 1, attentionMonth: 1, paidAt: -1 });
 paymentSchema.index({ usuarioId: 1, attentionMonths: 1, paidAt: -1 });
 
-export const PaymentModel =
-  (models.Payment as Model<PaymentDocument>) ||
-  model<PaymentDocument>("Payment", paymentSchema);
+if (models.Payment) {
+  delete models.Payment;
+}
+
+export const PaymentModel = model<PaymentDocument>("Payment", paymentSchema);

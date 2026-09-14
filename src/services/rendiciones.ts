@@ -19,6 +19,9 @@ export function buildRendition(payment: PaymentDto): RenditionDto {
   const ortodonciaPagada = payment.lineItems.filter(
     (line) => line.sourceType === "orthodontic-payment",
   );
+  const placasBruxismoPagadas = payment.lineItems.filter(
+    (line) => line.sourceType === "bruxism-plate",
+  );
 
   const pacientesPorObraSocial = new Map<string, Set<string>>();
   const atenciones = new Map<string, string>();
@@ -54,6 +57,7 @@ export function buildRendition(payment: PaymentDto): RenditionDto {
     codigosPagados,
     cosegurosPagados,
     ortodonciaPagada,
+    placasBruxismoPagadas,
   };
 }
 

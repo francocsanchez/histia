@@ -311,21 +311,24 @@ export function DashboardStats() {
 
       {error ? <ErrorState label={error} retry={() => void load()} /> : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <div className="xl:col-span-1">
-          <StatCard label="Atenciones del mes" value={data.totals.atenciones} />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div>
+          <StatCard compact label="Atenciones del mes" value={data.totals.atenciones} />
         </div>
-        <div className="xl:col-span-1">
-          <StatCard label="Prestaciones del mes" value={data.totals.codigos} />
+        <div>
+          <StatCard compact label="Prestaciones del mes" value={data.totals.codigos} />
         </div>
-        <div className="xl:col-span-2">
-          <StatCard
+        <div>
+          <StatCard compact label="Placas pendientes de entrega" value={data.totals.placasPendientesEntrega ?? 0} />
+        </div>
+        <div>
+          <StatCard compact
             label="Honorarios pendientes del año"
             value={formatCurrencyFromCents(annualPendingAttentionCodesCentavos)}
           />
         </div>
-        <div className="xl:col-span-2">
-          <StatCard
+        <div>
+          <StatCard compact
             label="Honorarios pagados del año"
             value={formatCurrencyFromCents(data.annualPaidToUserCentavos)}
           />
