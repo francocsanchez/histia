@@ -37,6 +37,7 @@ type PaymentCandidateQuery = {
   page: number;
   limit: number;
   all?: boolean;
+  paymentState?: "pending" | "paid";
   userId?: string;
   attentionMonth?: string;
   attentionStatus?: AttentionCodeStatus;
@@ -585,6 +586,21 @@ async function getAllCandidates(
   });
 }
 
+function isCandidateFullyPaid(candidate: PaymentCandidateLineDto) {
+  if (candidate.codePaymentStatus !== "pagado") {
+    return false;
+  }
+
+  if (candidate.sourceType !== "attention") {
+    return true;
+  }
+
+  return (
+    (candidate.coseguroOdontoCentavos ?? 0) <= 0 ||
+    candidate.coseguroOdontoPaymentStatus === "pagado"
+  );
+}
+
 function normalizeSelection(
   selectedItems: PaymentCandidateSelectionDto[],
 ) {
@@ -766,16 +782,24 @@ export async function listPaymentCandidates(query: PaymentCandidateQuery) {
   await connectToDatabase();
 
   const allCandidates = await getAllCandidates(query);
+  const paymentState = query.paymentState ?? "pending";
+  const filteredCandidates = allCandidates.filter((candidate) =>
+    paymentState === "paid"
+      ? isCandidateFullyPaid(candidate)
+      : !isCandidateFullyPaid(candidate),
+  );
   const skip = (query.page - 1) * query.limit;
-  const data = query.all ? allCandidates : allCandidates.slice(skip, skip + query.limit);
+  const data = query.all
+    ? filteredCandidates
+    : filteredCandidates.slice(skip, skip + query.limit);
 
   return {
     data,
     pagination: {
       page: query.page,
       limit: query.limit,
-      total: allCandidates.length,
-      totalPages: Math.max(1, Math.ceil(allCandidates.length / query.limit)),
+      total: filteredCandidates.length,
+      totalPages: Math.max(1, Math.ceil(filteredCandidates.length / query.limit)),
     },
   };
 }

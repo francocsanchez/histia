@@ -225,6 +225,9 @@ export function PagosManager() {
   const [userId, setUserId] = useState("");
   const [attentionMonth, setAttentionMonth] = useState("");
   const [attentionStatus, setAttentionStatus] = useState("");
+  const [candidatePaymentState, setCandidatePaymentState] = useState<"pending" | "paid">(
+    "pending",
+  );
   const [candidatePage, setCandidatePage] = useState(1);
   const [candidateTotalPages, setCandidateTotalPages] = useState(1);
   const [paymentPage, setPaymentPage] = useState(1);
@@ -266,6 +269,7 @@ export function PagosManager() {
       if (userId) params.set("userId", userId);
       if (attentionMonth) params.set("attentionMonth", attentionMonth);
       if (attentionStatus) params.set("attentionStatus", attentionStatus);
+      params.set("paymentState", candidatePaymentState);
       if (search) params.set("search", search);
 
       const response = await fetch(`/api/pagos/candidates?${params.toString()}`, {
@@ -373,7 +377,16 @@ export function PagosManager() {
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [lookupLoading, candidatePage, paymentPage, userId, attentionMonth, attentionStatus, search]);
+  }, [
+    lookupLoading,
+    candidatePage,
+    paymentPage,
+    userId,
+    attentionMonth,
+    attentionStatus,
+    candidatePaymentState,
+    search,
+  ]);
 
   const selectedItems = useMemo(
     () =>
@@ -558,6 +571,7 @@ export function PagosManager() {
       if (userId) params.set("userId", userId);
       if (attentionMonth) params.set("attentionMonth", attentionMonth);
       if (attentionStatus) params.set("attentionStatus", attentionStatus);
+      params.set("paymentState", candidatePaymentState);
       if (search) params.set("search", search);
 
       const response = await fetch(`/api/pagos/candidates?${params.toString()}`, {
@@ -780,6 +794,51 @@ export function PagosManager() {
         />
       </Card>
 
+      <div className="flex border-b border-border" role="tablist" aria-label="Estado de pago">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={candidatePaymentState === "pending"}
+          className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+            candidatePaymentState === "pending"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => {
+            setCandidatePage(1);
+            setSelection({});
+            setCandidateCache({});
+            setDebitItems([]);
+            setCreditItems([]);
+            setPaymentConfirmationOpen(false);
+            setCandidatePaymentState("pending");
+          }}
+        >
+          Impagos
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={candidatePaymentState === "paid"}
+          className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+            candidatePaymentState === "paid"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+          onClick={() => {
+            setCandidatePage(1);
+            setSelection({});
+            setCandidateCache({});
+            setDebitItems([]);
+            setCreditItems([]);
+            setPaymentConfirmationOpen(false);
+            setCandidatePaymentState("paid");
+          }}
+        >
+          Pagos
+        </button>
+      </div>
+
       <Card className="p-3">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-8">
           <div className="min-w-0">
@@ -829,11 +888,22 @@ export function PagosManager() {
         </div>
         <div className="mt-3 overflow-x-auto border-t border-border pt-3">
           <div className="flex w-full min-w-max items-center justify-end gap-2">
+            {candidatePaymentState === "paid" ? (
+              <p className="mr-auto text-sm text-muted-foreground">
+                Los conceptos liquidados se muestran solo para consulta.
+              </p>
+            ) : null}
             <Button
               type="button"
               variant="secondary"
               onClick={() => void selectAllFilteredConcepts("payCode")}
-              disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
+              disabled={
+                candidatePaymentState === "paid" ||
+                submitting ||
+                candidatesLoading ||
+                massSelectionLoading ||
+                candidates.length === 0
+              }
             >
               {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los conceptos"}
             </Button>
@@ -841,7 +911,13 @@ export function PagosManager() {
               type="button"
               variant="secondary"
               onClick={() => void selectAllFilteredConcepts("payCoseguroOdonto")}
-              disabled={submitting || candidatesLoading || massSelectionLoading || candidates.length === 0}
+              disabled={
+                candidatePaymentState === "paid" ||
+                submitting ||
+                candidatesLoading ||
+                massSelectionLoading ||
+                candidates.length === 0
+              }
             >
               {massSelectionLoading ? "Seleccionando..." : "Seleccionar todos los coseguros"}
             </Button>

@@ -11,6 +11,10 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
+- La grilla de conceptos de `Pagos` se organiza por pestañas: `Impagos` es la vista inicial e incluye lineas con algun componente pendiente; `Pagos` muestra solo las lineas completamente liquidadas y es de consulta. La seleccion masiva debe respetar la pestaña actual.
+
+- En produccion se corrigio una atencion historica de Santiago D'Amelio (19/09/2026) donde dos lineas de codigo compartian un mismo `_id` de subdocumento: conservar el ID de la linea ya liquidada y regenerar solamente el de la linea pendiente. Si `Pagos` muestra una linea liquidable pero la rechaza al confirmar, revisar primero IDs duplicados dentro de `atenciones.codigos`, porque el candidato puede resolver una linea distinta al revalidar.
+
 - El modelo `Payment` debe eliminar su entrada previa de `models` antes de registrarse, igual que `Movement`: durante hot reload de Next, un esquema cacheado sin la línea `bruxism-plate` puede rechazar una liquidación de Placas Bruxismo aunque el código actual la soporte.
 
 - El diálogo de confirmación de `Pagos` debe desglosar también `Total placas Bruxismo`, entre Ortodoncia y créditos, para reconciliar visualmente todos los componentes del neto a pagar.

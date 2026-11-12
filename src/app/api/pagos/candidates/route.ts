@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const userId = searchParams.get("userId") ?? undefined;
     const attentionMonth = searchParams.get("attentionMonth") ?? undefined;
     const attentionStatus = searchParams.get("attentionStatus") ?? undefined;
+    const paymentState = searchParams.get("paymentState") === "paid" ? "paid" : "pending";
     const search = searchParams.get("search") ?? undefined;
     const all = searchParams.get("all") === "1";
 
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
       page,
       limit,
       all,
+      paymentState,
       userId,
       attentionMonth,
       attentionStatus: statusFilter,
