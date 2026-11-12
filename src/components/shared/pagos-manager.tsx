@@ -729,7 +729,7 @@ export function PagosManager() {
         description="Liquida honorarios profesionales por concepto, integrando atenciones y ortodoncia."
       />
 
-      <Card className="grid gap-2 p-3 xl:grid-cols-[180px_180px_180px_1fr]">
+      <Card className="grid gap-2 p-3 xl:grid-cols-[180px_180px_180px_180px_1fr]">
         <Select
           className="h-10"
           value={userId}
@@ -783,6 +783,22 @@ export function PagosManager() {
             </option>
           ))}
         </Select>
+        <Select
+          className="h-10"
+          value={candidatePaymentState}
+          onChange={(event) => {
+            setCandidatePage(1);
+            setSelection({});
+            setCandidateCache({});
+            setDebitItems([]);
+            setCreditItems([]);
+            setPaymentConfirmationOpen(false);
+            setCandidatePaymentState(event.target.value as "pending" | "paid");
+          }}
+        >
+          <option value="pending">Impagos</option>
+          <option value="paid">Pagados</option>
+        </Select>
         <Input
           className="h-10"
           placeholder="Buscar por paciente, DNI, codigo, sistema o profesional"
@@ -793,51 +809,6 @@ export function PagosManager() {
           }}
         />
       </Card>
-
-      <div className="flex border-b border-border" role="tablist" aria-label="Estado de pago">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={candidatePaymentState === "pending"}
-          className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-            candidatePaymentState === "pending"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => {
-            setCandidatePage(1);
-            setSelection({});
-            setCandidateCache({});
-            setDebitItems([]);
-            setCreditItems([]);
-            setPaymentConfirmationOpen(false);
-            setCandidatePaymentState("pending");
-          }}
-        >
-          Impagos
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={candidatePaymentState === "paid"}
-          className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-            candidatePaymentState === "paid"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => {
-            setCandidatePage(1);
-            setSelection({});
-            setCandidateCache({});
-            setDebitItems([]);
-            setCreditItems([]);
-            setPaymentConfirmationOpen(false);
-            setCandidatePaymentState("paid");
-          }}
-        >
-          Pagos
-        </button>
-      </div>
 
       <Card className="p-3">
         <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4 xl:grid-cols-8">

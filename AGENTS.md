@@ -11,7 +11,7 @@ Tambien debes corroborar que se realize el Deploy Image sin errores ya que se va
 
 ## Contexto reciente
 
-- La grilla de conceptos de `Pagos` se organiza por pestañas: `Impagos` es la vista inicial e incluye lineas con algun componente pendiente; `Pagos` muestra solo las lineas completamente liquidadas y es de consulta. La seleccion masiva debe respetar la pestaña actual.
+- La grilla de conceptos de `Pagos` se organiza con un selector junto a profesional, mes y estado: `Impagos` es la vista inicial e incluye lineas con algun componente pendiente; `Pagados` muestra solo las lineas completamente liquidadas y es de consulta. La seleccion masiva debe respetar el filtro elegido.
 
 - En produccion se corrigio una atencion historica de Santiago D'Amelio (19/09/2026) donde dos lineas de codigo compartian un mismo `_id` de subdocumento: conservar el ID de la linea ya liquidada y regenerar solamente el de la linea pendiente. Si `Pagos` muestra una linea liquidable pero la rechaza al confirmar, revisar primero IDs duplicados dentro de `atenciones.codigos`, porque el candidato puede resolver una linea distinta al revalidar.
 

@@ -1,6 +1,6 @@
 # Changelog
 
-- En `Pagos`, la grilla de conceptos ahora abre en la pestaña `Impagos`; la pestaña `Pagos` muestra los conceptos totalmente liquidados solo para consulta. La selección masiva y la paginación respetan la pestaña activa.
+- En `Pagos`, la grilla de conceptos ahora abre con el filtro `Impagos`; el nuevo selector junto a profesional, mes y estado permite ver `Pagados` solo para consulta. La selección masiva y la paginación respetan el filtro elegido.
 
 - Corregido un registro historico de `Pagos` en produccion con dos lineas de codigo que compartian el mismo `_id`: la linea pendiente ahora tiene un identificador propio, preservando intacta la liquidacion previa de la otra linea y permitiendo generar el pago correspondiente.
 
